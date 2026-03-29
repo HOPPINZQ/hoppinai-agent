@@ -1,5 +1,6 @@
 # HoppinZQ Agent
-
+![Java](https://img.shields.io/badge/Java-JDK17+-blue?style=flat&logo=openjdk&logoColor=white)
+![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > 从零开始，一步步构建一个功能完整的 AI Agent 框架
 
 ## 项目简介
@@ -8,6 +9,39 @@ HoppinZQ Agent 是一个基于 Anthropic Claude API 构建的 AI Agent 演进式
 
 每个模块都是独立可运行的 Maven 子项目，继承自统一的父 POM，共享核心依赖。模块间通过功能递增的方式展示 Agent 架构的演进路径。
 
+> 项目是完全参考开源项目 [learn-claude-code](https://github.com/shareAI-lab/learn-claude-code)。不过这个项目是基于Python，本项目：
+> - 基于Java
+> - 提供了Anthropic API的兼容
+> - 额外添加了两个工具——list_file和search_content（基于ripgrep）
+> - 重写了子智能体SubAgent、后台任务、Skills的逻辑
+> - 添加MCP和ReAct的支持
+> - 还开发一个web端的demo
+
+## 📚 写在前面
+
+你需要知道Anthropic风格的API调用👉 [访问在线文档](https://s.apifox.cn/apidoc/docs-site/3406967/doc-3090880)
+
+没错，应用大模型的本质就是接口调用。不会？使用官方提供的anthropic JavaSDK。
+
+### 为什么选择Claude风格的API？
+
+- Claude的API风格跟OpenAI非常像，Claude系大模型同时支持FunctionCall和ToolCall
+- 目前编程领域排名第一的大模型是 Claude 系列的大模型
+
+### 关于国内替代方案
+
+不过Claude禁止国内使用了，我们有替代的国产大模型：智谱GLM-5.0
+- 其代码能力已对齐Claude系列大模型
+- 智谱API提供了Anthropic API的兼容
+- Deepseek也已支持Anthropic API的兼容
+
+### 立即体验
+
+![快来试试吧](img/20fc9fce9356bbc3e280f5abe8573e5d.png)
+
+> [🚀 速来拼好模，新用户免费2000万Tokens额度](https://www.bigmodel.cn/claude-code?ic=75JGQG0W9G)
+
+## 开始吧
 ### 核心特性
 
 - **递进式架构**：从单一工具调用到多工具协同，逐步引入新能力
