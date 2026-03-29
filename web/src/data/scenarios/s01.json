@@ -1,0 +1,51 @@
+{
+  "version": "s01",
+  "title": "Agent 循环",
+  "description": "这是一个很小的智能体，但它能干很多事",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "AI，帮我创建一个 hello.py 代码，打印 'Hello, Agent!'",
+      "annotation": "用户提问"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我将使用bash工具帮你创建这个文件.",
+      "annotation": "AI使用工具:bash"
+    },
+    {
+      "type": "tool_call",
+      "content": "echo 'print(\"Hello, Agent!\")' > hello.py",
+      "toolName": "bash",
+      "annotation": "Tool call: AI输出了bash命令"
+    },
+    {
+      "type": "tool_result",
+      "content": "",
+      "toolName": "bash",
+      "annotation": "执行bash，成功创建了hello.py并写入了内容，然后bash工具没有返回任何数据"
+    },
+    {
+      "type": "assistant_text",
+      "content": "让我来查看一下这个python代码是否正确.",
+      "annotation": "循环继续: AI决定继续看一下这个代码写的是否正确"
+    },
+    {
+      "type": "tool_call",
+      "content": "cat hello.py",
+      "toolName": "bash",
+      "annotation": "AI输出了另一个bash命令"
+    },
+    {
+      "type": "tool_result",
+      "content": "print(\"Hello, Agent!\")",
+      "toolName": "bash",
+      "annotation": "执行了bash，打印了hello.py的内容"
+    },
+    {
+      "type": "assistant_text",
+      "content": "完成了，我成功创建了hello.py代码，你可以执行 `python hello.py`来查看效果.",
+      "annotation": "stop_reason != 'tool_use' -> 循环退出，AI回复用户"
+    }
+  ]
+}

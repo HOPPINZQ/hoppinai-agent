@@ -1,0 +1,38 @@
+{
+  "version": "s10",
+  "title": "团队协议",
+  "description": "用于关闭和计划批准的请求-响应协议",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "工作完成。优雅地关闭团队。",
+      "annotation": "不能直接杀死线程 -- 需要协调关闭"
+    },
+    {
+      "type": "tool_call",
+      "content": "shutdown_request(\n  teammate: \"backend-dev\",\n  request_id: \"req_abc123\"\n)",
+      "toolName": "shutdown_teammate",
+      "annotation": "request_id关联请求和响应"
+    },
+    {
+      "type": "system_event",
+      "content": "[Shutdown FSM] req_abc123: pending\n  Lead -> backend-dev inbox:\n  { type: \"shutdown_request\", request_id: \"req_abc123\" }",
+      "annotation": "FSM跟踪状态：pending -> approved | rejected"
+    },
+    {
+      "type": "system_event",
+      "content": "[backend-dev] Received shutdown request req_abc123\n  Current task: none (idle)\n  Decision: approve\n  -> lead inbox: { type: \"shutdown_response\", request_id: \"req_abc123\", approve: true }",
+      "annotation": "团队成员根据自己的状态决定是否批准"
+    },
+    {
+      "type": "system_event",
+      "content": "[Shutdown FSM] req_abc123: approved\n  backend-dev thread stopped\n  Status: idle -> shutdown",
+      "annotation": "相同的request_id模式也适用于计划批准"
+    },
+    {
+      "type": "assistant_text",
+      "content": "backend-dev已优雅关闭。相同的request_id + FSM模式处理计划批准：团队成员提交计划，负责人使用关联的request_id批准/拒绝。",
+      "annotation": "一个模式（request_id关联），两个应用（关闭 + 计划批准）"
+    }
+  ]
+}

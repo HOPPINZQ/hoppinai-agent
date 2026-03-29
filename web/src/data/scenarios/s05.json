@@ -1,0 +1,44 @@
+{
+  "version": "s05",
+  "title": "技能",
+  "description": "Agent从SKILL.md文件加载外部知识",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "搭建一个新的Next.js项目，使用TypeScript",
+      "annotation": "任务需要框架特定的知识"
+    },
+    {
+      "type": "system_event",
+      "content": "[SkillLoader] 扫描SKILL.md文件... 已找到：nextjs.SKILL.md",
+      "annotation": "SkillLoader在循环运行之前找到匹配的技能文件"
+    },
+    {
+      "type": "system_event",
+      "content": "[技能已注入] nextjs.SKILL.md -> tool_result消息已追加",
+      "annotation": "技能内容作为tool_result注入，不会膨胀系统提示词"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我了解Next.js的设置。让我创建项目结构。",
+      "annotation": "模型现在从技能文件获得了框架特定知识"
+    },
+    {
+      "type": "tool_call",
+      "content": "npx create-next-app@latest my-app --typescript --tailwind --eslint --app --src-dir",
+      "toolName": "bash",
+      "annotation": "使用技能提供的知识获取正确的参数"
+    },
+    {
+      "type": "tool_result",
+      "content": "成功！已在 /workspace/my-app 创建 my-app",
+      "toolName": "bash",
+      "annotation": "使用正确配置创建项目"
+    },
+    {
+      "type": "assistant_text",
+      "content": "已创建Next.js项目，包含TypeScript、Tailwind CSS、ESLint、App Router和src/目录。",
+      "annotation": "技能通过tool_result注入，而非系统提示词——保持上下文精简"
+    }
+  ]
+}

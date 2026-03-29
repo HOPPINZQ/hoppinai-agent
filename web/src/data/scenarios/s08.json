@@ -1,0 +1,56 @@
+{
+  "version": "s08",
+  "title": "后台任务",
+  "description": "Agent在后台线程中执行长时间运行的任务",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "运行测试套件，在运行时修复代码规范错误",
+      "annotation": "两个可以并发运行的任务"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我将在后台启动测试并并行修复代码规范问题。",
+      "annotation": "Agent识别到并发执行的机会"
+    },
+    {
+      "type": "tool_call",
+      "content": "pytest tests/ -v --timeout=300",
+      "toolName": "background_task",
+      "annotation": "BackgroundManager为长时间运行的测试套件生成线程"
+    },
+    {
+      "type": "system_event",
+      "content": "[BackgroundManager] Thread spawned: task_001\nRunning: pytest tests/ -v --timeout=300\nStatus: in_progress",
+      "annotation": "线程独立运行 -- 主循环继续"
+    },
+    {
+      "type": "tool_result",
+      "content": "Background task started: task_001",
+      "toolName": "background_task",
+      "annotation": "控制权立即返回给Agent"
+    },
+    {
+      "type": "tool_call",
+      "content": "ruff check --fix .",
+      "toolName": "bash",
+      "annotation": "Agent在后台运行测试时处理代码规范问题"
+    },
+    {
+      "type": "tool_result",
+      "content": "Fixed 12 linting errors in 5 files",
+      "toolName": "bash",
+      "annotation": "代码规范问题与测试并发修复"
+    },
+    {
+      "type": "system_event",
+      "content": "[Notification] Background task_001 completed\nResult: 47 tests passed, 2 failed\nFailed: test_auth.py::test_token_expiry, test_api.py::test_rate_limit",
+      "annotation": "后台线程通过通知队列通知主循环"
+    },
+    {
+      "type": "assistant_text",
+      "content": "代码规范问题已修复。测试完成：47个通过，2个失败。我将修复失败的测试。",
+      "annotation": "通过线程和队列的非阻塞执行实现并行工作"
+    }
+  ]
+}

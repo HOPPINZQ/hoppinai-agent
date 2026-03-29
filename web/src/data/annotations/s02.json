@@ -1,0 +1,23 @@
+{
+  "version": "s02",
+  "decisions": [
+    {
+      "id": "four-tools-not-twenty",
+      "title": "为什么Agent的基础是四个工具",
+      "description": "四个工具分别是 bash、read_file、write_file 和 edit_file，覆盖了大约 95% 的编程任务。Bash 处理执行和任意命令；read_file 提供带行号的精确文件读取；write_file 创建或覆盖文件；edit_file 做精确的字符串替换。工具越多，模型的认知负担越重——它必须在更多选项中做选择，选错的概率也随之增加。更少的工具也意味着更少的 schema 需要维护、更少的边界情况需要处理。",
+      "alternatives": "我们可以添加专用工具（list_directory、search_files、http_request），后续版本也确实添加了。但在这个阶段，bash 已经覆盖了这些用例。从 s01 的单个工具到 s02 的四个工具，核心是给模型提供结构化的文件 I/O，因为 bash 的引号和转义经常让模型犯错。"
+    },
+    {
+      "id": "model-as-agent",
+      "title": "模型本身就是代理",
+      "description": "核心 agent 循环极其简单：不断调用 LLM，如果返回 tool_use 块就执行并回传结果，如果只返回文本就停止。没有路由器，没有决策树，没有工作流引擎。模型自己决定做什么、何时停止、如何从错误中恢复。代码只是连接模型和工具的管道。这是一种设计哲学：agent 行为从模型中涌现，而非由框架定义。",
+      "alternatives": "许多 agent 框架添加了复杂的编排层：ReAct 循环（显式解析 Thought/Action/Observation）、LangChain 风格的链、AutoGPT 风格的目标分解。这些框架假设模型需要脚手架才能作为 agent 行事。我们的方法假设模型已经知道如何作为 agent——它只需要工具来与世界交互。"
+    },
+    {
+      "id": "explicit-tool-schemas",
+      "title": "每个工具都有 JSON Schema",
+      "description": "每个工具都为输入参数定义了严格的 JSON schema。例如，edit_file 要求 old_string 和 new_string 是精确的字符串，而非正则表达式。这消除了一整类错误：模型无法传递格式错误的输入，因为 API 会在执行前校验 schema。这也使模型的意图变得明确——当它用特定字符串调用 edit_file 时，不存在关于它想修改什么的解析歧义。",
+      "alternatives": "一些 agent 系统让模型输出自由文本，然后用正则或启发式方法解析（例如从 markdown 块中提取代码）。这很脆弱——模型可能以略微不同的格式输出，破坏解析器。JSON schema 以灵活性换取可靠性。"
+    }
+  ]
+}

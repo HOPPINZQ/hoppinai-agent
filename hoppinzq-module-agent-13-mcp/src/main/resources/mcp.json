@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "论坛MCP": {
+      "command": "java",
+      "args": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-jar",
+        "D:\\mcp\\hoppinzq-module-mcp-wcbbs-stdio-1.0.1-SNAPSHOT.jar"
+      ],
+      "env": {
+        "wc_bbs_token": "wc_bbs_xxxxxxxxxxxx"
+      }
+    }
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "version": "s07",
+  "title": "任务管理",
+  "description": "Agent使用基于持久化文件的任务系统并支持依赖关系",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "构建一个包含用户认证、数据库和部署配置的REST API",
+      "annotation": "需要跟踪依赖关系的多部分任务"
+    },
+    {
+      "type": "tool_call",
+      "content": "create_task(\"Set up database schema\", deps=[])\ncreate_task(\"Implement user model\", deps=[1])\ncreate_task(\"Add auth endpoints\", deps=[2])\ncreate_task(\"Write deployment config\", deps=[3])",
+      "toolName": "task_manager",
+      "annotation": "TaskManager创建具有显式依赖关系的基于文件的任务"
+    },
+    {
+      "type": "tool_result",
+      "content": "Created 4 tasks in .tasks/\n  #1 Set up database schema [ready]\n  #2 Implement user model [blocked by #1]\n  #3 Add auth endpoints [blocked by #2]\n  #4 Write deployment config [blocked by #3]",
+      "toolName": "task_manager",
+      "annotation": "任务作为JSON文件持久化到.tasks/目录"
+    },
+    {
+      "type": "tool_call",
+      "content": "schema.sql\n---\nCREATE TABLE users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password_hash TEXT);",
+      "toolName": "write_file",
+      "annotation": "正在处理任务#1"
+    },
+    {
+      "type": "tool_result",
+      "content": "File written successfully",
+      "toolName": "write_file",
+      "annotation": "数据库模式已创建"
+    },
+    {
+      "type": "tool_call",
+      "content": "complete_task(1)",
+      "toolName": "task_manager",
+      "annotation": "完成任务#1会自动解除任务#2的阻塞"
+    },
+    {
+      "type": "tool_result",
+      "content": "Task #1 completed. Task #2 is now ready.",
+      "toolName": "task_manager",
+      "annotation": "基于文件的持久化超越了进程内存的生命周期"
+    },
+    {
+      "type": "assistant_text",
+      "content": "数据库模式已完成。开始实现用户模型。",
+      "annotation": "依赖关系图确保任务按正确顺序执行"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "version": "s06",
+  "title": "压缩",
+  "description": "Agent在token超过阈值时压缩上下文",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "分析这个项目中的所有Python文件并总结每个文件",
+      "annotation": "一个会生成大量上下文的任务"
+    },
+    {
+      "type": "tool_call",
+      "content": "find . -name '*.py' -type f",
+      "toolName": "bash",
+      "annotation": "查找所有要分析的文件"
+    },
+    {
+      "type": "tool_result",
+      "content": "./src/main.py\n./src/utils.py\n./src/models.py\n./tests/test_main.py\n... (还有28个文件)",
+      "toolName": "bash",
+      "annotation": "找到32个文件——读取所有文件将产生大量上下文"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我将系统地读取和分析每个文件。",
+      "annotation": "Agent开始逐个处理文件"
+    },
+    {
+      "type": "tool_call",
+      "content": "./src/main.py",
+      "toolName": "read_file",
+      "annotation": "正在读取第1个文件，共32个..."
+    },
+    {
+      "type": "tool_result",
+      "content": "[... 450行代码 ...]",
+      "toolName": "read_file",
+      "annotation": "大文件内容已添加到消息[]"
+    },
+    {
+      "type": "system_event",
+      "content": "[ContextManager] Token数量：148,231 / 150,000阈值\n触发3层压缩：\n  1. 删除超过1000字符的tool_result内容 -> 替换为摘要\n  2. 合并连续的助手轮次\n  3. 总结最旧的50%对话\n结果：148,231 -> 42,087 tokens",
+      "annotation": "当接近限制时自动触发压缩"
+    },
+    {
+      "type": "assistant_text",
+      "content": "使用压缩后的上下文继续分析。文件1-18已总结，正在处理剩余文件。",
+      "annotation": "遗忘旧工具结果使得无限工作成为可能——agent可以处理任意数量的文件"
+    }
+  ]
+}

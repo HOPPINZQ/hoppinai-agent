@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QClaw Chat</title>
+    <style>
+        /* CSS reset and base styles */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; height: 100vh; display: flex; background-color: #fff; color: #333; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar { width: 260px; background-color: #f9f9f9; border-right: 1px solid #eee; display: flex; flex-direction: column; padding: 16px 12px; }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding: 0 4px; }
+        .logo-area { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 18px; color: #1677ff; }
+        .logo-icon { width: 28px; height: 28px; background: #1677ff; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: bold; }
+        .header-actions { display: flex; gap: 8px; color: #666; }
+        
+        .search-bar { background: #f0f0f0; border-radius: 20px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
+        .search-bar input { border: none; background: transparent; outline: none; width: 100%; font-size: 14px; }
+        
+        .history-section { flex: 1; overflow-y: auto; }
+        .history-title { font-size: 12px; color: #999; margin-bottom: 8px; padding: 0 8px; }
+        .history-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 4px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; }
+        .history-item.active { background-color: #e6e6e6; font-weight: 500; }
+        .history-item:hover:not(.active) { background-color: #f0f0f0; }
+        
+        .sidebar-bottom { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+        .bottom-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; color: #333; }
+        .bottom-item:hover { background-color: #f0f0f0; }
+        
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; background-color: #fff; position: relative; }
+        
+        /* Top Header */
+        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid #f0f0f0; height: 60px;}
+        .tabs { display: flex; gap: 24px; }
+        .tab { font-size: 15px; cursor: pointer; color: #666; font-weight: 500; position: relative; padding-bottom: 18px; top: 9px;}
+        .tab.active { color: #333; font-weight: 600; }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background-color: #333; border-radius: 3px 3px 0 0; }
+        
+        .header-info { display: flex; align-items: center; gap: 16px; font-size: 12px; color: #666; }
+        .info-tag { display: flex; align-items: center; gap: 4px; border: 1px solid #eee; padding: 4px 8px; border-radius: 12px; cursor: pointer; }
+        .window-controls { display: flex; gap: 12px; margin-left: 16px; color: #999; }
+        
+        /* Chat Container */
+        .chat-container { flex: 1; overflow-y: auto; padding: 24px 10%; display: flex; flex-direction: column; gap: 24px; }
+        
+        /* Messages */
+        .message { display: flex; flex-direction: column; max-width: 85%; line-height: 1.6; font-size: 15px; }
+        .user-message { align-self: flex-end; background-color: #e6f4ff; border-radius: 12px 0 12px 12px; padding: 12px 16px; color: #333; }
+        .bot-message { align-self: flex-start; background-color: transparent; padding: 0; color: #333; }
+        .bot-text { margin-bottom: 12px; }
+        .bot-text ul { padding-left: 20px; margin-top: 8px; margin-bottom: 12px; }
+        .bot-text li { margin-bottom: 6px; }
+        .bot-text strong { color: #1677ff; }
+        
+        /* Input Area */
+        .input-wrapper { padding: 0 10% 20px 10%; background: #fff; }
+        .input-box { background-color: #f9f9f9; border: 1px solid #eee; border-radius: 16px; padding: 12px 16px; display: flex; flex-direction: column; position: relative; min-height: 120px; transition: border-color 0.2s; }
+        .input-box:focus-within { border-color: #ccc; background-color: #fff; }
+        .input-box textarea { border: none; background: transparent; outline: none; resize: none; width: 100%; flex: 1; font-size: 15px; font-family: inherit; line-height: 1.5; color: #333; }
+        .input-box textarea::placeholder { color: #aaa; }
+        
+        .input-actions { display: flex; justify-content: flex-end; align-items: center; margin-top: 8px; gap: 8px; }
+        .send-btn, .stop-btn { border: none; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background-color 0.2s; }
+        .send-btn { background-color: #d1d5db; color: white; }
+        .stop-btn { background-color: #ff4d4f; color: white; display: none; }
+        
+        .footer-text { text-align: center; font-size: 12px; color: #ccc; margin-top: 12px; }
+
+        /* Tools */
+        .tool-message { background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; margin: 8px 0; overflow: hidden; font-size: 14px; width: 100%; }
+        .tool-header { padding: 10px 15px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background-color: #fff; transition: background-color 0.2s; }
+        .tool-header:hover { background-color: #f8f9fa; }
+        .tool-status-icon { margin-right: 8px; }
+        .tool-title-text { font-family: monospace; font-weight: 500; color: #495057; }
+        .toggle-icon { font-size: 12px; color: #adb5bd; transition: transform 0.3s ease; }
+        .toggle-icon.open { transform: rotate(180deg); }
+        .tool-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; background-color: #f8f9fa; }
+        .tool-content.show { max-height: 1000px; border-top: 1px solid #e9ecef; }
+        .tool-section { padding: 10px 15px; border-bottom: 1px solid #e9ecef; }
+        .tool-section:last-child { border-bottom: none; }
+        .tool-section-title { font-size: 12px; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; font-weight: 600; }
+        .tool-pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 13px; color: #212529; background-color: #e9ecef; padding: 8px; border-radius: 4px; max-height: 200px; overflow-y: auto; }
+        
+        /* Thoughts */
+        .thought-container { margin: 8px 0; color: #555; font-size: 14px; }
+        .thought-header { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; color: #666; margin-bottom: 4px; user-select: none; }
+        .thought-icon { width: 16px; height: 16px; fill: currentColor; }
+        .thought-content { border-left: 2px solid #ddd; padding-left: 12px; margin-left: 7px; color: #666; line-height: 1.5; display: none; }
+        .thought-content.show { display: block; }
+
+        /* Icons */
+        svg { width: 100%; height: 100%; fill: currentColor; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-area">
+                <div class="logo-icon">Q</div>
+                QClaw
+            </div>
+            <div class="header-actions">
+                <span style="width: 18px; height: 18px;">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                </span>
+                <span style="width: 18px; height: 18px;">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                </span>
+            </div>
+        </div>
+        
+        <div class="search-bar">
+            <span style="width: 16px; height: 16px; color: #999;">
+                <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+            </span>
+            <input type="text" placeholder="搜索">
+        </div>
+        
+        <div class="history-section">
+            <div class="history-title">本月</div>
+            <div class="history-item active">客服消息，你好，你能干嘛</div>
+            <div class="history-item">如何写好一份年终总结...</div>
+            <div class="history-item">帮我翻译这段英文...</div>
+        </div>
+        
+        <div class="sidebar-bottom">
+            <div class="bottom-item">
+                <span style="width: 18px; height: 18px;"><svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm0 16c-3.86 0-7-3.14-7-7s3.14-7 7-7 7 3.14 7 7-3.14 7-7 7zm1-11h-2v3H8v2h3v3h2v-3h3v-2h-3V8z"/></svg></span>
+                灵感广场
+            </div>
+            <div class="bottom-item">
+                <span style="width: 18px; height: 18px;"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg></span>
+                定时任务
+            </div>
+            <div class="bottom-item" style="margin-top: 10px; display: flex; justify-content: space-between;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <div style="width: 24px; height: 24px; border-radius: 50%; background: #ddd; overflow: hidden;">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="avatar" style="width: 100%; height: 100%;">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; color: #666;">
+                    <span style="width: 16px; height: 16px; cursor: pointer;"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></span>
+                    <span style="width: 16px; height: 16px; cursor: pointer;"><svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="top-header">
+            <div class="tabs">
+                <div class="tab active">对话</div>
+                <div class="tab">工作室</div>
+            </div>
+            <div class="header-info">
+                <span>v0.1.16</span>
+                <span class="info-tag">
+                    <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                    龙虾管家安全沙箱 >
+                </span>
+                <span class="info-tag">
+                    <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+                    剩余Token 100%
+                </span>
+                <div class="window-controls">
+                    <span style="width: 16px; height: 16px; cursor: pointer;"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-9 14H5v-2h6v2zm8-4H5v-2h14v2zm0-4H5V6h14v2z"/></svg></span>
+                    <span style="width: 16px; height: 16px; cursor: pointer;"><svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg></span>
+                    <span style="width: 16px; height: 16px; cursor: pointer;"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div class="message user-message">
+                你好，你能干嘛
+            </div>
+            <div class="message bot-message">
+                <div class="bot-text">
+                    你好！我是你的 AI 助手，能帮你做挺多事情的：<br><br>
+                    <strong>日常助手</strong>
+                    <ul>
+                        <li>回答问题、查资料、搜索网页</li>
+                        <li>查天气、管理日程/日历</li>
+                        <li>收发邮件</li>
+                    </ul>
+                    <strong>文件 & 电脑</strong>
+                    <ul>
+                        <li>读写文件、整理桌面/文件夹</li>
+                        <li>执行命令、跑脚本</li>
+                        <li>备份文件、生成下载链接</li>
+                    </ul>
+                    <strong>内容创作</strong>
+                    <ul>
+                        <li>写文章、改稿、润色</li>
+                        <li>小红书内容分析</li>
+                        <li>AI 文本人性化改写</li>
+                    </ul>
+                    <strong>编程开发</strong>
+                    <ul>
+                        <li>写代码、调 Bug、代码审查</li>
+                        <li>启动编程 Agent 处理复杂任务</li>
+                    </ul>
+                    <strong>其他</strong>
+                    <ul>
+                        <li>新闻摘要</li>
+                        <li>文字转语音</li>
+                        <li>各种自动化任务</li>
+                    </ul>
+                    <br>有什么想做的，直接说就行 👍
+                </div>
+            </div>
+        </div>
+        
+        <div class="input-wrapper">
+            <div class="input-box">
+                <textarea id="messageInput" placeholder="你好，你能干嘛"></textarea>
+                <div class="input-actions">
+                    <button class="stop-btn" id="stopBtn" onclick="stopMessage()">
+                        <svg style="width: 14px; height: 14px;" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+                    </button>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="footer-text">内容由AI生成，请仔细甄别</div>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        let currentAbortController = null;
+
+        // Auto resize and submit handler for textarea
+        messageInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        messageInput.addEventListener('input', function() {
+            if (this.value.trim().length > 0) {
+                sendBtn.style.backgroundColor = '#1677ff'; // Active blue
+            } else {
+                sendBtn.style.backgroundColor = '#d1d5db'; // Inactive gray
+            }
+        });
+
+        function stopMessage() {
+            if (currentAbortController) {
+                currentAbortController.abort();
+                currentAbortController = null;
+            }
+        }
+
+        function appendMessage(content, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}-message`;
+            
+            if (type === 'bot') {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'bot-text';
+                if (content) {
+                    textDiv.innerHTML = content;
+                }
+                msgDiv.appendChild(textDiv);
+            } else {
+                msgDiv.innerHTML = content;
+            }
+            
+            chatContainer.appendChild(msgDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return msgDiv;
+        }
+
+        function ensureLatestTextDiv(botMsgDiv) {
+            if (!botMsgDiv.lastElementChild || !botMsgDiv.lastElementChild.classList.contains('bot-text')) {
+                const textDiv = document.createElement('div');
+                textDiv.className = 'bot-text';
+                botMsgDiv.appendChild(textDiv);
+            }
+            return botMsgDiv.lastElementChild;
+        }
+
+        function toggleToolContent(element) {
+            const content = element.nextElementSibling;
+            const icon = element.querySelector('.toggle-icon');
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                icon.classList.remove('open');
+                icon.innerHTML = '▼';
+            } else {
+                content.classList.add('show');
+                icon.classList.add('open');
+                icon.innerHTML = '▲';
+            }
+        }
+
+        function toggleThought(element) {
+            const content = element.nextElementSibling;
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+            } else {
+                content.classList.add('show');
+            }
+        }
+
+        function formatMessageContent(rawText) {
+            let resultText = rawText;
+
+            let actionIndex = resultText.indexOf('\nAction:');
+            if (actionIndex === -1 && resultText.startsWith('Action:')) {
+                actionIndex = 0;
+            }
+            if (actionIndex !== -1) {
+                resultText = resultText.substring(0, actionIndex);
+            }
+
+            let thoughtIndex = resultText.indexOf('\nThought:');
+            if (thoughtIndex === -1 && resultText.startsWith('Thought:')) {
+                thoughtIndex = 0;
+            }
+            if (thoughtIndex !== -1) {
+                const beforeThought = resultText.substring(0, thoughtIndex);
+                // +9 for '\nThought:' or +8 for 'Thought:'
+                const offset = resultText.charAt(thoughtIndex) === '\n' ? 9 : 8;
+                const thoughtContent = resultText.substring(thoughtIndex + offset).trim();
+                
+                const thoughtHtml = `
+                    <div class="thought-container">
+                        <div class="thought-header" onclick="toggleThought(this)">
+                            <svg class="thought-icon" viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-1.3l-.85-.6C7.8 13.16 7 11.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.63-.8 4.16-2.15 5.1z"/></svg>
+                            <span>Thought</span>
+                        </div>
+                        <div class="thought-content show">
+                            ${thoughtContent.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                `;
+                
+                return beforeThought.replace(/\n/g, '<br>') + thoughtHtml;
+            } else {
+                return resultText.replace(/\n/g, '<br>');
+            }
+        }
+
+        function updateToolCall(botMsgDiv, toolId, data) {
+            let toolDiv = botMsgDiv.querySelector(`#tool-${toolId}`);
+            if (!toolDiv) {
+                toolDiv = document.createElement('div');
+                toolDiv.className = 'tool-message';
+                toolDiv.id = `tool-${toolId}`;
+                toolDiv.innerHTML = `
+                    <div class="tool-header" onclick="toggleToolContent(this)">
+                        <div>
+                            <span class="tool-status-icon">⏳</span>
+                            <span class="tool-title-text">Calling Tool: ${data.tool_name}</span>
+                        </div>
+                        <span class="toggle-icon open">▲</span>
+                    </div>
+                    <div class="tool-content show">
+                        <div class="tool-section tool-input-section" style="display:none;">
+                            <div class="tool-section-title">Input Parameters</div>
+                            <pre class="tool-pre tool-input-pre"></pre>
+                        </div>
+                        <div class="tool-section tool-result-section" style="display:none;">
+                            <div class="tool-section-title">Result</div>
+                            <pre class="tool-pre tool-result-pre"></pre>
+                        </div>
+                    </div>
+                `;
+                botMsgDiv.appendChild(toolDiv);
+            }
+            
+            if (data.status === 'success' || data.status === 'error') {
+                toolDiv.querySelector('.tool-status-icon').innerHTML = data.status === 'success' ? '✅' : '❌';
+            }
+            
+            if (data.tool_input !== undefined) {
+                const inputSection = toolDiv.querySelector('.tool-input-section');
+                const inputPre = toolDiv.querySelector('.tool-input-pre');
+                inputSection.style.display = 'block';
+                inputPre.textContent = typeof data.tool_input === 'object' ? JSON.stringify(data.tool_input, null, 2) : data.tool_input;
+            }
+            
+            if (data.tool_result !== undefined) {
+                const resultSection = toolDiv.querySelector('.tool-result-section');
+                const resultPre = toolDiv.querySelector('.tool-result-pre');
+                resultSection.style.display = 'block';
+                resultPre.textContent = typeof data.tool_result === 'object' ? JSON.stringify(data.tool_result, null, 2) : data.tool_result;
+            }
+        }
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            appendMessage(message, 'user');
+            messageInput.value = '';
+            sendBtn.disabled = true;
+            sendBtn.style.display = 'none';
+            stopBtn.style.display = 'flex';
+            sendBtn.style.backgroundColor = '#d1d5db';
+
+            const botMsgDiv = appendMessage('', 'bot');
+            let currentTextSegment = '';
+            
+            currentAbortController = new AbortController();
+
+            try {
+                const response = await fetch('http://127.0.0.1:8099/agent/streamChat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message: message }),
+                    signal: currentAbortController.signal
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    buffer += chunk;
+                    
+                    let lines = buffer.split('\n');
+                    buffer = lines.pop(); 
+
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        
+                        let jsonStr = line;
+                        if (line.startsWith('data:')) {
+                            jsonStr = line.substring(5).trim();
+                        }
+                        
+                        if (!jsonStr) continue;
+
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            
+                            if (data.type === 'content_block_delta' && data.delta && data.delta.type === 'text_delta') {
+                                currentTextSegment += data.delta.text;
+                                const textDiv = ensureLatestTextDiv(botMsgDiv);
+                                textDiv.innerHTML = formatMessageContent(currentTextSegment);
+                            } else if (data.type === 'tool_status') {
+                                currentTextSegment = ''; 
+                                if (data.tool_id) {
+                                    updateToolCall(botMsgDiv, data.tool_id, data);
+                                }
+                            } else if (data.type === 'end') {
+                                // Chat complete
+                            }
+                        } catch (e) {
+                            console.error('Error parsing SSE data', e, 'Raw line:', line);
+                        }
+                    }
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    const textDiv = ensureLatestTextDiv(botMsgDiv);
+                    textDiv.innerHTML += '<br><br><strong>[对话已终止]</strong>';
+                } else {
+                    console.error('Error:', error);
+                    const textDiv = ensureLatestTextDiv(botMsgDiv);
+                    textDiv.innerHTML += '<br><br>Error communicating with the server.';
+                }
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.style.display = 'flex';
+                stopBtn.style.display = 'none';
+                currentAbortController = null;
+            }
+        }
+    </script>
+</body>
+</html>

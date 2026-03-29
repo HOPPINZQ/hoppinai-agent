@@ -1,0 +1,5 @@
+{
+  "name": "AI Stock Monitor",
+  "description": "AI-powered stock monitoring system with real-time data and chat history",
+  "requestFramePermissions": []
+}
