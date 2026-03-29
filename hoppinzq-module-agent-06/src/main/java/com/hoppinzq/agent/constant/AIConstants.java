@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 public class AIConstants {
     public static final String BASE_URL = "https://api.deepseek.com/anthropic";
     //API KEY 必填
-    public static final String API_KEY = "sk-bd0e69f91f0f4871baf0f5a8a4a599d6";
+    public static final String API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxx";
     //模型名称 必填
     public static final String MODEL = "deepseek-chat";
 

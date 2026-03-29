@@ -11,9 +11,9 @@ import java.io.File;
  */
 public class AIConstants {
     //anthropic 地址 或者代理地址 必填
-    public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic";
+    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
     //API KEY 必填
-    public static final String API_KEY = "zq_441k5j8yf5a48a4a513ff99d6.b1de691e9w30eq543fwef4";
+    public static final String API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxx";
     //模型名称 必填
     public static final String MODEL = "deepseek-chat";
 
