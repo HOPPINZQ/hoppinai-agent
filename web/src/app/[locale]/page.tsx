@@ -6,7 +6,8 @@ import { LEARNING_PATH, VERSION_META, LAYERS } from "@/lib/constants";
 import { LayerBadge, NewBadge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import versionsData from "@/data/generated/versions.json";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { LightRays } from "@/components/backgrounds/light-rays";
 import { RotatingText } from "@/components/ui/rotating-text";
 import BentoCard from "@/components/ui/bento-card";
@@ -79,6 +80,7 @@ export default function HomePage() {
   const t = useTranslations("home");
   const locale = useLocale();
   const [codeLanguage, setCodeLanguage] = useState<"java" | "python">("java");
+  const [adImageOpen, setAdImageOpen] = useState(false);
 
   return (
     <div className="relative min-h-screen">
@@ -154,6 +156,62 @@ export default function HomePage() {
               </div>
             </section>
 
+            {/* Ad Banner */}
+            <section className="px-2">
+              <div className="mx-auto max-w-4xl">
+                <ScrollReveal animation="fade-up" duration={0.6}>
+                  <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm transition-all duration-300 hover:border-rose-500/30 hover:bg-white/[0.04]">
+                    <div className="flex flex-col sm:flex-row items-center gap-4 p-4 sm:p-5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="https://hoppinzq.com/ai/BigmodelPoster.png"
+                        alt="智谱 Coding Plan"
+                        className="h-20 w-20 shrink-0 cursor-zoom-in rounded-xl object-cover transition-transform hover:scale-105 sm:h-24 sm:w-24"
+                        onClick={() => setAdImageOpen(true)}
+                      />
+                      <div className="text-center sm:text-left">
+                        <p className="text-sm font-medium text-zinc-200">
+                          🙋 蹲队友拼智谱 Coding Plan！
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+                          🧩 国内顶流编程大模型，20+ 主流工具全适配，性价比拉满
+                        </p>
+                        <a
+                          href="https://www.bigmodel.cn/glm-coding?ic=75JGQG0W9G"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block text-xs font-medium text-rose-400 transition-colors hover:text-rose-300"
+                        >
+                          👉 立即参与「拼好模」→
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </ScrollReveal>
+                {/* Ad Image Lightbox - rendered via portal to escape stacking context */}
+                {adImageOpen && typeof window !== "undefined" && createPortal(
+                  <div
+                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+                    onClick={() => setAdImageOpen(false)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="https://hoppinzq.com/ai/BigmodelPoster.png"
+                      alt="智谱 Coding Plan"
+                      className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                      onClick={() => setAdImageOpen(false)}
+                      className="fixed top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+                    >
+                      ✕
+                    </button>
+                  </div>,
+                  document.body
+                )}
+              </div>
+            </section>
             {/* Feature Cards - Bento Layout */}
             <section className="px-2">
               <div className="mx-auto max-w-5xl">
@@ -169,7 +227,8 @@ export default function HomePage() {
                       <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目介绍</h3>
                       <p className="text-xs leading-relaxed text-zinc-500">
                         基于 <span className="text-blue-400">Java</span> 开发的 AI Agent 框架，从零构建一个功能完整的 AI
-                        编程助手，深入理解 Agent 的核心机制。
+                        编程助手，深入理解 Agent 的核心机制。提供{" "}
+                        <span className="text-blue-400">Anthropic API</span> 的完整兼容。
                       </p>
                     </BentoCard>
 
@@ -181,9 +240,9 @@ export default function HomePage() {
                       </div>
                       <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目背景</h3>
                       <p className="text-xs leading-relaxed text-zinc-500">
-                        灵感来自{" "}
+                        完全参考开源项目{" "}
                         <a href="https://github.com/shareAI-lab/learn-claude-code" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:underline">
-                          shareAI-lab
+                          learn-claude-code
                         </a>
                         ，使用 Java 重新实现，兼顾性能与企业级应用。
                       </p>
@@ -197,13 +256,49 @@ export default function HomePage() {
                           </svg>
                         </div>
                         <div>
-                          <h3 className="mb-2 text-sm font-semibold text-zinc-100">新增特性</h3>
-                          <p className="text-xs leading-relaxed text-zinc-500">
-                            扩展实现了 <span className="text-emerald-400">MCP 协议</span> 和{" "}
-                            <span className="text-emerald-400">ReAct 框架</span>
-                            ，增强 Agent 的工具调用与推理能力。增加了
-                            <span className="text-emerald-400"> web </span>端的demo
-                          </p>
+                          <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目特点</h3>
+                          <ul className="space-y-1.5 text-xs leading-relaxed text-zinc-500">
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">递进式架构</span>：从单一工具调用到多工具协同，逐步引入新能力
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">统一基类</span>：<code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">ZQAgent</code> 提供标准化的 Agent 循环（用户输入 → LLM 推理 → 工具调用 → 结果返回 → 循环）
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">工具系统</span>：灵活的 <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">ToolDefinition</code> + Schema 定义，支持动态工具注册
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">上下文管理</span>：三层压缩策略（微压缩、自动压缩、手动压缩）
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">技能系统</span>：两层注入的 Skill 技能加载机制
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">任务管理</span>：基于 DAG 的任务图，支持依赖解析
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">后台执行</span>：守护线程后台任务 + 通知队列注入
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">MCP 协议</span>：支持 STDIO / SSE / Streamable HTTP 三种传输方式
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">ReAct 模式</span>：Thought → Action → Observation 推理循环
+                            </li>
+                            <li className="flex items-start gap-1.5">
+                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                              <span className="font-medium text-zinc-300">Web 服务</span>：Spring Boot 集成，会话管理 + REST API
+                            </li>
+                          </ul>
                         </div>
                       </div>
                     </BentoCard>
@@ -261,11 +356,20 @@ export default function HomePage() {
                           <span className="text-xs text-zinc-600">规划层</span>
                         </div>
                         <h3 className="mb-1.5 text-sm font-semibold text-zinc-200 group-hover:text-white">
-                          重写 SubAgent 逻辑
+                          重写核心逻辑
                         </h3>
                         <p className="text-xs leading-relaxed text-zinc-500">
-                          完全重写了子代理的上下文隔离与任务委派机制，每个子任务使用独立的
-                          messages[]，保持主对话清晰。
+                          完全重写了子智能体{" "}
+                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
+                            SubAgent
+                          </code>、
+                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
+                            后台任务
+                          </code>、
+                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
+                            Skills
+                          </code>{" "}
+                          的逻辑，提升任务委派与执行能力。
                         </p>
                       </BentoCard>
                     </Link>
@@ -638,8 +742,10 @@ export default function HomePage() {
                         <Link
                           key={versionId}
                           href={`/${locale}/${versionId}`}
-                          className="group block"
-                          style={layout?.colSpan ? { gridColumn: `span ${layout.colSpan}` } : undefined}
+                          className={cn(
+                            "group block",
+                            layout?.colSpan ? "sm:col-span-2" : undefined
+                          )}
                         >
                           <BentoCard
                             glowColor={LAYER_GLOW_RGB[meta.layer]}
