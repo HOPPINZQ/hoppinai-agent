@@ -9,8 +9,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { key: "timeline", href: "/timeline" },
-  { key: "layers", href: "/layers" },
-  { key: "我的博客", href: "/blog" },
+  { key: "layers", href: "/layers" }
 ] as const;
 
 export function Header() {
@@ -46,7 +45,7 @@ export function Header() {
           ))}
 
           <a
-            href="https://gitee.com/hoppin/hoppinzq-agent"
+            href="https://github.com/HOPPINZQ/hoppinai-agent"
             target="_blank"
             rel="noopener"
             className="text-zinc-500 transition-colors hover:text-zinc-300"
@@ -79,7 +78,7 @@ export function Header() {
           ))}
           <div className="mt-3 flex items-center border-t border-white/[0.06] pt-3">
             <a
-              href="https://gitee.com/hoppin/hoppinzq-agent"
+              href="https://github.com/HOPPINZQ/hoppinai-agent"
               target="_blank"
               rel="noopener"
               className="flex min-h-[44px] min-w-[44px] items-center justify-center text-zinc-500 hover:text-zinc-300"
