@@ -1,0 +1,88 @@
+{
+  "version": "s13",
+  "title": "MCP - Model Context Protocol",
+  "description": "AI助手通过标准化协议连接外部数据源和工具",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "帮我查看项目根目录的配置文件，并从数据库中读取用户设置",
+      "annotation": "任务需要访问多个外部系统：文件系统和数据库"
+    },
+    {
+      "type": "system_event",
+      "content": "[MCP Client] 正在初始化...",
+      "annotation": "MCP客户端启动，准备发现可用服务器"
+    },
+    {
+      "type": "system_event",
+      "content": "[MCP] 发现 3 个可用服务器: Filesystem (stdio://), Database (http://localhost:8000), Git (stdio://)",
+      "annotation": "客户端自动发现并连接到所有兼容MCP的服务器"
+    },
+    {
+      "type": "system_event",
+      "content": "[MCP Filesystem] 握手成功，版本: 2024-11-05",
+      "annotation": "与Filesystem服务器建立连接，确认协议版本"
+    },
+    {
+      "type": "system_event",
+      "content": "[MCP Database] 握手成功，支持操作: query, insert, update, delete",
+      "annotation": "与Database服务器建立连接，获知可用操作"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我可以通过MCP连接访问文件系统和数据库。让我先列出可用的文件资源。",
+      "annotation": "AI助手现在知道可用的MCP服务器和它们的能力"
+    },
+    {
+      "type": "tool_call",
+      "content": "mcp_call(server='Filesystem', tool='list_resources', path='/')",
+      "toolName": "mcp_call",
+      "annotation": "通过统一的MCP接口调用Filesystem服务器的资源列表"
+    },
+    {
+      "type": "tool_result",
+      "content": "[{\"uri\": \"file:///workspace/config.json\", \"name\": \"config.json\", \"type\": \"file\"}, {\"uri\": \"file:///workspace/.env\", \"name\": \".env\", \"type\": \"file\"}]",
+      "toolName": "mcp_call",
+      "annotation": "Filesystem服务器返回可访问的资源列表"
+    },
+    {
+      "type": "assistant_text",
+      "content": "找到了config.json文件。现在让我读取它的内容。",
+      "annotation": "AI助手根据返回的资源列表决定下一步操作"
+    },
+    {
+      "type": "tool_call",
+      "content": "mcp_call(server='Filesystem', tool='read_resource', uri='file:///workspace/config.json')",
+      "toolName": "mcp_call",
+      "annotation": "通过MCP读取具体文件内容"
+    },
+    {
+      "type": "tool_result",
+      "content": "{\"name\": \"my-app\", \"version\": \"1.0.0\", \"database\": \"users_db\"}",
+      "toolName": "mcp_call",
+      "annotation": "Filesystem服务器返回文件内容"
+    },
+    {
+      "type": "assistant_text",
+      "content": "配置文件显示数据库名称为 'users_db'。现在让我从数据库查询用户设置。",
+      "annotation": "AI助手使用从文件获取的信息来指导数据库查询"
+    },
+    {
+      "type": "tool_call",
+      "content": "mcp_call(server='Database', tool='execute_query', database='users_db', query='SELECT * FROM settings WHERE user_id = 1')",
+      "toolName": "mcp_call",
+      "annotation": "通过MCP调用Database服务器的查询功能"
+    },
+    {
+      "type": "tool_result",
+      "content": "[{\"id\": 1, \"theme\": \"dark\", \"language\": \"zh\", \"notifications\": true}]",
+      "toolName": "mcp_call",
+      "annotation": "Database服务器返回查询结果"
+    },
+    {
+      "type": "assistant_text",
+      "content": "完成！配置文件内容：{\"name\": \"my-app\", \"version\": \"1.0.0\"}，用户设置：主题=深色模式，语言=中文，通知=已开启。",
+      "annotation": "AI助手成功通过MCP协议整合了多个数据源的信息"
+    }
+  ]
+}

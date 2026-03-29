@@ -1,0 +1,23 @@
+{
+  "version": "s05",
+  "decisions": [
+    {
+      "id": "tool-result-injection",
+      "title": "技能通过 tool_result 注入，而非系统提示词",
+      "description": "当 agent 调用 Skill 工具时，技能内容（SKILL.md 文件）作为 tool_result 在用户消息中返回，而非注入系统提示词。这是一个刻意的缓存优化：系统提示词在各轮次间保持静态，API 提供商可以缓存它（Anthropic 的 prompt caching、OpenAI 的 system message caching）。如果技能内容在系统提示词中，每次加载新技能都会使缓存失效。将动态内容放在 tool_result 中，既保持了昂贵的系统提示词可缓存，又让技能知识进入了上下文。",
+      "alternatives": "将技能注入系统提示词更简单，并赋予技能在模型注意力中的更高优先级。但它会破坏 prompt caching（每次加载技能都会创建新的系统提示词变体），并且随着技能的积累会膨胀系统提示词。tool_result 方法在稍微降低注意力优先级的成本下保持了缓存友好性。"
+    },
+    {
+      "id": "on-demand-loading",
+      "title": "按需加载技能",
+      "description": "技能不是预先加载的——只有当 agent 调用 Skill 工具时才会加载。这与系统提示词注入方法形成对比，后者需要预先知道可能需要哪些技能。按需加载意味着 agent 可以在运行时根据情况决定它需要什么技能。它还避免了加载永远不会使用的技能所浪费的 token。",
+      "alternatives": "预先加载技能（例如，从预定义列表中加载所有可用技能）可以节省工具调用开销，但浪费 token 在可能不会使用的技能上。预测模型可能需要的技能并预先加载它们理论上会优化延迟，但需要复杂的预测逻辑。"
+    },
+    {
+      "id": "yaml-frontmatter",
+      "title": "技能使用 YAML frontmatter + Markdown 主体",
+      "description": "SKILL.md 文件使用混合格式：顶部是 YAML frontmatter 块（元数据如 name、description、version），后跟 Markdown 主体（实际的技能内容）。YAML frontmatter 让系统可以轻松解析和索引技能，而无需复杂的解析逻辑。Markdown 主体让技能可以用自然语言编写，包括代码块、列表和其他格式，模型可以自然阅读。",
+      "alternatives": "纯 Markdown 文件更简单，但元数据提取需要正则表达式或复杂解析。纯 JSON 或 YAML 文件让元数据更容易，但 Markdown 主体需要转义或嵌入在字符串中，这使得编写和阅读技能变得更难。YAML frontmatter + Markdown 主体是一个平衡两者。"
+    }
+  ]
+}

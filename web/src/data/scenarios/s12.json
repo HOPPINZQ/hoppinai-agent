@@ -1,0 +1,51 @@
+{
+  "version": "s12",
+  "title": "工作树 + 任务隔离",
+  "description": "使用共享任务板和可选的工作树通道实现清晰的并行执行",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "并行实现认证重构和登录UI更新",
+      "annotation": "一个工作空间中的两个活动任务会发生冲突"
+    },
+    {
+      "type": "tool_call",
+      "content": "task_create(subject: \"Auth refactor\")\ntask_create(subject: \"Login UI polish\")",
+      "toolName": "task_manager",
+      "annotation": "共享任务板保持为协调的事实来源"
+    },
+    {
+      "type": "tool_call",
+      "content": "worktree_create(name: \"auth-refactor\", task_id: 1)\nworktree_create(name: \"ui-login\")\ntask_bind_worktree(task_id: 2, worktree: \"ui-login\")",
+      "toolName": "worktree_manager",
+      "annotation": "通道分配和任务关联是可组合的；任务2在通道创建后绑定"
+    },
+    {
+      "type": "system_event",
+      "content": "worktree.create.before/after emitted\n.tasks/task_1.json -> { status: \"in_progress\", worktree: \"auth-refactor\" }\n.tasks/task_2.json -> { status: \"in_progress\", worktree: \"ui-login\" }\n.worktrees/index.json updated",
+      "annotation": "控制平面状态保持规范；钩子风格的消费者可以响应生命周期事件而无需拥有规范状态写入"
+    },
+    {
+      "type": "tool_call",
+      "content": "worktree_run(name: \"auth-refactor\", command: \"pytest tests/auth -q\")\nworktree_run(name: \"ui-login\", command: \"npm test -- login\")",
+      "toolName": "worktree_run",
+      "annotation": "在此教学运行时，命令通过通道范围的cwd路由；其他运行时可能使用会话级目录切换。不变量是显式执行上下文。"
+    },
+    {
+      "type": "tool_call",
+      "content": "worktree_keep(name: \"ui-login\")\nworktree_remove(name: \"auth-refactor\", complete_task: true)\nworktree_events(limit: 10)",
+      "toolName": "worktree_manager",
+      "annotation": "结算是显式的工具驱动状态转换：混合保留/删除决策并在一次传递中查询生命周期事件"
+    },
+    {
+      "type": "system_event",
+      "content": "worktree.keep emitted for ui-login\nworktree.remove.before/after emitted for auth-refactor\ntask.completed emitted for #1\n.worktrees/events.jsonl appended",
+      "annotation": "生命周期转换成为显式记录，而任务/工作树文件保持为事实来源"
+    },
+    {
+      "type": "assistant_text",
+      "content": "任务板处理协调，工作树处理隔离。并行轨道保持清晰和可审计。",
+      "annotation": "在一个板中协调，仅在需要时通过通道隔离，并从生命周期事件运行可选的策略/审计副作用"
+    }
+  ]
+}

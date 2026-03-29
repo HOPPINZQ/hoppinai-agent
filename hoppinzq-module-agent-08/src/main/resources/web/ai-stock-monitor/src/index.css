@@ -1,0 +1,58 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  :root {
+    --bg: #0a0e17;
+    --surface: #131b2c;
+    --surface-hover: #1c263b;
+    --border: #1e293b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --accent: #3b82f6;
+    --up: #10b981;
+    --down: #ef4444;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+  }
+}
+
+@layer utilities {
+  .text-up {
+    color: var(--up);
+  }
+  .text-down {
+    color: var(--down);
+  }
+  .bg-surface {
+    background-color: var(--surface);
+  }
+  .border-surface {
+    border-color: var(--border);
+  }
+}
+
+/* Custom Scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

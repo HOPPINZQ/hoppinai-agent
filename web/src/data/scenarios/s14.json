@@ -1,0 +1,100 @@
+{
+  "version": "s14",
+  "title": "ReAct - 思考-行动-观察模式",
+  "description": "AI智能体通过显式思考和观察反馈机制完成复杂任务",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "帮我分析一下项目的代码质量，并给出改进建议",
+      "annotation": "用户提出了一个复杂的任务，需要多步骤分析和工具调用"
+    },
+    {
+      "type": "system_event",
+      "content": "[ReAct Agent] 开始执行任务，进入思考-行动-观察循环",
+      "annotation": "ReAct智能体启动，准备执行三阶段循环"
+    },
+    {
+      "type": "assistant_thought",
+      "content": "思考: 用户需要代码质量分析和改进建议。这是一个复杂的任务，我需要：1) 首先列出项目中的代码文件；2) 分析每个文件的代码质量；3) 汇总问题并给出建议。我需要调用文件系统工具来开始。",
+      "annotation": "第一阶段：思考 - AI分析任务，制定执行计划"
+    },
+    {
+      "type": "tool_call",
+      "content": "list_files(path='.', pattern='**/*.java')",
+      "toolName": "list_files",
+      "annotation": "第二阶段：行动 - 根据思考结果调用工具"
+    },
+    {
+      "type": "tool_result",
+      "content": "找到8个Java文件: Agent.java, Tool.java, Memory.java, Planner.java, Executor.java, Main.java, Utils.java, Config.java",
+      "toolName": "list_files",
+      "annotation": "第三阶段：观察 - 获取工具执行结果"
+    },
+    {
+      "type": "assistant_thought",
+      "content": "思考: 找到了8个Java文件。现在我需要逐个分析代码质量。我应该先从核心文件Agent.java开始，检查代码结构、命名规范、注释完整性等。让我调用代码分析工具。",
+      "annotation": "新一轮思考 - 基于观察结果调整策略，决定下一步行动"
+    },
+    {
+      "type": "tool_call",
+      "content": "analyze_code(file='Agent.java', checks=['structure', 'naming', 'comments', 'complexity'])",
+      "toolName": "analyze_code",
+      "annotation": "执行代码分析工具"
+    },
+    {
+      "type": "tool_result",
+      "content": "Agent.java分析结果: 结构良好(8/10)，命名规范(9/10)，注释不足(4/10)，圈复杂度高(6/10)。建议：增加方法注释，拆分复杂方法。",
+      "toolName": "analyze_code",
+      "annotation": "获取第一个文件的分析结果"
+    },
+    {
+      "type": "assistant_thought",
+      "content": "思考: Agent.java分析完成，发现注释不足和复杂度高的问题。继续分析其他核心文件。让我分析Tool.java和Memory.java，这些是关键组件。",
+      "annotation": "继续思考 - 决定分析更多关键文件"
+    },
+    {
+      "type": "tool_call",
+      "content": "analyze_code(file='Tool.java', checks=['structure', 'naming', 'comments', 'complexity'])",
+      "toolName": "analyze_code",
+      "annotation": "分析Tool.java文件"
+    },
+    {
+      "type": "tool_result",
+      "content": "Tool.java分析结果: 结构优秀(9/10)，命名规范(10/10)，注释良好(7/10)，复杂度适中(8/10)。整体质量较高。",
+      "toolName": "analyze_code",
+      "annotation": "获取Tool.java的分析结果"
+    },
+    {
+      "type": "assistant_thought",
+      "content": "思考: Tool.java质量不错。让我快速分析剩余的文件以获得完整的质量报告。我会批量分析以提高效率。",
+      "annotation": "优化策略 - 决定批量分析剩余文件"
+    },
+    {
+      "type": "tool_call",
+      "content": "analyze_code_batch(files=['Memory.java', 'Planner.java', 'Executor.java', 'Main.java', 'Utils.java', 'Config.java'])",
+      "toolName": "analyze_code_batch",
+      "annotation": "批量分析剩余文件"
+    },
+    {
+      "type": "tool_result",
+      "content": "批量分析完成: Memory.java(7/10, 需要异常处理), Planner.java(6/10, 逻辑复杂), Executor.java(8/10, 良好), Main.java(9/10, 简洁), Utils.java(7/10, 缺少测试), Config.java(8/10, 规范)",
+      "toolName": "analyze_code_batch",
+      "annotation": "获取所有文件的批量分析结果"
+    },
+    {
+      "type": "assistant_thought",
+      "content": "思考: 现在我已经分析了所有文件。让我汇总问题并给出改进建议：1) Agent.java需要增加注释和降低复杂度；2) Memory.java需要异常处理；3) Planner.java需要简化逻辑；4) Utils.java需要测试覆盖。信息已经充足，我可以给出完整的分析报告。",
+      "annotation": "最终思考 - 综合所有观察结果，准备给出答案"
+    },
+    {
+      "type": "assistant_text",
+      "content": "完成代码质量分析！项目整体质量良好(7.5/10)，主要发现：\n\n需要改进的文件：\n1. Agent.java - 增加方法注释，拆分复杂方法(当前复杂度12)\n2. Memory.java - 添加异常处理机制，防止内存泄漏\n3. Planner.java - 简化规划逻辑，提取子方法\n4. Utils.java - 补充单元测试，当前覆盖率仅40%\n\n表现优秀：\n- Tool.java: 命名规范，结构清晰\n- Main.java: 简洁明了，职责单一\n\n总体建议：建立代码审查流程，设置最低测试覆盖率70%，使用静态分析工具自动检测复杂度。",
+      "annotation": "任务完成 - 给出完整的分析报告和改进建议"
+    },
+    {
+      "type": "system_event",
+      "content": "[ReAct Agent] 任务完成，共执行4轮思考-行动-观察循环",
+      "annotation": "ReAct循环结束，统计执行情况"
+    }
+  ]
+}

@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    /* CSGO Dark Military Palette */
+    --bg: #0a0e13;
+    --bg-subtle: #0d1219;
+    --surface: #111820;
+    --surface-hover: #1a2332;
+    --surface-elevated: #172030;
+    --border: #1e2d3d;
+    --border-light: #2a3a4e;
+
+    /* Text */
+    --text-primary: #d4dce8;
+    --text-secondary: #6b7f96;
+    --text-muted: #3d5068;
+
+    /* Accent - Gold/Amber for CSGO premium feel */
+    --accent: #de9b35;
+    --accent-hover: #c7882e;
+    --accent-dim: #b07a2a;
+
+    /* Market Colors */
+    --up: #4ade80;
+    --down: #f87171;
+
+    /* Rarity Colors */
+    --rarity-consumer: #b0c3d9;
+    --rarity-industrial: #5e98d9;
+    --rarity-milspec: #4b69ff;
+    --rarity-restricted: #8847ff;
+    --rarity-classified: #d32ce6;
+    --rarity-covert: #eb4b4b;
+    --rarity-contraband: #e4ae39;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle CSGO-style diagonal line background pattern */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        135deg,
+        transparent,
+        transparent 100px,
+        rgba(30, 45, 61, 0.08) 100px,
+        rgba(30, 45, 61, 0.08) 101px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+@layer utilities {
+  .text-up {
+    color: var(--up);
+  }
+  .text-down {
+    color: var(--down);
+  }
+  .bg-surface {
+    background-color: var(--surface);
+  }
+  .border-surface {
+    border-color: var(--border);
+  }
+
+  /* CSGO-style top accent bar */
+  .accent-bar-top {
+    position: relative;
+  }
+  .accent-bar-top::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0.6;
+  }
+
+  /* CSGO-style card with subtle bottom glow */
+  .card-glow {
+    position: relative;
+  }
+  .card-glow::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card-glow:hover::after {
+    opacity: 0.4;
+  }
+
+  /* CSGO font display */
+  .font-display {
+    font-family: var(--font-display);
+  }
+}
+
+/* Custom Scrollbar - CSGO style */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* No-scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* CSGO-style Selection */
+::selection {
+  background: var(--accent);
+  color: var(--bg);
+}

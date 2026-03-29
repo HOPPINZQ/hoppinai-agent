@@ -1,0 +1,23 @@
+{
+  "version": "s08",
+  "decisions": [
+    {
+      "id": "notification-bus",
+      "title": "用 threading.Queue 作为通知总线",
+      "description": "后台任务结果通过 threading.Queue 传递，而非直接回调。后台线程在工作完成时向队列放入通知，主 agent 循环在每次 LLM 调用前轮询队列。这种解耦很重要：后台线程无需了解主循环的状态或时序，只需往队列放入消息然后继续。主循环按自己的节奏取出消息——永远不会在 API 调用中途或工具执行中途。没有竞争条件，没有回调地狱。",
+      "alternatives": "直接回调（后台线程调用主线程中的函数）能更快传递结果，但产生线程安全问题——回调可能在主线程正在构建请求时触发。事件驱动系统（asyncio、事件发射器）可行但增加复杂性。队列是最简单的线程安全通信原语。"
+    },
+    {
+      "id": "daemon-threads",
+      "title": "后台任务以守护线程运行",
+      "description": "后台任务线程以 daemon=True 创建。在 Python 中，守护线程在主线程退出时自动被终止。这防止了一个常见问题：如果主 agent 完成工作并退出，但后台线程仍在运行（等待一个长时间 API 调用或陷入循环），进程会无限挂起。使用守护线程，退出是干净的——主线程结束，所有守护线程自动终止，进程退出。没有僵尸进程，不需要清理代码。",
+      "alternatives": "非守护线程配合显式清理（join with timeout，然后 terminate）提供更多关机控制，但需要仔细的生命周期管理。基于进程的并行（multiprocessing）提供更强隔离但开销更高。守护线程是实用选择：最少代码，在常见情况下行为正确。"
+    },
+    {
+      "id": "attachment-format",
+      "title": "带类型标签的结构化通知格式",
+      "description": "后台任务的通知使用结构化格式：{\"type\": \"attachment\", \"attachment\": {status, result, ...}}，而非纯文本字符串。类型标签让主循环可以区别处理不同通知类型：attachment 可能作为 tool_result 注入对话，而 status_update 可能只更新进度指示器。机器可读的通知还支持程序化过滤（只显示错误、抑制进度更新）和 UI 渲染（将状态显示为进度条而非原始文本）。",
+      "alternatives": "纯文本通知更简单但失去结构。主循环必须解析自由形式文本以确定发生了什么，这很脆弱。类层次结构（StatusNotification、ResultNotification、ErrorNotification）更符合 Python 风格但可移植性较差——JSON 结构无论语言或序列化格式如何都以相同方式工作。"
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "version": "s11",
+  "title": "自主Agent",
+  "description": "团队成员通过空闲周期和自动声明实现自主管理",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "实现完整的功能待办列表",
+      "annotation": "自主团队执行的开放式任务"
+    },
+    {
+      "type": "tool_call",
+      "content": "create_tasks([\n  { title: \"User authentication\", status: \"open\" },\n  { title: \"Dashboard UI\", status: \"open\" },\n  { title: \"API rate limiting\", status: \"open\" },\n  { title: \"Integration tests\", status: \"open\" }\n])",
+      "toolName": "task_manager",
+      "annotation": "创建的任务没有所有者 -- 可用于自动声明"
+    },
+    {
+      "type": "tool_result",
+      "content": "4 tasks created on shared board",
+      "toolName": "task_manager",
+      "annotation": "未分配的任务对所有团队成员可见"
+    },
+    {
+      "type": "system_event",
+      "content": "[frontend-dev] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> found unowned task #2 \"Dashboard UI\"\n  3. Auto-claim task #2\n  4. Status: idle -> working",
+      "annotation": "空闲周期：检查收件箱、轮询任务、自动声明、恢复工作"
+    },
+    {
+      "type": "system_event",
+      "content": "[backend-dev] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> found unowned task #1 \"User authentication\"\n  3. Auto-claim task #1\n  4. Status: idle -> working",
+      "annotation": "多个团队成员并发声明不同的任务"
+    },
+    {
+      "type": "system_event",
+      "content": "[tester] Idle cycle triggered\n  1. Check inbox -> 0 messages\n  2. Poll task board -> task #4 blocked by #1, #2, #3\n  3. No claimable tasks\n  4. Status: idle (will retry in 30s)",
+      "annotation": "基于超时的轮询防止忙等待"
+    },
+    {
+      "type": "assistant_text",
+      "content": "团队是自组织的：frontend-dev声明了仪表板UI，backend-dev声明了用户认证。测试人员正在等待依赖清除。",
+      "annotation": "轮询 + 超时使团队成员自主 -- 无需微观管理"
+    }
+  ]
+}

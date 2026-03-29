@@ -1,0 +1,29 @@
+{
+  "version": "s07",
+  "decisions": [
+    {
+      "id": "file-based-persistence",
+      "title": "任务存储为 JSON 文件，而非内存",
+      "description": "任务以 JSON 文件形式持久化在 .tasks/ 目录中，而非保存在内存里。这有三个关键好处：(1) 任务在进程崩溃后仍然存在——如果 agent 在任务中途崩溃，重启后任务板仍在磁盘上；(2) 多个 agent 可以读写同一任务目录，无需共享内存即可实现多代理协调；(3) 人类可以查看和手动编辑任务文件来调试。文件系统就是共享数据库。",
+      "alternatives": "内存存储（如 v2 的 TodoWrite）更简单快速，但崩溃时丢失状态，且无法跨多个 agent 进程工作。真正的数据库（SQLite、Redis）会提供 ACID 保证和更好的并发性，但增加了依赖和操作复杂性。文件是随处可用的零依赖持久化层。"
+    },
+    {
+      "id": "dependency-graph",
+      "title": "任务具有 blocks/blockedBy 依赖字段",
+      "description": "每个任务可以声明它阻塞哪些任务（下游依赖）以及它被哪些任务阻塞（上游依赖）。Agent 不会开始有未解决 blockedBy 依赖的任务。这对多代理协调至关重要：当 Agent A 在编写数据库 schema、Agent B 需要写查询时，Agent B 的任务被 Agent A 的任务阻塞。没有依赖关系，两个 agent 可能同时开始，而 Agent B 会针对一个尚不存在的 schema 工作。",
+      "alternatives": "简单优先级排序（高/中/低）无法表达'任务 B 在任务 A 完成之前字面上无法开始'。按顺序分配任务的集中式协调器可行，但会创建单点故障和瓶颈。声明式依赖让每个 agent 通过读取任务文件独立确定它可以处理什么。"
+    },
+    {
+      "id": "task-default-todo-coexistence",
+      "title": "Task 为课程主线，Todo 仍有适用场景",
+      "description": "TaskManager 延续了 Todo 的心智模型，并在本课程 s07 之后成为默认主线。两者都管理带状态的任务项，但 TaskManager 增加了文件持久化（崩溃后可恢复）、依赖追踪（blocks/blockedBy）、owner 字段与多进程协作能力。Todo 仍适合短、线性、一次性的轻量跟踪。",
+      "alternatives": "仅使用 Todo 保持模型极简，但对长期或协作工作较弱。到处只使用 Task 最大化一致性，但对微小的一次性任务可能感觉过重。"
+    },
+    {
+      "id": "task-write-discipline",
+      "title": "持久化仍需要写入纪律",
+      "description": "文件持久化能降低上下文丢失，但不会自动消除并发写入风险。写任务状态前应先重读 JSON、校验 `status/blockedBy` 是否符合预期，再原子写回，避免不同 agent 悄悄覆盖彼此状态。",
+      "alternatives": "盲目覆盖写入更简单，但在并行执行下可能损坏协调状态。具有乐观锁定的数据库会强制执行更强的安全性，但课程保持基于文件的状态以进行零依赖教学。"
+    }
+  ]
+}

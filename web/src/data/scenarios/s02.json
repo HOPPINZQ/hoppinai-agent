@@ -1,0 +1,46 @@
+{
+  "version": "s02",
+  "title": "工具",
+  "description": "具备读取、写入、编辑和bash工具的Agent",
+  "steps": [
+    {
+      "type": "user_message",
+      "content": "添加一个名为 greet(name) 的函数到 hello.py",
+      "annotation": "用户请求代码修改"
+    },
+    {
+      "type": "assistant_text",
+      "content": "让我先读取当前文件。",
+      "annotation": "模型选择 read_file 而不是 bash cat"
+    },
+    {
+      "type": "tool_call",
+      "content": "hello.py",
+      "toolName": "read_file",
+      "annotation": "专用读取工具提供更清晰的文件访问"
+    },
+    {
+      "type": "tool_result",
+      "content": "print(\"Hello, World!\")",
+      "toolName": "read_file",
+      "annotation": "文件内容返回给模型"
+    },
+    {
+      "type": "tool_call",
+      "content": "hello.py\n---\ndef greet(name):\n    print(f\"Hello, {name}!\")\n\ngreet(\"World\")",
+      "toolName": "write_file",
+      "annotation": "write_file 替换整个文件内容"
+    },
+    {
+      "type": "tool_result",
+      "content": "文件写入成功",
+      "toolName": "write_file",
+      "annotation": "写入确认"
+    },
+    {
+      "type": "assistant_text",
+      "content": "我已经更新了 hello.py，添加了一个接受 name 参数的 greet(name) 函数。",
+      "annotation": "4个工具胜过1个：每个工具都有清晰、专注的用途"
+    }
+  ]
+}
