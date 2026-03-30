@@ -29,12 +29,6 @@ spring:
   main:
     allow-bean-definition-overriding: true
 
-  ################ redis配置 #######################
-#  redis:
-#    host: 175.178.115.82
-#    port: 6379
-#    database: 2 # 数据库索引
-#    password: xxxxxxxx
 ################ mybatis配置 #######################
 
 # mybatis-plus相关配置
