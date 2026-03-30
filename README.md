@@ -1,4 +1,5 @@
 # HoppinZQ Agent
+[英文文档](README_EN.md)
 ![Java](https://img.shields.io/badge/Java-JDK17+-blue?style=flat&logo=openjdk&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > 从零开始，一步步构建一个功能完整的 AI Agent 框架
