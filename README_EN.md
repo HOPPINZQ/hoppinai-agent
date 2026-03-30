@@ -1,5 +1,5 @@
 # HoppinZQ Agent
-[中文文档](README.md)
+【 [英文文档](README_EN.md) 】 - 【 [中文文档](README.md) 】
 ![Java](https://img.shields.io/badge/Java-JDK17+-blue?style=flat&logo=openjdk&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > Build a fully functional AI Agent framework from scratch, step by step
@@ -133,7 +133,15 @@ s13 ◄─── s14 ◄── agent-web ─────────────
 
 - **JDK**: 17+
 - **Maven**: 3.8+
-- **Anthropic API Key**: Set environment variable `ANTHROPIC_API_KEY`
+- **AIConstants**: 
+     ```text
+    // anthropic url
+    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+    // API KEY
+    public static final String API_KEY = "sk-xxxxxxxxx";
+    // model
+    public static final String MODEL = "deepseek-chat";
+    ```
 
 ### Build
 
@@ -159,19 +167,13 @@ mvn spring-boot:run -pl hoppinzq-module-agent-web
 
 All modules configure the API Key through `AIConstants.java`:
 
-```java
-public class AIConstants {
-    public static final String API_KEY = System.getenv("ANTHROPIC_API_KEY");
-    public static final String MODEL = "claude-sonnet-4-20250514";
-}
-```
-
-s13 (MCP) and s14 (ReAct) modules use DeepSeek model by default:
-
-```java
-// Agent13 / Agent14
-public static final String MODEL = "deepseek-chat";
+```text
+// anthropic url
 public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+// API KEY
+public static final String API_KEY = "sk-xxxxxxxxx";
+// model
+public static final String MODEL = "deepseek-chat";
 ```
 
 ## Project Structure

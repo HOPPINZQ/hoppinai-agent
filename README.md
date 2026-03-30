@@ -1,5 +1,6 @@
 # HoppinZQ Agent
-[英文文档](README_EN.md)
+【 [英文文档](README_EN.md) 】 - 【 [中文文档](README.md) 】
+
 ![Java](https://img.shields.io/badge/Java-JDK17+-blue?style=flat&logo=openjdk&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > 从零开始，一步步构建一个功能完整的 AI Agent 框架
@@ -133,7 +134,15 @@ s13 ◄─── s14 ◄── agent-web ─────────────
 
 - **JDK**: 17+
 - **Maven**: 3.8+
-- **Anthropic API Key**: 设置环境变量 `ANTHROPIC_API_KEY`
+- **AIConstants**: 设置常量 
+     ```text
+    //anthropic 地址 或者代理地址 必填
+    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+    //API KEY 必填
+    public static final String API_KEY = "sk-xxxxxxxxx";
+    //模型名称 必填
+    public static final String MODEL = "deepseek-chat";
+    ```
 
 ### 编译
 
@@ -159,19 +168,13 @@ mvn spring-boot:run -pl hoppinzq-module-agent-web
 
 所有模块通过 `AIConstants.java` 配置 API Key：
 
-```java
-public class AIConstants {
-    public static final String API_KEY = System.getenv("ANTHROPIC_API_KEY");
-    public static final String MODEL = "claude-sonnet-4-20250514";
-}
-```
-
-s13 (MCP) 和 s14 (ReAct) 模块默认使用 DeepSeek 模型：
-
-```java
-// Agent13 / Agent14
-public static final String MODEL = "deepseek-chat";
+```text
+// anthropic 地址 或者代理地址 必填
 public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+// API KEY 必填
+public static final String API_KEY = "sk-xxxxxxxxx";
+// 模型名称 必填
+public static final String MODEL = "deepseek-chat";
 ```
 
 ## 项目结构
