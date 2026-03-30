@@ -1,7 +1,10 @@
 # HoppinZQ Agent
+[英文文档](README_EN.md)
 ![Java](https://img.shields.io/badge/Java-JDK17+-blue?style=flat&logo=openjdk&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > 从零开始，一步步构建一个功能完整的 AI Agent 框架
+
+[演示网站点我](https://hoppinzq.com/agent/index.html)
 
 ## 项目简介
 
@@ -37,7 +40,7 @@ HoppinZQ Agent 是一个基于 Anthropic Claude API 构建的 AI Agent 演进式
 
 ### 立即体验
 
-![快来试试吧](img/20fc9fce9356bbc3e280f5abe8573e5d.png)
+![快来试试吧](img/BigmodelPoster.png)
 
 > [🚀 速来拼好模，新用户免费2000万Tokens额度](https://www.bigmodel.cn/claude-code?ic=75JGQG0W9G)
 
