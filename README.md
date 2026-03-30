@@ -3,6 +3,8 @@
 ![OpenAI](https://img.shields.io/badge/LLM-Claude-orange?style=flat&logo=Claude&logoColor=white)
 > 从零开始，一步步构建一个功能完整的 AI Agent 框架
 
+[演示网站点我](https://hoppinzq.com/agent/index.html)
+
 ## 项目简介
 
 HoppinZQ Agent 是一个基于 Anthropic Claude API 构建的 AI Agent 演进式教学项目。项目通过 11 个递进式模块，从最简单的 Bash 执行器逐步演进到具备任务管理、上下文压缩、MCP 协议集成、ReAct 推理模式以及 Web 服务能力的完整 Agent 系统。

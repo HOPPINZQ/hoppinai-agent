@@ -134,7 +134,7 @@ export default function HomePage() {
                   </span>
                 </Link>
                 <a
-                  href="https://github.com/shareAI-lab/learn-claude-code"
+                  href="https://github.com/HOPPINZQ/hoppinai-agent"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-zinc-300 backdrop-blur-sm transition-all duration-200 hover:border-white/20 hover:bg-white/10 hover:text-white"
@@ -260,43 +260,43 @@ export default function HomePage() {
                           <ul className="space-y-1.5 text-xs leading-relaxed text-zinc-500">
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">递进式架构</span>：从单一工具调用到多工具协同，逐步引入新能力
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">递进式架构</span>：从单一工具调用到多工具协同，逐步引入新能力</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">统一基类</span>：<code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">ZQAgent</code> 提供标准化的 Agent 循环（用户输入 → LLM 推理 → 工具调用 → 结果返回 → 循环）
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">统一基类</span>：<code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300 whitespace-nowrap">ZQAgent</code> 提供标准化的 Agent 循环（用户输入 → LLM 推理 → 工具调用 → 结果返回 → 循环）</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">工具系统</span>：灵活的 <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">ToolDefinition</code> + Schema 定义，支持动态工具注册
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">工具系统</span>：灵活的 <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300 whitespace-nowrap">ToolDefinition</code> + Schema 定义，支持动态工具注册</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">上下文管理</span>：三层压缩策略（微压缩、自动压缩、手动压缩）
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">上下文管理</span>：三层压缩策略（微压缩、自动压缩、手动压缩）</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">技能系统</span>：两层注入的 Skill 技能加载机制
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">技能系统</span>：两层注入的 Skill 技能加载机制</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">任务管理</span>：基于 DAG 的任务图，支持依赖解析
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">任务管理</span>：基于 DAG 的任务图，支持依赖解析</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">后台执行</span>：守护线程后台任务 + 通知队列注入
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">后台执行</span>：守护线程后台任务 + 通知队列注入</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">MCP 协议</span>：支持 STDIO / SSE / Streamable HTTP 三种传输方式
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">MCP 协议</span>：支持 STDIO / SSE / Streamable HTTP 三种传输方式</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">ReAct 模式</span>：Thought → Action → Observation 推理循环
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">ReAct 模式</span>：Thought → Action → Observation 推理循环</span>
                             </li>
                             <li className="flex items-start gap-1.5">
                               <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span className="font-medium text-zinc-300">Web 服务</span>：Spring Boot 集成，会话管理 + REST API
+                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">Web 服务</span>：Spring Boot 集成，会话管理 + REST API</span>
                             </li>
                           </ul>
                         </div>
