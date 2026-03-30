@@ -114,7 +114,7 @@
         "todo"
       ],
       "coreAddition": "TodoManager + 提醒机制",
-      "keyInsight": "没有规划的智能体会偏离目标；先列出步骤，再执行",
+      "keyInsight": "没有规划的智能体会偏离目标；先列出步骤，再执行。你不按规划执行，系统提示词就会追着你问。",
       "classes": [
         {
           "name": "TodoManager",

@@ -18,7 +18,7 @@ export const VERSION_META: Record<string, {
 }> = {
   s01: { title: "Agent 循环", subtitle: "给AI一个终端，它就能撬起整个计算机", coreAddition: "一个工具，让AI干所有工作", keyInsight: "这是一个很小的智能体，但它能干很多事", layer: "tools", prevVersion: null },
   s02: { title: "工具", subtitle: "每工具一个处理器", coreAddition: "工具分发映射", keyInsight: "循环保持不变；新工具注册到分发映射中", layer: "tools", prevVersion: "s01" },
-  s03: { title: "todo规划", subtitle: "行动前先规划", coreAddition: "TodoManager + 提醒机制", keyInsight: "没有规划的智能体会偏离目标；先列出步骤，再执行", layer: "planning", prevVersion: "s02" },
+  s03: { title: "todo规划", subtitle: "行动前先规划", coreAddition: "TodoManager + 提醒机制", keyInsight: "没有规划的智能体会偏离目标；先列出步骤，再执行。你不按规划执行，系统提示词就会追着你问。", layer: "planning", prevVersion: "s02" },
   s04: { title: "子代理", subtitle: "每个子任务独立的上下文", coreAddition: "子智能体生成并使用独立的 messages[]", keyInsight: "子智能体使用独立的 messages[]，保持主对话清晰", layer: "planning", prevVersion: "s03" },
   s05: { title: "技能加载", subtitle: "按需加载", coreAddition: "SkillLoader + 双层注入", keyInsight: "按需通过 tool_result 注入知识，而非在系统提示词中预加载", layer: "planning", prevVersion: "s04" },
   s06: { title: "上下文压缩", subtitle: "三层压缩策略", coreAddition: "微型压缩 + 自动压缩 + 归档", keyInsight: "上下文会填满；三层压缩策略支持无限会话", layer: "memory", prevVersion: "s05" },

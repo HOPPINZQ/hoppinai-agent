@@ -20,7 +20,7 @@ import java.util.stream.Stream;
 import static com.hoppinzq.agent.constant.AIConstants.SKILL_PATH;
 
 public class SkillLoader {
-    private final Map<String, String> skills = new HashMap<>();
+    private final Map<String, String> skills = new LinkedHashMap<>();
 
     public SkillLoader() {
         loadSkills();
@@ -82,7 +82,7 @@ public class SkillLoader {
     }
 
     private void parseSkillContent(String entryName, String content) {
-        Pattern pattern = Pattern.compile("^---\\n(.*?)\\n---\\n(.*)", Pattern.DOTALL);
+        Pattern pattern = Pattern.compile("^---\\r?\\n(.*?)\\r?\\n---\\r?\\n(.*)", Pattern.DOTALL);
         Matcher matcher = pattern.matcher(content);
 
         String name = entryName;
@@ -101,8 +101,8 @@ public class SkillLoader {
         if (matcher.find()) {
             String meta = matcher.group(1);
             body = matcher.group(2).trim();
-
-            for (String line : meta.split("\n")) {
+            
+            for (String line : meta.split("\\r?\\n")) {
                 if (line.contains(":")) {
                     String[] parts = line.split(":", 2);
                     if (parts[0].trim().equals("name")) {
@@ -113,8 +113,10 @@ public class SkillLoader {
                 }
             }
         }
-
-        skills.put(name, String.format("<skill name=\"%s\" description=\"%s\">\n%s\n</skill>", name, description, body));
+        
+        String escapedName = name.replace("\"", "&quot;");
+        String escapedDesc = description.replace("\"", "&quot;");
+        skills.put(name, String.format("<skill name=\"%s\" description=\"%s\">\n%s\n</skill>", escapedName, escapedDesc, body));
     }
 
     public String getSkill(String skillName) {
@@ -128,17 +130,12 @@ public class SkillLoader {
         if (skills.isEmpty()) return "（无可用技能）";
         StringBuilder sb = new StringBuilder();
         skills.forEach((name, body) -> {
-            // 从存储的XML或元数据中提取描述（如果可能）
-            // 为简单起见，这里只列出名称，或者解析存储在映射中的描述
-            // 让我们重新解析XML或者单独存储描述
-            // 匹配格式："  - {n}: {d}"
             String desc = "-";
-            if (body.contains("description=\"")) {
-                int start = body.indexOf("description=\"") + 13;
-                int end = body.indexOf("\"", start);
-                if (end > start) desc = body.substring(start, end);
+            Matcher m = Pattern.compile("description=\"([^\"]*)\"").matcher(body);
+            if (m.find()) {
+                desc = m.group(1).replace("&quot;", "\"");
             }
-            sb.append(String.format("  - %s: %s\n", name, desc));
+            sb.append(String.format("- %s: %s\n", name, desc));
         });
         return sb.toString().trim();
     }
