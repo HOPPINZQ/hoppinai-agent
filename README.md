@@ -39,7 +39,7 @@ HoppinZQ Agent 是一个基于 Anthropic Claude API 构建的 AI Agent 演进式
 
 ### 立即体验
 
-![快来试试吧](img/20fc9fce9356bbc3e280f5abe8573e5d.png)
+![快来试试吧](img/BigmodelPoster.png)
 
 > [🚀 速来拼好模，新用户免费2000万Tokens额度](https://www.bigmodel.cn/claude-code?ic=75JGQG0W9G)
 
