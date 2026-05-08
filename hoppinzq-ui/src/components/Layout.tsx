@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock, LogOut, ChevronDown } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/lib/useTheme";
 import { useAuth, useIframeLogin, getCachedUserInfo, isLoggedIn, redirectToLogin, handleAuthCallback, getUserInfo, type IframeLoginData } from "@/lib/zaiAuth";
 import { LoginModal } from "@/components/LoginModal";
 
@@ -11,6 +12,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   // 认证状态
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -145,10 +147,13 @@ export function Layout({ children }: LayoutProps) {
 
         {/* Bottom */}
         <div className="p-3 border-t border-[var(--border)]">
-          <button className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all text-[13px] font-medium">
+          <Link
+            to="/settings"
+            className="flex items-center gap-3 px-3 py-2.5 w-full rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-all text-[13px] font-medium"
+          >
             <Settings className="w-[18px] h-[18px]" />
             设置
-          </button>
+          </Link>
         </div>
       </aside>
 
@@ -166,6 +171,13 @@ export function Layout({ children }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+              title={resolvedTheme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+            >
+              {resolvedTheme === "dark" ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+            </button>
             <button className="p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors relative">
               <Bell className="w-[18px] h-[18px]" />
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--accent)]"></span>
