@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock, LogOut, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth, useIframeLogin, getCachedUserInfo, isLoggedIn, redirectToLogin, handleAuthCallback, getUserInfo, type IframeLoginData } from "@/lib/zaiAuth";
+import { LoginModal } from "@/components/LoginModal";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +11,80 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+
+  // 认证状态
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userInfo, setUserInfo] = useState<ReturnType<typeof getCachedUserInfo>>(null);
+  const { isOpen: isLoginModalOpen, openLogin, closeLogin } = useIframeLogin();
+
+  // 登录菜单下拉状态
+  const [showLoginMenu, setShowLoginMenu] = useState(false);
+  const loginMenuRef = useRef<HTMLDivElement>(null);
+
+  // 初始化认证状态
+  useEffect(() => {
+    const initAuth = async () => {
+      // 先处理 URL 回调（跳转登录方式）
+      const isNewLogin = handleAuthCallback();
+
+      // 更新认证状态
+      const authenticated = isLoggedIn();
+      setIsAuthenticated(authenticated);
+
+      // 如果是新登录或已登录但没有缓存的用户信息，则获取用户信息
+      if (isNewLogin || (authenticated && !getCachedUserInfo())) {
+        try {
+          const info = await getUserInfo();
+          setUserInfo(info);
+        } catch (error) {
+          console.error('[Layout] Failed to get user info:', error);
+          // 获取用户信息失败，可能 token 无效
+          setIsAuthenticated(false);
+        }
+      } else {
+        setUserInfo(getCachedUserInfo());
+      }
+    };
+
+    initAuth();
+  }, []);
+
+  // 点击外部关闭登录菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (loginMenuRef.current && !loginMenuRef.current.contains(event.target as Node)) {
+        setShowLoginMenu(false);
+      }
+    };
+
+    if (showLoginMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showLoginMenu]);
+
+  // 处理登录成功
+  const handleLoginSuccess = useCallback(() => {
+    setIsAuthenticated(true);
+    setUserInfo(getCachedUserInfo());
+    setShowLoginMenu(false);
+  }, []);
+
+  // 处理登出
+  const handleLogout = useCallback(() => {
+    setIsAuthenticated(false);
+    setUserInfo(null);
+    setShowLoginMenu(false);
+    // 清除认证信息并跳转到登录页
+    localStorage.removeItem('zai_access_token');
+    localStorage.removeItem('zai_refresh_token');
+    localStorage.removeItem('zai_user_id');
+    localStorage.removeItem('zai_expires_time');
+    localStorage.removeItem('zai_user_info');
+  }, []);
 
   const navItems = [
     { name: "仪表盘", path: "/", icon: LayoutDashboard },
@@ -94,8 +170,80 @@ export function Layout({ children }: LayoutProps) {
               <Bell className="w-[18px] h-[18px]" />
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[var(--accent)]"></span>
             </button>
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] flex items-center justify-center overflow-hidden cursor-pointer">
-              <User className="w-4 h-4 text-[var(--bg)]" />
+
+            {/* 登录/用户信息区域 */}
+            <div className="relative" ref={loginMenuRef}>
+              {isAuthenticated && userInfo ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-[var(--surface-hover)]/50">
+                    {userInfo.avatar ? (
+                      <img
+                        src={userInfo.avatar}
+                        alt={userInfo.nickname}
+                        className="w-6 h-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
+                        <User className="w-3 h-3 text-[var(--accent)]" />
+                      </div>
+                    )}
+                    <span className="text-[12px] text-[var(--text-secondary)] max-w-[100px] truncate">
+                      {userInfo.nickname || userInfo.username}
+                    </span>
+                    <button
+                      onClick={handleLogout}
+                      className="p-1 text-[var(--text-muted)] hover:text-[var(--down)] transition-colors"
+                      title="退出登录"
+                    >
+                      <LogOut className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowLoginMenu(!showLoginMenu)}
+                  className="w-8 h-8 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] flex items-center justify-center overflow-hidden hover:shadow-lg hover:shadow-[var(--accent)]/20 transition-all"
+                  title="登录"
+                >
+                  <User className="w-4 h-4 text-[var(--bg)]" />
+                </button>
+              )}
+
+              {/* 登录方式选择菜单 */}
+              {showLoginMenu && !isAuthenticated && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-xl overflow-hidden z-50">
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => {
+                        console.log('[Layout] iframe login selected');
+                        setShowLoginMenu(false);
+                        openLogin();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      <User className="w-4 h-4 text-[var(--accent)]" />
+                      <div>
+                        <div className="font-medium">页内登录</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">在弹窗中登录，不跳转</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        console.log('[Layout] redirect login selected');
+                        setShowLoginMenu(false);
+                        redirectToLogin();
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left text-[13px] text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] transition-colors"
+                    >
+                      <User className="w-4 h-4 text-[var(--accent)]" />
+                      <div>
+                        <div className="font-medium">跳转登录</div>
+                        <div className="text-[11px] text-[var(--text-muted)]">跳转到 ZAI 认证页</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -107,6 +255,13 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </main>
       </div>
+
+      {/* 登录弹框 */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={closeLogin}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }

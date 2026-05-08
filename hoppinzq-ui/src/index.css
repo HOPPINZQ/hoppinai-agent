@@ -151,3 +151,104 @@
   background: var(--accent);
   color: var(--bg);
 }
+
+/* Markdown Content Styles */
+.markdown-content {
+  line-height: 1.6;
+}
+
+/* Override highlight.js styles to match CSGO theme */
+.markdown-content pre {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+}
+
+.markdown-content code {
+  font-family: var(--font-mono) !important;
+}
+
+/* Highlight.js syntax colors - CSGO theme */
+.hljs {
+  background: var(--bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type {
+  color: #c792ea !important;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name {
+  color: #c3e88d !important;
+}
+
+.hljs-number,
+.hljs-symbol {
+  color: #f78c6c !important;
+}
+
+.hljs-attr,
+.hljs-variable,
+.hljs-template-variable {
+  color: #82aaff !important;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #ffcb6b !important;
+}
+
+.hljs-function {
+  color: #82aaff !important;
+}
+
+.hljs-class .hljs-title {
+  color: #ffcb6b !important;
+}
+
+.hljs-meta {
+  color: var(--text-muted) !important;
+}
+
+.hljs-link {
+  color: var(--accent) !important;
+  text-decoration: underline;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Inline code highlight fix */
+.markdown-content :not(pre) > code {
+  background: var(--surface-hover) !important;
+  color: var(--accent) !important;
+  padding: 0.2rem 0.4rem !important;
+  border-radius: 0.25rem !important;
+  font-size: 0.85em !important;
+}
+
+/* Markdown table responsive */
+.markdown-content table {
+  font-size: 0.85rem;
+}
+
+/* Markdown list spacing */
+.markdown-content li > p {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}

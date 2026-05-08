@@ -23,8 +23,14 @@ import {
   Loader2,
   MessageSquare,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import { useAuth, useIframeLogin, type IframeLoginData } from "@/lib/zaiAuth";
+import { LoginModal } from "@/components/LoginModal";
 
 // --- Data types matching index.html's SSE protocol ---
 
@@ -246,6 +252,144 @@ function ToolCallCard({ tool }: { tool: ToolCallData }) {
   );
 }
 
+// --- MarkdownRenderer: renders markdown with custom styling ---
+function MarkdownRenderer({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  return (
+    <div className="markdown-content">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          // 标题样式
+          h1: ({ children }) => (
+            <h1 className="text-xl font-bold text-[var(--text-primary)] mt-4 mb-2 pb-2 border-b border-[var(--border)]/40">
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mt-3 mb-2">
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-base font-semibold text-[var(--text-primary)] mt-2 mb-1.5">
+              {children}
+            </h3>
+          ),
+          h4: ({ children }) => (
+            <h4 className="text-sm font-semibold text-[var(--text-primary)] mt-2 mb-1">
+              {children}
+            </h4>
+          ),
+          // 段落样式
+          p: ({ children }) => (
+            <p className="text-[13px] text-[var(--text-primary)] leading-relaxed my-2">
+              {children}
+            </p>
+          ),
+          // 代码块样式
+          code: ({ className, children, ...props }) => {
+            const match = /language-(\w+)/.exec(className || "");
+            return match ? (
+              <code className={className} {...props}>
+                {children}
+              </code>
+            ) : (
+              <code className="px-1.5 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--accent)] text-[12px] font-mono" {...props}>
+                {children}
+              </code>
+            );
+          },
+          pre: ({ children }) => (
+            <pre className="bg-[var(--bg)] border border-[var(--border)] rounded-lg p-3 overflow-x-auto my-3">
+              {children}
+            </pre>
+          ),
+          // 列表样式
+          ul: ({ children }) => (
+            <ul className="text-[13px] text-[var(--text-primary)] space-y-1 my-2 ml-4 list-disc">
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="text-[13px] text-[var(--text-primary)] space-y-1 my-2 ml-4 list-decimal">
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => (
+            <li className="leading-relaxed">
+              {children}
+            </li>
+          ),
+          // 引用块样式
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-[var(--accent)] pl-3 py-1 my-2 bg-[var(--accent)]/5 italic text-[var(--text-secondary)]">
+              {children}
+            </blockquote>
+          ),
+          // 表格样式
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-3">
+              <table className="min-w-full border border-[var(--border)] rounded-lg overflow-hidden">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-[var(--surface-hover)]">
+              {children}
+            </thead>
+          ),
+          tbody: ({ children }) => (
+            <tbody className="divide-y divide-[var(--border)]">
+              {children}
+            </tbody>
+          ),
+          tr: ({ children }) => (
+            <tr className="hover:bg-[var(--surface-hover)]/50 transition-colors">
+              {children}
+            </tr>
+          ),
+          th: ({ children }) => (
+            <th className="px-3 py-2 text-left text-[12px] font-bold text-[var(--text-primary)] uppercase tracking-wider">
+              {children}
+            </th>
+          ),
+          td: ({ children }) => (
+            <td className="px-3 py-2 text-[13px] text-[var(--text-secondary)]">
+              {children}
+            </td>
+          ),
+          // 链接样式
+          a: ({ href, children }) => (
+            <a href={href} className="text-[var(--accent)] hover:underline" target="_blank" rel="noopener noreferrer">
+              {children}
+            </a>
+          ),
+          // 分隔线样式
+          hr: () => (
+            <hr className="border-[var(--border)]/40 my-4" />
+          ),
+          // 强调样式
+          strong: ({ children }) => (
+            <strong className="font-bold text-[var(--text-primary)]">
+              {children}
+            </strong>
+          ),
+          em: ({ children }) => (
+            <em className="italic text-[var(--text-secondary)]">
+              {children}
+            </em>
+          ),
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+      {isStreaming && <span className="inline-block w-[2px] h-[14px] bg-[var(--accent)] ml-0.5 animate-pulse align-middle" />}
+    </div>
+  );
+}
+
 // --- Render a single text block using formatMessageContent logic ---
 function TextBlockContent({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const segments = formatMessageContent(content);
@@ -269,13 +413,7 @@ function TextBlockContent({ content, isStreaming }: { content: string; isStreami
         }
         return (
           <div key={i}>
-            {seg.content.split("\n").map((line, j, arr) => (
-              <span key={j}>
-                {line}
-                {j < arr.length - 1 && <br />}
-              </span>
-            ))}
-            {isLast && isStreaming && <span className="inline-block w-[2px] h-[14px] bg-[var(--accent)] ml-0.5 animate-pulse align-middle" />}
+            <MarkdownRenderer content={seg.content} isStreaming={isLast && isStreaming} />
           </div>
         );
       })}
@@ -298,7 +436,7 @@ function AssistantContent({ msg }: { msg: Message }) {
     ) : null;
   }
 
-  // Legacy: if no blocks but has content, render as single text block
+  // Legacy: if no blocks but has content, render as single text block (which handles thought + markdown)
   if (blocks.length === 0 && msg.content) {
     return <TextBlockContent content={msg.content} isStreaming={isStreaming} />;
   }
@@ -332,13 +470,90 @@ export function AIChat() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const blockCounterRef = useRef(0);
 
+  // 滚动相关状态
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const isUserScrollingRef = useRef(false);
+  const prevMessageLengthRef = useRef(0);
+  const autoScrollEnabledRef = useRef(true);
+
+  // 认证相关
+  const { isAuthenticated, userInfo, login, logout, loadUserInfo } = useAuth();
+  const { isOpen: isLoginModalOpen, openLogin: openLoginModal, closeLogin: closeLoginModal } = useIframeLogin();
+
   const messages = sessionMessages[activeSessionId] || [];
 
+  // 处理 iframe 登录成功
+  const handleLoginSuccess = useCallback(async (data: IframeLoginData) => {
+    // 保存认证信息已在 zaiAuth.ts 的 handleIframeLoginSuccess 中处理
+    // 这里只需要加载用户信息
+    await loadUserInfo();
+  }, [loadUserInfo]);
+
+  // 检测是否接近底部
+  const isNearBottom = useCallback(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return true;
+    const threshold = 100; // 距离底部 100px 内算作"在底部"
+    return scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight < threshold;
+  }, []);
+
+  // 平滑滚动到底部
+  const scrollToBottom = useCallback((smooth = true) => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+    scrollContainer.scrollTo({
+      top: scrollContainer.scrollHeight,
+      behavior: smooth ? "smooth" : "auto"
+    });
+  }, []);
+
+  // 自动滚动逻辑：只在 AI 回复时自动滚动
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+
+    const currentLength = messages.length;
+    const prevLength = prevMessageLengthRef.current;
+
+    // 只有当消息数量增加且处于 AI 回复中时，才考虑自动滚动
+    const hasNewMessage = currentLength > prevLength;
+    const isStreaming = messages[messages.length - 1]?.isStreaming;
+
+    // 如果有新消息且用户之前在底部，或者正在流式传输，则自动滚动
+    if ((hasNewMessage && isNearBottom()) || (isStreaming && autoScrollEnabledRef.current)) {
+      scrollToBottom(true);
     }
-  }, [messages]);
+
+    prevMessageLengthRef.current = currentLength;
+  }, [messages, isNearBottom, scrollToBottom]);
+
+  // 监听滚动事件
+  useEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+
+    const handleScroll = () => {
+      const nearBottom = isNearBottom();
+      setShowScrollToBottom(!nearBottom);
+
+      // 如果用户主动向上滚动，禁用自动滚动
+      if (!nearBottom) {
+        autoScrollEnabledRef.current = false;
+      } else {
+        autoScrollEnabledRef.current = true;
+      }
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, [isNearBottom]);
+
+  // 切换会话时滚动到底部
+  useEffect(() => {
+    scrollToBottom(false);
+    setShowScrollToBottom(false);
+    autoScrollEnabledRef.current = true;
+  }, [activeSessionId, scrollToBottom]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -626,10 +841,6 @@ export function AIChat() {
             // skip unparseable lines
           }
         }
-
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
       }
     } catch (error: any) {
       if (error.name === "AbortError") {
@@ -835,58 +1046,121 @@ export function AIChat() {
             >
               <TrendingUp className="w-4 h-4" />
             </button>
+
+            {/* 登录/用户信息区域 */}
+            {isAuthenticated && userInfo ? (
+              <div className="flex items-center gap-2 pl-2 border-l border-[var(--border)]">
+                <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-[var(--surface-hover)]/50">
+                  {userInfo.avatar ? (
+                    <img
+                      src={userInfo.avatar}
+                      alt={userInfo.nickname}
+                      className="w-6 h-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-[var(--accent)]/20 flex items-center justify-center">
+                      <User className="w-3 h-3 text-[var(--accent)]" />
+                    </div>
+                  )}
+                  <span className="text-[12px] text-[var(--text-secondary)] max-w-[100px] truncate">
+                    {userInfo.nickname || userInfo.username}
+                  </span>
+                  <button
+                    onClick={logout}
+                    className="p-1 text-[var(--text-muted)] hover:text-[var(--down)] transition-colors"
+                    title="退出登录"
+                  >
+                    <LogOut className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  console.log('[AIChat] Login button clicked');
+                  openLoginModal();
+                }}
+                className="px-3 py-1.5 text-[12px] font-medium text-[var(--accent)] bg-[var(--accent)]/5 border border-[var(--accent)]/15 hover:bg-[var(--accent)]/10 rounded-lg transition-all"
+              >
+                登录
+              </button>
+            )}
           </div>
         </div>
 
         {/* Messages Area */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto p-5 space-y-5 scroll-smooth"
-        >
-          <AnimatePresence initial={false}>
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cn(
-                  "flex gap-3",
-                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                )}
-              >
-                <div className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
-                  msg.role === "user" ? "bg-[var(--surface-hover)] border border-[var(--border)]" : "bg-[var(--accent)]/10 border border-[var(--accent)]/20"
-                )}>
-                  {msg.role === "user" ? <User className="w-4 h-4 text-[var(--text-secondary)]" /> : <Bot className="w-4 h-4 text-[var(--accent)]" />}
-                </div>
-
-                <div className={cn(
-                  "flex flex-col gap-1.5 max-w-[85%]",
-                  msg.role === "user" ? "items-end" : "items-start"
-                )}>
+        <div className="relative flex-1">
+          <div
+            ref={scrollRef}
+            className="absolute inset-0 overflow-y-auto p-5 space-y-5 scroll-smooth"
+          >
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "flex gap-3",
+                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
                   <div className={cn(
-                    "px-4 py-3 rounded-xl text-[13px] leading-relaxed",
-                    msg.role === "user"
-                      ? "bg-[var(--accent)] text-[var(--bg)] rounded-tr-none font-medium"
-                      : "bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] rounded-tl-none"
+                    "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+                    msg.role === "user" ? "bg-[var(--surface-hover)] border border-[var(--border)]" : "bg-[var(--accent)]/10 border border-[var(--accent)]/20"
                   )}>
-                    {msg.role === "assistant" ? (
-                      <AssistantContent msg={msg} />
-                    ) : (
-                      msg.content
-                    )}
+                    {msg.role === "user" ? <User className="w-4 h-4 text-[var(--text-secondary)]" /> : <Bot className="w-4 h-4 text-[var(--accent)]" />}
                   </div>
 
-                  <span className="text-[10px] text-[var(--text-muted)] font-mono px-1">
-                    {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    {msg.token != null && msg.token > 0 && (
-                      <span className="ml-2 opacity-60">· {msg.token} tokens</span>
-                    )}
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+                  <div className={cn(
+                    "flex flex-col gap-1.5 max-w-[85%]",
+                    msg.role === "user" ? "items-end" : "items-start"
+                  )}>
+                    <div className={cn(
+                      "px-4 py-3 rounded-xl text-[13px] leading-relaxed",
+                      msg.role === "user"
+                        ? "bg-[var(--accent)] text-[var(--bg)] rounded-tr-none font-medium"
+                        : "bg-[var(--bg)] border border-[var(--border)] text-[var(--text-primary)] rounded-tl-none"
+                    )}>
+                      {msg.role === "assistant" ? (
+                        <AssistantContent msg={msg} />
+                      ) : (
+                        msg.content
+                      )}
+                    </div>
+
+                    <span className="text-[10px] text-[var(--text-muted)] font-mono px-1">
+                      {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {msg.token != null && msg.token > 0 && (
+                        <span className="ml-2 opacity-60">· {msg.token} tokens</span>
+                      )}
+                    </span>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+
+          {/* Scroll to Bottom Button */}
+          <AnimatePresence>
+            {showScrollToBottom && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                transition={{ duration: 0.2 }}
+                onClick={() => {
+                  scrollToBottom(true);
+                  autoScrollEnabledRef.current = true;
+                }}
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-full shadow-lg hover:shadow-xl hover:border-[var(--accent)]/30 transition-all group"
+              >
+                <span className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">回到底部</span>
+                <svg className="w-4 h-4 text-[var(--accent)] group-hover:animate-bounce" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M19 12l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </motion.button>
+            )}
           </AnimatePresence>
         </div>
 
@@ -1008,6 +1282,13 @@ export function AIChat() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 登录弹框 */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={closeLoginModal}
+        onLoginSuccess={handleLoginSuccess}
+      />
     </div>
   );
 }
