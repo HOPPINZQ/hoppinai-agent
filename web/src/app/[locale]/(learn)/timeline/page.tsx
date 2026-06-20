@@ -9,10 +9,10 @@ export default function TimelinePage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">{t("title")}</h1>
-        <p className="mt-2 text-[var(--color-text-secondary)]">
-          {t("subtitle")}
-        </p>
+        <h1 className="text-3xl font-extrabold text-[#794f27]">
+          {t("title")}
+        </h1>
+        <p className="mt-2 text-[#8a7b66]">{t("subtitle")}</p>
       </div>
       <Timeline />
     </div>

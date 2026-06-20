@@ -95,7 +95,7 @@ function TravelingMessage({
         ease: "easeInOut",
       }}
     >
-      <rect width={MSG_W} height={MSG_H} rx={4} fill="#f59e0b" />
+      <rect width={MSG_W} height={MSG_H} rx={4} fill="#e59266" />
       <text
         x={MSG_W / 2}
         y={MSG_H / 2 + 1}
@@ -138,10 +138,10 @@ export default function AgentTeams({ title }: { title?: string }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Agent Team Mailboxes"}
       </h2>
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 min-h-[500px]">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4 min-h-[500px]">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* SVG visualization */}
           <div className="flex-1">
@@ -177,12 +177,12 @@ export default function AgentTeams({ title }: { title?: string }) {
                       cx={agent.cx}
                       cy={agent.cy}
                       r={AGENT_R}
-                      fill={glowing ? "#3b82f6" : palette.edgeStroke}
-                      stroke={glowing ? "#60a5fa" : palette.labelFill}
+                      fill={glowing ? "#889df0" : palette.edgeStroke}
+                      stroke={glowing ? "#889df0" : palette.labelFill}
                       strokeWidth={2}
                       animate={{
                         scale: pulsing ? [1, 1.08, 1] : 1,
-                        fill: glowing ? "#3b82f6" : palette.edgeStroke,
+                        fill: glowing ? "#889df0" : palette.edgeStroke,
                       }}
                       transition={
                         pulsing
@@ -211,8 +211,8 @@ export default function AgentTeams({ title }: { title?: string }) {
                       width={TRAY_W}
                       height={TRAY_H}
                       rx={3}
-                      fill={trayHasMessage(agent.id, step) ? "#fef3c7" : palette.nodeFill}
-                      stroke={trayHasMessage(agent.id, step) ? "#f59e0b" : palette.nodeStroke}
+                      fill={trayHasMessage(agent.id, step) ? "#fde6d8" : palette.nodeFill}
+                      stroke={trayHasMessage(agent.id, step) ? "#e59266" : palette.nodeStroke}
                       strokeWidth={1}
                     />
                     <text
@@ -237,11 +237,11 @@ export default function AgentTeams({ title }: { title?: string }) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5 }}
                 >
-                  <rect x={12} y={12} width={100} height={44} rx={4} fill="#f0f9ff" stroke="#bae6fd" strokeWidth={1} />
-                  <text x={20} y={28} fontSize={7} fontFamily="monospace" fill="#0284c7" fontWeight={600}>
+                  <rect x={12} y={12} width={100} height={44} rx={4} fill="#e6eafb" stroke="#889df0" strokeWidth={1} />
+                  <text x={20} y={28} fontSize={7} fontFamily="monospace" fill="#889df0" fontWeight={600}>
                     team.config
                   </text>
-                  <text x={20} y={40} fontSize={6} fontFamily="monospace" fill="#0369a1">
+                  <text x={20} y={40} fontSize={6} fontFamily="monospace" fill="#889df0">
                     workers: [coder, reviewer]
                   </text>
                 </motion.g>
@@ -290,7 +290,7 @@ export default function AgentTeams({ title }: { title?: string }) {
                       width={MSG_W + 10}
                       height={MSG_H}
                       rx={4}
-                      fill="#10b981"
+                      fill="#82d5bb"
                     />
                     <text
                       x={agentById("coder").cx + AGENT_R + 8 + (MSG_W + 10) / 2}
@@ -358,13 +358,13 @@ export default function AgentTeams({ title }: { title?: string }) {
                   <text x={SVG_W / 2 - 96} y={SVG_H - 60} fontSize={8} fontFamily="monospace" fill={palette.labelFill}>
                     .claude/teams/project/
                   </text>
-                  <text x={SVG_W / 2 - 82} y={SVG_H - 48} fontSize={8} fontFamily="monospace" fill="#60a5fa">
+                  <text x={SVG_W / 2 - 82} y={SVG_H - 48} fontSize={8} fontFamily="monospace" fill="#889df0">
                     lead.jsonl
                   </text>
-                  <text x={SVG_W / 2 - 82} y={SVG_H - 36} fontSize={8} fontFamily="monospace" fill="#60a5fa">
+                  <text x={SVG_W / 2 - 82} y={SVG_H - 36} fontSize={8} fontFamily="monospace" fill="#889df0">
                     coder.jsonl
                   </text>
-                  <text x={SVG_W / 2 - 82} y={SVG_H - 24} fontSize={8} fontFamily="monospace" fill="#60a5fa">
+                  <text x={SVG_W / 2 - 82} y={SVG_H - 24} fontSize={8} fontFamily="monospace" fill="#889df0">
                     reviewer.jsonl
                   </text>
                 </motion.g>

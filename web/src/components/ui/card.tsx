@@ -1,24 +1,32 @@
+import { Card as LibraryCard } from "animal-island-ui";
+import type { CardProps as LibraryCardProps } from "animal-island-ui";
 import { cn } from "@/lib/utils";
 
-interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
-}
+/**
+ * Thin wrapper around animal-island-ui Card so existing call sites
+ * (`<Card className="...">`) keep working. Library Card already ships the
+ * parchment background, 20px radius, brown body text, and a -2px hover float.
+ *
+ * Pass `color` or `pattern` directly via the spread props to use the
+ * NookPhone palette or polka-dot wall-paper variants.
+ */
+type CardProps = LibraryCardProps & {
+  className?: string;
+};
 
 export function Card({ className, children, ...props }: CardProps) {
   return (
-    <div
-      className={cn(
-        "rounded-xl border border-white/[0.06] bg-white/[0.03] p-6 backdrop-blur-sm",
-        className
-      )}
-      {...props}
-    >
+    <LibraryCard className={className} {...props}>
       {children}
-    </div>
+    </LibraryCard>
   );
 }
 
-export function CardHeader({ className, children, ...props }: CardProps) {
+export function CardHeader({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={cn("mb-4", className)} {...props}>
       {children}
@@ -32,7 +40,10 @@ export function CardTitle({
   ...props
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn("text-lg font-semibold text-zinc-100", className)} {...props}>
+    <h3
+      className={cn("text-lg font-bold text-[#794f27]", className)}
+      {...props}
+    >
       {children}
     </h3>
   );

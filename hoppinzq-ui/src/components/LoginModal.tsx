@@ -64,20 +64,20 @@ export function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps)
 
   return (
     <div
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="relative w-[450px] h-[600px] bg-white rounded-2xl overflow-hidden shadow-2xl"
+        className="relative w-[450px] h-[600px] bg-[var(--surface)] rounded-3xl overflow-hidden shadow-2xl border-2 border-[var(--border)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 关闭按钮 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center bg-black/10 hover:bg-black/20 rounded-full transition-colors"
+          className="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center bg-[var(--surface-hover)] hover:bg-[var(--border)] rounded-full transition-colors"
           title="关闭"
         >
-          <X className="w-4 h-4 text-gray-600" />
+          <X className="w-4 h-4 text-[var(--text-secondary)]" />
         </button>
 
         {/* 登录 iframe */}

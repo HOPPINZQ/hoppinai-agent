@@ -20,34 +20,34 @@ const TOOLS: ToolDef[] = [
   {
     name: "bash",
     desc: "执行终端命令",
-    color: "border-orange-300 bg-orange-50",
-    activeColor: "border-orange-500 bg-orange-100 ring-2 ring-orange-400",
-    darkColor: "dark:border-zinc-700 dark:bg-zinc-800/50",
-    darkActiveColor: "dark:border-orange-500 dark:bg-orange-950/40 dark:ring-orange-500",
+    color: "border-[#e59266]/40 bg-[#fde6d8]",
+    activeColor: "border-[#e59266] bg-[#fde6d8] ring-2 ring-[#e59266]",
+    darkColor: "",
+    darkActiveColor: "",
   },
   {
     name: "read_file",
     desc: "读取文件内容",
-    color: "border-sky-300 bg-sky-50",
-    activeColor: "border-sky-500 bg-sky-100 ring-2 ring-sky-400",
-    darkColor: "dark:border-zinc-700 dark:bg-zinc-800/50",
-    darkActiveColor: "dark:border-sky-500 dark:bg-sky-950/40 dark:ring-sky-500",
+    color: "border-[#889df0]/40 bg-[#e6eafb]",
+    activeColor: "border-[#889df0] bg-[#e6eafb] ring-2 ring-[#889df0]",
+    darkColor: "",
+    darkActiveColor: "",
   },
   {
     name: "write_file",
     desc: "创建或写入文件",
-    color: "border-emerald-300 bg-emerald-50",
-    activeColor: "border-emerald-500 bg-emerald-100 ring-2 ring-emerald-400",
-    darkColor: "dark:border-zinc-700 dark:bg-zinc-800/50",
-    darkActiveColor: "dark:border-emerald-500 dark:bg-emerald-950/40 dark:ring-emerald-500",
+    color: "border-[#8ac68a]/40 bg-[#e0f0e0]",
+    activeColor: "border-[#8ac68a] bg-[#e0f0e0] ring-2 ring-[#8ac68a]",
+    darkColor: "",
+    darkActiveColor: "",
   },
   {
     name: "edit_file",
     desc: "编辑（修改）文件",
-    color: "border-violet-300 bg-violet-50",
-    activeColor: "border-violet-500 bg-violet-100 ring-2 ring-violet-400",
-    darkColor: "dark:border-zinc-700 dark:bg-zinc-800/50",
-    darkActiveColor: "dark:border-violet-500 dark:bg-violet-950/40 dark:ring-violet-500",
+    color: "border-[#b77dee]/40 bg-[#efe2fb]",
+    activeColor: "border-[#b77dee] bg-[#efe2fb] ring-2 ring-[#b77dee]",
+    darkColor: "",
+    darkActiveColor: "",
   },
 ];
 
@@ -111,14 +111,14 @@ export default function ToolDispatch({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Tool Dispatch Map"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         {/* Incoming request display */}
         <div className="mb-4 flex min-h-[32px] items-center gap-2">
-          <span className="shrink-0 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <span className="shrink-0 text-xs font-medium text-[#8a7b66]">
             AI输出:
           </span>
           <AnimatePresence mode="wait">
@@ -129,7 +129,7 @@ export default function ToolDispatch({ title }: { title?: string }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.3 }}
-                className="rounded bg-blue-100 px-2.5 py-1 font-mono text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"
+                className="rounded bg-[#e6eafb] px-2.5 py-1 font-mono text-xs font-medium text-[#889df0]"
               >
                 {request}
               </motion.code>
@@ -139,7 +139,7 @@ export default function ToolDispatch({ title }: { title?: string }) {
                 key="waiting"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.6 }}
-                className="text-xs text-zinc-400 dark:text-zinc-600"
+                className="text-xs text-[#725d42]"
               >
                 等待 tool_call...
               </motion.span>
@@ -149,7 +149,7 @@ export default function ToolDispatch({ title }: { title?: string }) {
                 key="all-routes"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                className="text-xs font-medium text-[#8ac68a]"
               >
                 所有工具执行完毕，继续下一步...
               </motion.span>
@@ -160,24 +160,24 @@ export default function ToolDispatch({ title }: { title?: string }) {
         {/* SVG dispatch diagram */}
         <svg
           viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
-          className="w-full rounded-md border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950"
+          className="w-full rounded-md border border-[#e8dcc8] bg-[#fbf7eb]"
           style={{ minHeight: 240 }}
         >
           <defs>
             <filter id="dispatch-glow">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#3b82f6" floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#889df0" floodOpacity="0.6" />
             </filter>
             <filter id="card-glow-orange">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#f97316" floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#e59266" floodOpacity="0.6" />
             </filter>
             <filter id="card-glow-sky">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#0ea5e9" floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#889df0" floodOpacity="0.6" />
             </filter>
             <filter id="card-glow-emerald">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#10b981" floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#8ac68a" floodOpacity="0.6" />
             </filter>
             <filter id="card-glow-violet">
-              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#8b5cf6" floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="3" floodColor="#b77dee" floodOpacity="0.6" />
             </filter>
             <marker
               id="dispatch-arrow"
@@ -261,8 +261,8 @@ export default function ToolDispatch({ title }: { title?: string }) {
               "url(#card-glow-emerald)",
               "url(#card-glow-violet)",
             ];
-            const activeColors = ["#f97316", "#0ea5e9", "#10b981", "#8b5cf6"];
-            const activeBorders = ["#ea580c", "#0284c7", "#059669", "#7c3aed"];
+            const activeColors = ["#e59266", "#889df0", "#8ac68a", "#b77dee"];
+            const activeBorders = ["#e59266", "#889df0", "#8ac68a", "#b77dee"];
 
             return (
               <g key={tool.name}>
@@ -321,7 +321,7 @@ export default function ToolDispatch({ title }: { title?: string }) {
                 cy={CARD_Y}
                 r={16}
                 fill="none"
-                stroke="#3b82f6"
+                stroke="#889df0"
                 strokeWidth={2}
                 strokeDasharray="4 3"
               />
@@ -332,7 +332,7 @@ export default function ToolDispatch({ title }: { title?: string }) {
                 dominantBaseline="middle"
                 fontSize={18}
                 fontWeight={700}
-                fill="#3b82f6"
+                fill="#889df0"
               >
                 +
               </text>
@@ -341,19 +341,19 @@ export default function ToolDispatch({ title }: { title?: string }) {
         </svg>
 
         {/* Code snippet below the diagram */}
-        <div className="mt-3 rounded-md bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-          <code className="block font-mono text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-300">
-            <span className="text-blue-600 dark:text-blue-400">const</span> handlers = {"{"}
+        <div className="mt-3 rounded-md bg-[#f6efe0] px-3 py-2">
+          <code className="block font-mono text-[11px] leading-relaxed text-[#9f927d]">
+            <span className="text-[#889df0]">const</span> handlers = {"{"}
             {TOOLS.map((tool, i) => {
               const isActive = isAllActive || i === activeToolIdx;
               return (
                 <motion.span
                   key={tool.name}
                   animate={{
-                    color: isActive ? "#3b82f6" : undefined,
+                    color: isActive ? "#889df0" : undefined,
                     fontWeight: isActive ? 700 : 400,
                   }}
-                  className="text-zinc-600 dark:text-zinc-300"
+                  className="text-[#9f927d]"
                 >
                   {" "}{tool.name},
                 </motion.span>

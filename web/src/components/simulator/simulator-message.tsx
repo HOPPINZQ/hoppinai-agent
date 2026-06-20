@@ -17,32 +17,32 @@ const TYPE_CONFIG: Record<
   user_message: {
     icon: User,
     label: "User",
-    bgClass: "bg-blue-50 dark:bg-blue-950/30",
-    borderClass: "border-blue-200 dark:border-blue-800",
+    bgClass: "bg-[#e6eafb]",
+    borderClass: "border-[#e8dcc8]",
   },
   assistant_text: {
     icon: Bot,
     label: "Assistant",
-    bgClass: "bg-zinc-50 dark:bg-zinc-900",
-    borderClass: "border-zinc-200 dark:border-zinc-700",
+    bgClass: "bg-[#fbf7eb]",
+    borderClass: "border-[#e8dcc8]",
   },
   tool_call: {
     icon: Terminal,
     label: "Tool Call",
-    bgClass: "bg-amber-50 dark:bg-amber-950/30",
-    borderClass: "border-amber-200 dark:border-amber-800",
+    bgClass: "bg-[#fde6d8]",
+    borderClass: "border-[#e8dcc8]",
   },
   tool_result: {
     icon: ArrowRight,
     label: "Tool Result",
-    bgClass: "bg-emerald-50 dark:bg-emerald-950/30",
-    borderClass: "border-emerald-200 dark:border-emerald-800",
+    bgClass: "bg-[#e0f0e0]",
+    borderClass: "border-[#e8dcc8]",
   },
   system_event: {
     icon: AlertCircle,
     label: "System",
-    bgClass: "bg-purple-50 dark:bg-purple-950/30",
-    borderClass: "border-purple-200 dark:border-purple-800",
+    bgClass: "bg-[#efe2fb]",
+    borderClass: "border-[#e8dcc8]",
   },
 };
 
@@ -74,11 +74,11 @@ export function SimulatorMessage({ step, index }: SimulatorMessageProps) {
       </div>
 
       {step.type === "tool_call" || step.type === "tool_result" ? (
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-zinc-900 p-2.5 font-mono text-xs leading-relaxed text-zinc-100 dark:bg-zinc-950">
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-[#fbf7eb] p-2.5 font-mono text-xs leading-relaxed text-[#794f27]">
           {step.content || "(empty)"}
         </pre>
       ) : step.type === "system_event" ? (
-        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-purple-900/80 p-2.5 font-mono text-xs leading-relaxed text-purple-100 dark:bg-purple-950">
+        <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-[#efe2fb] p-2.5 font-mono text-xs leading-relaxed text-[#b77dee]">
           {step.content}
         </pre>
       ) : (

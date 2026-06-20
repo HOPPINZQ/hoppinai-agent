@@ -15,9 +15,9 @@ interface ContextBlock {
 }
 
 const BLOCK_COLORS: Record<BlockType, string> = {
-  user: "bg-blue-500",
-  assistant: "bg-zinc-500 dark:bg-zinc-600",
-  tool_result: "bg-emerald-500",
+  user: "bg-[#889df0]",
+  assistant: "bg-[#9f927d]",
+  tool_result: "bg-[#8ac68a]",
 };
 
 const BLOCK_LABELS: Record<BlockType, string> = {
@@ -208,31 +208,31 @@ export default function ContextCompact({ title }: { title?: string }) {
 
   const fillColor =
     state.fillPercent > 75
-      ? "bg-red-500"
+      ? "bg-[#fc736d]"
       : state.fillPercent > 45
-        ? "bg-amber-500"
-        : "bg-emerald-500";
+        ? "bg-[#e59266]"
+        : "bg-[#8ac68a]";
 
   const tokenDisplay = `${(state.tokenCount / 1000).toFixed(0)}K`;
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Three-Layer Context Compression"}
       </h2>
 
       <div
-        className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900"
+        className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-6"
         style={{ minHeight: 500 }}
       >
         <div className="flex gap-6">
           {/* Token Window (tall vertical bar on the left) */}
           <div className="flex flex-col items-center">
-            <div className="mb-2 font-mono text-[10px] font-semibold text-zinc-500 dark:text-zinc-400">
+            <div className="mb-2 font-mono text-[10px] font-semibold text-[#8a7b66]">
               Context Window
             </div>
             <div
-              className="relative w-24 overflow-hidden rounded-xl border-2 border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800"
+              className="relative w-24 overflow-hidden rounded-xl border-2 border-[#d4c9b4] bg-[#fbf7eb]"
               style={{ height: WINDOW_HEIGHT }}
             >
               {/* Blocks stacked from bottom up */}
@@ -251,7 +251,7 @@ export default function ContextCompact({ title }: { title?: string }) {
                       transition={{ duration: 0.4 }}
                       className={`flex w-full items-center justify-center rounded-sm ${
                         block.compressed
-                          ? "bg-emerald-300 dark:bg-emerald-700"
+                          ? "bg-[#8ac68a]/60"
                           : BLOCK_COLORS[block.type]
                       }`}
                       style={{ originY: 1 }}
@@ -270,9 +270,9 @@ export default function ContextCompact({ title }: { title?: string }) {
               <motion.div
                 animate={{ bottom: `${state.fillPercent}%` }}
                 transition={{ duration: 0.5 }}
-                className="absolute left-0 right-0 border-t-2 border-dashed border-red-400 dark:border-red-500"
+                className="absolute left-0 right-0 border-t-2 border-dashed border-[#fc736d]/60"
               >
-                <span className="absolute -top-4 right-1 font-mono text-[9px] font-bold text-red-500 dark:text-red-400">
+                <span className="absolute -top-4 right-1 font-mono text-[9px] font-bold text-[#fc736d]">
                   {state.fillPercent}%
                 </span>
               </motion.div>
@@ -283,11 +283,11 @@ export default function ContextCompact({ title }: { title?: string }) {
               key={state.tokenCount}
               initial={{ scale: 0.85 }}
               animate={{ scale: 1 }}
-              className="mt-2 font-mono text-sm font-bold text-zinc-700 dark:text-zinc-200"
+              className="mt-2 font-mono text-sm font-bold text-[#9f927d]"
             >
               {tokenDisplay}
             </motion.div>
-            <div className="font-mono text-[10px] text-zinc-400">
+            <div className="font-mono text-[10px] text-[#725d42]">
               / 100K
             </div>
           </div>
@@ -297,14 +297,14 @@ export default function ContextCompact({ title }: { title?: string }) {
             {/* Top: horizontal token bar */}
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-xs text-[#8a7b66]">
                   Token usage
                 </span>
-                <span className="font-mono text-xs text-zinc-500">
+                <span className="font-mono text-xs text-[#8a7b66]">
                   {state.tokenCount.toLocaleString()} / {MAX_TOKENS.toLocaleString()}
                 </span>
               </div>
-              <div className="h-3 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <div className="h-3 overflow-hidden rounded-full bg-[#f6efe0]">
                 <motion.div
                   animate={{ width: `${state.fillPercent}%` }}
                   transition={{ duration: 0.5 }}
@@ -316,16 +316,16 @@ export default function ContextCompact({ title }: { title?: string }) {
             {/* Message type legend */}
             <div className="mt-4 flex items-center gap-4">
               <div className="flex items-center gap-1">
-                <div className="h-3 w-3 rounded bg-blue-500" />
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">user</span>
+                <div className="h-3 w-3 rounded bg-[#889df0]" />
+                <span className="text-[10px] text-[#8a7b66]">user</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="h-3 w-3 rounded bg-zinc-500" />
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">assistant</span>
+                <div className="h-3 w-3 rounded bg-[#9f927d]" />
+                <span className="text-[10px] text-[#8a7b66]">assistant</span>
               </div>
               <div className="flex items-center gap-1">
-                <div className="h-3 w-3 rounded bg-emerald-500" />
-                <span className="text-[10px] text-zinc-500 dark:text-zinc-400">tool_result</span>
+                <div className="h-3 w-3 rounded bg-[#8ac68a]" />
+                <span className="text-[10px] text-[#8a7b66]">tool_result</span>
               </div>
             </div>
 
@@ -336,12 +336,12 @@ export default function ContextCompact({ title }: { title?: string }) {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-700 dark:bg-amber-900/20"
+                  className="mt-3 rounded border border-[#e59266]/40 bg-[#fde6d8] px-3 py-2"
                 >
-                  <div className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                  <div className="text-xs font-semibold text-[#e59266]">
                     tool_results are the largest blocks
                   </div>
-                  <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                  <div className="text-[11px] text-[#e59266]">
                     File contents, command outputs, search results -- each one is thousands of tokens.
                   </div>
                 </motion.div>
@@ -360,26 +360,26 @@ export default function ContextCompact({ title }: { title?: string }) {
                 >
                   <div className={`rounded-lg border-2 p-4 text-center ${
                     currentStep === 3
-                      ? "border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-900/20"
+                      ? "border-[#e59266] bg-[#fde6d8]"
                       : currentStep === 5
-                        ? "border-blue-400 bg-blue-50 dark:border-blue-600 dark:bg-blue-900/20"
-                        : "border-emerald-400 bg-emerald-50 dark:border-emerald-600 dark:bg-emerald-900/20"
+                        ? "border-[#889df0] bg-[#e6eafb]"
+                        : "border-[#8ac68a] bg-[#e0f0e0]"
                   }`}>
                     <div className={`text-lg font-black ${
                       currentStep === 3
-                        ? "text-amber-600 dark:text-amber-300"
+                        ? "text-[#e59266]"
                         : currentStep === 5
-                          ? "text-blue-600 dark:text-blue-300"
-                          : "text-emerald-600 dark:text-emerald-300"
+                          ? "text-[#889df0]"
+                          : "text-[#8ac68a]"
                     }`}>
                       {state.compressionLabel}
                     </div>
                     <div className={`mt-1 text-xs ${
                       currentStep === 3
-                        ? "text-amber-500 dark:text-amber-400"
+                        ? "text-[#e59266]"
                         : currentStep === 5
-                          ? "text-blue-500 dark:text-blue-400"
-                          : "text-emerald-500 dark:text-emerald-400"
+                          ? "text-[#889df0]"
+                          : "text-[#8ac68a]"
                     }`}>
                       {currentStep === 3 && "Old tool_results shrunk to tiny summaries"}
                       {currentStep === 5 && "Full conversation compressed to summary block"}
@@ -398,30 +398,30 @@ export default function ContextCompact({ title }: { title?: string }) {
                 transition={{ delay: 0.4 }}
                 className="mt-4 space-y-2"
               >
-                <div className="flex items-center gap-2 rounded bg-amber-50 px-3 py-1.5 dark:bg-amber-900/10">
-                  <div className="h-2 w-2 rounded-full bg-amber-500" />
-                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                <div className="flex items-center gap-2 rounded bg-[#fde6d8] px-3 py-1.5">
+                  <div className="h-2 w-2 rounded-full bg-[#e59266]" />
+                  <span className="text-xs text-[#e59266]">
                     Stage 1: Micro -- shrink old tool_results
                   </span>
-                  <span className="ml-auto font-mono text-[10px] text-amber-500">
+                  <span className="ml-auto font-mono text-[10px] text-[#e59266]">
                     automatic
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded bg-blue-50 px-3 py-1.5 dark:bg-blue-900/10">
-                  <div className="h-2 w-2 rounded-full bg-blue-500" />
-                  <span className="text-xs text-blue-700 dark:text-blue-300">
+                <div className="flex items-center gap-2 rounded bg-[#e6eafb] px-3 py-1.5">
+                  <div className="h-2 w-2 rounded-full bg-[#889df0]" />
+                  <span className="text-xs text-[#889df0]">
                     Stage 2: Auto -- summarize entire conversation
                   </span>
-                  <span className="ml-auto font-mono text-[10px] text-blue-500">
+                  <span className="ml-auto font-mono text-[10px] text-[#889df0]">
                     at threshold
                   </span>
                 </div>
-                <div className="flex items-center gap-2 rounded bg-emerald-50 px-3 py-1.5 dark:bg-emerald-900/10">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="text-xs text-emerald-700 dark:text-emerald-300">
+                <div className="flex items-center gap-2 rounded bg-[#e0f0e0] px-3 py-1.5">
+                  <div className="h-2 w-2 rounded-full bg-[#8ac68a]" />
+                  <span className="text-xs text-[#8ac68a]">
                     Stage 3: /compact -- user-triggered, deepest compression
                   </span>
-                  <span className="ml-auto font-mono text-[10px] text-emerald-500">
+                  <span className="ml-auto font-mono text-[10px] text-[#8ac68a]">
                     manual
                   </span>
                 </div>

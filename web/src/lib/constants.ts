@@ -33,9 +33,25 @@ export const VERSION_META: Record<string, {
 };
 
 export const LAYERS = [
-  { id: "tools" as const, label: "工具与执行", color: "#3B82F6", versions: ["s01", "s02", "s14"] },
-  { id: "planning" as const, label: "规划与协调", color: "#10B981", versions: ["s03", "s04", "s05", "s13", "s07"] },
-  { id: "memory" as const, label: "记忆管理", color: "#8B5CF6", versions: ["s06"] },
-  { id: "concurrency" as const, label: "并发", color: "#F59E0B", versions: ["s08"] },
-  { id: "collaboration" as const, label: "协作", color: "#EF4444", versions: ["s09", "s10", "s11", "s12"] },
+  { id: "tools" as const, label: "工具与执行", color: "#889df0", versions: ["s01", "s02", "s14"] },
+  { id: "planning" as const, label: "规划与协调", color: "#82d5bb", versions: ["s03", "s04", "s05", "s13", "s07"] },
+  { id: "memory" as const, label: "记忆管理", color: "#b77dee", versions: ["s06"] },
+  { id: "concurrency" as const, label: "并发", color: "#e59266", versions: ["s08"] },
+  { id: "collaboration" as const, label: "协作", color: "#f8a6b2", versions: ["s09", "s10", "s11", "s12"] },
 ] as const;
+
+/**
+ * Look up a layer's NookPhone color by id. Single source of truth — pages
+ * and components read from here instead of keeping their own color maps.
+ */
+export function getLayerColor(layerId: string): string {
+  return LAYERS.find((l) => l.id === layerId)?.color ?? "#9a835a";
+}
+
+/**
+ * Tailwind-friendly map of layer id -> hex color. Use as
+ * `style={{ backgroundColor: LAYER_COLOR_BY_ID[layerId] }}` or for borders/dots.
+ */
+export const LAYER_COLOR_BY_ID: Record<string, string> = Object.fromEntries(
+  LAYERS.map((l) => [l.id, l.color])
+);

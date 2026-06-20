@@ -1,3 +1,4 @@
+import "animal-island-ui/style";
 import type { Metadata } from "next";
 import { I18nProvider } from "@/lib/i18n";
 import { Header } from "@/components/layout/header";
@@ -56,14 +57,8 @@ export default async function RootLayout({
   const { locale } = await params;
 
   return (
-    <html lang={locale} className="dark" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            document.documentElement.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-          })();
-        `}} />
         <script dangerouslySetInnerHTML={{ __html: `
           (function(c,l,a,r,i,t,y){
               c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
@@ -72,7 +67,7 @@ export default async function RootLayout({
           })(window, document, "clarity", "script", "w3nbs5o5r7");
         `}} />
       </head>
-      <body className="min-h-screen bg-gradient-to-br from-[#0d0b1a] via-[#110e24] to-[#080612] text-[var(--color-text)] antialiased">
+      <body className="min-h-screen bg-[#f8f8f0] text-[#725d42] antialiased">
         <I18nProvider locale={locale}>
           <Header />
           <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">

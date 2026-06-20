@@ -143,25 +143,25 @@ function getStatusColor(status: TaskStatus) {
       return {
         fill: "#fef3c7",
         darkFill: "#451a0340",
-        stroke: "#f59e0b",
+        stroke: "#e59266",
         darkStroke: "#d97706",
         text: "#b45309",
-        darkText: "#fbbf24",
+        darkText: "#e59266",
       };
     case "completed":
       return {
         fill: "#d1fae5",
         darkFill: "#06402740",
-        stroke: "#10b981",
+        stroke: "#82d5bb",
         darkStroke: "#059669",
         text: "#047857",
-        darkText: "#34d399",
+        darkText: "#82d5bb",
       };
     case "blocked":
       return {
         fill: "#fecaca",
         darkFill: "#45050540",
-        stroke: "#ef4444",
+        stroke: "#fc736d",
         darkStroke: "#dc2626",
         text: "#dc2626",
         darkText: "#f87171",
@@ -236,11 +236,11 @@ export default function TaskSystem({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Task Dependency Graph"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         <svg viewBox="0 0 800 340" className="w-full" aria-label="Task DAG">
           <defs>
             <marker
@@ -263,7 +263,7 @@ export default function TaskSystem({ title }: { title?: string }) {
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#82d5bb" />
             </marker>
             <marker
               id="arrowRed"
@@ -274,11 +274,11 @@ export default function TaskSystem({ title }: { title?: string }) {
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#fc736d" />
             </marker>
             <filter id="glowAmber" x="-30%" y="-30%" width="160%" height="160%">
               <feGaussianBlur stdDeviation="4" result="blur" />
-              <feFlood floodColor="#f59e0b" floodOpacity="0.4" result="color" />
+              <feFlood floodColor="#e59266" floodOpacity="0.4" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -293,7 +293,7 @@ export default function TaskSystem({ title }: { title?: string }) {
               height="160%"
             >
               <feGaussianBlur stdDeviation="3" result="blur" />
-              <feFlood floodColor="#10b981" floodOpacity="0.3" result="color" />
+              <feFlood floodColor="#82d5bb" floodOpacity="0.3" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -311,10 +311,10 @@ export default function TaskSystem({ title }: { title?: string }) {
             let strokeColor = palette.arrowFill;
             if (active) {
               markerEnd = "url(#arrowGreen)";
-              strokeColor = "#10b981";
+              strokeColor = "#82d5bb";
             } else if (isBlocked) {
               markerEnd = "url(#arrowRed)";
-              strokeColor = "#ef4444";
+              strokeColor = "#fc736d";
             }
 
             return (
@@ -401,7 +401,7 @@ export default function TaskSystem({ title }: { title?: string }) {
                 height={22}
                 rx={4}
                 fill={isDark ? "#451a03" : "#fef2f2"}
-                stroke={isDark ? "#dc2626" : "#fca5a5"}
+                stroke={isDark ? "#dc2626" : "#fc736d"}
                 strokeWidth={1}
               />
               <text
@@ -411,7 +411,7 @@ export default function TaskSystem({ title }: { title?: string }) {
                 dominantBaseline="middle"
                 fontSize="9"
                 fontFamily="monospace"
-                fill={isDark ? "#f87171" : "#dc2626"}
+                fill={isDark ? "#f87171" : "#fc736d"}
               >
                 Blocked: waiting on T3
               </text>
@@ -420,10 +420,10 @@ export default function TaskSystem({ title }: { title?: string }) {
         </svg>
 
         {/* File persistence indicator */}
-        <div className="mt-3 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-800/60">
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-[#e8dcc8] bg-[#fbf7eb] px-3 py-2">
           <svg
             viewBox="0 0 24 24"
-            className="h-5 w-5 flex-shrink-0 text-zinc-400 dark:text-zinc-500"
+            className="h-5 w-5 flex-shrink-0 text-[#725d42]"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
@@ -435,15 +435,15 @@ export default function TaskSystem({ title }: { title?: string }) {
             />
           </svg>
           <div className="flex flex-col">
-            <span className="font-mono text-xs font-medium text-zinc-600 dark:text-zinc-300">
+            <span className="font-mono text-xs font-medium text-[#9f927d]">
               .tasks/tasks.json
             </span>
-            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
+            <span className="text-[10px] text-[#725d42]">
               Persisted to disk -- survives context compaction
             </span>
           </div>
           <motion.div
-            className="ml-auto h-2 w-2 rounded-full bg-emerald-500"
+            className="ml-auto h-2 w-2 rounded-full bg-[#8ac68a]"
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 2 }}
           />
@@ -452,26 +452,26 @@ export default function TaskSystem({ title }: { title?: string }) {
         {/* Legend */}
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-zinc-300 dark:bg-zinc-600" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded bg-[#d4c9b4]" />
+            <span className="text-[10px] text-[#8a7b66]">
               pending
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-amber-400 dark:bg-amber-600" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded bg-[#e59266]" />
+            <span className="text-[10px] text-[#8a7b66]">
               in_progress
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-emerald-400 dark:bg-emerald-600" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded bg-[#8ac68a]" />
+            <span className="text-[10px] text-[#8a7b66]">
               completed
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-red-400 dark:bg-red-600" />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded bg-[#fc736d]" />
+            <span className="text-[10px] text-[#8a7b66]">
               blocked
             </span>
           </div>

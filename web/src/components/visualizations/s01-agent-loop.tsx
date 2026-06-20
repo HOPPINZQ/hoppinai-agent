@@ -74,15 +74,15 @@ interface MessageBlock {
 
 const MESSAGES_PER_STEP: (MessageBlock | null)[][] = [
   [],
-  [{ role: "user", detail: "修复这个bug", colorClass: "bg-blue-500 dark:bg-blue-600" }],
+  [{ role: "user", detail: "修复这个bug", colorClass: "bg-[#889df0]" }],
   [],
-  [{ role: "assistant", detail: "tool_use: read_file", colorClass: "bg-zinc-600 dark:bg-zinc-500" }],
-  [{ role: "tool_result", detail: "public static void main(String[] args) {...", colorClass: "bg-emerald-500 dark:bg-emerald-600" }],
+  [{ role: "assistant", detail: "tool_use: read_file", colorClass: "bg-[#9f927d]" }],
+  [{ role: "tool_result", detail: "public static void main(String[] args) {...", colorClass: "bg-[#8ac68a]" }],
   [
-    { role: "assistant", detail: "tool_use: edit_file", colorClass: "bg-zinc-600 dark:bg-zinc-500" },
-    { role: "tool_result", detail: "代码已更新", colorClass: "bg-emerald-500 dark:bg-emerald-600" },
+    { role: "assistant", detail: "tool_use: edit_file", colorClass: "bg-[#9f927d]" },
+    { role: "tool_result", detail: "代码已更新", colorClass: "bg-[#8ac68a]" },
   ],
-  [{ role: "assistant", detail: "修复完成！", colorClass: "bg-purple-500 dark:bg-purple-600" }],
+  [{ role: "assistant", detail: "修复完成！", colorClass: "bg-[#b77dee]" }],
 ];
 
 // -- Step annotations --
@@ -162,28 +162,28 @@ export default function AgentLoop({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "The Agent While-Loop"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* Left panel: SVG Flowchart (60%) */}
           <div className="w-full lg:w-[60%]">
-            <div className="mb-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               while (stop_reason === "tool_use")
             </div>
             <svg
               viewBox="0 0 500 440"
-              className="w-full rounded-md border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950"
+              className="w-full rounded-md border border-[#e8dcc8] bg-[#fbf7eb]"
               style={{ minHeight: 300 }}
             >
               <defs>
                 <filter id="glow-blue">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#3b82f6" floodOpacity="0.7" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#889df0" floodOpacity="0.7" />
                 </filter>
                 <filter id="glow-purple">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#a855f7" floodOpacity="0.7" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#b77dee" floodOpacity="0.7" />
                 </filter>
                 <marker
                   id="arrowhead"
@@ -241,7 +241,7 @@ export default function AgentLoop({ title }: { title?: string }) {
                             : (getNode(edge.from).y + getNode(edge.to).y) / 2
                         }
                         textAnchor="middle"
-                        className="fill-zinc-400 text-[10px] dark:fill-zinc-500"
+                        className="fill-[#725d42] text-[10px]"
                       >
                         {edge.label}
                       </text>
@@ -340,7 +340,7 @@ export default function AgentLoop({ title }: { title?: string }) {
                   textAnchor="middle"
                   fontSize={10}
                   fontFamily="monospace"
-                  fill="#3b82f6"
+                  fill="#889df0"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                 >
@@ -352,10 +352,10 @@ export default function AgentLoop({ title }: { title?: string }) {
 
           {/* Right panel: messages[] array (40%) */}
           <div className="w-full lg:w-[40%]">
-            <div className="mb-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               messages[]
             </div>
-            <div className="min-h-[300px] space-y-2 rounded-md border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="min-h-[300px] space-y-2 rounded-md border border-[#e8dcc8] bg-[#fbf7eb] p-3">
               <AnimatePresence mode="popLayout">
                 {visibleMessages.length === 0 && (
                   <motion.div
@@ -363,7 +363,7 @@ export default function AgentLoop({ title }: { title?: string }) {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="py-8 text-center text-xs text-zinc-400 dark:text-zinc-600"
+                    className="py-8 text-center text-xs text-[#725d42]"
                   >
                     [ 空的 ]
                   </motion.div>
@@ -389,8 +389,8 @@ export default function AgentLoop({ title }: { title?: string }) {
 
               {/* Array index markers */}
               {visibleMessages.length > 0 && (
-                <div className="mt-3 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-                  <span className="font-mono text-[10px] text-zinc-400">
+                <div className="mt-3 border-t border-[#e8dcc8] pt-2">
+                  <span className="font-mono text-[10px] text-[#725d42]">
                     length: {visibleMessages.length}
                   </span>
                 </div>

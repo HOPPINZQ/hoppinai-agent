@@ -30,7 +30,7 @@ export function SessionVisualization({ version }: { version: string }) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[500px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        <div className="min-h-[500px] animate-pulse rounded-lg bg-[#f6efe0]" />
       }
     >
       <div className="min-h-[500px]">

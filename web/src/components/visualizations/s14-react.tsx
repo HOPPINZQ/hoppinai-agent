@@ -27,7 +27,7 @@ const NODES: FlowNode[] = [
     y: 30,
     w: 100,
     h: 40,
-    color: "#8b5cf6"
+    color: "#b77dee"
   },
   {
     id: "thought",
@@ -38,7 +38,7 @@ const NODES: FlowNode[] = [
     y: 120,
     w: 130,
     h: 70,
-    color: "#6366f1"
+    color: "#889df0"
   },
   {
     id: "action",
@@ -49,7 +49,7 @@ const NODES: FlowNode[] = [
     y: 280,
     w: 130,
     h: 70,
-    color: "#f59e0b"
+    color: "#e59266"
   },
   {
     id: "observation",
@@ -60,7 +60,7 @@ const NODES: FlowNode[] = [
     y: 280,
     w: 130,
     h: 70,
-    color: "#10b981"
+    color: "#82d5bb"
   },
   {
     id: "summary",
@@ -70,7 +70,7 @@ const NODES: FlowNode[] = [
     y: 380,
     w: 100,
     h: 50,
-    color: "#8b5cf6"
+    color: "#b77dee"
   }
 ];
 
@@ -126,15 +126,15 @@ interface MessageBlock {
 
 const MESSAGES_PER_STEP: (MessageBlock | null)[][] = [
   [],
-  [{ role: "user", detail: "帮我分析项目代码质量并给出改进建议", colorClass: "bg-blue-500 dark:bg-blue-600" }],
-  [{ role: "thought", detail: "需要列出项目文件，然后逐个分析代码质量", colorClass: "bg-indigo-500 dark:bg-indigo-600" }],
-  [{ role: "action", detail: "list_files(pattern='**/*.java')", colorClass: "bg-amber-500 dark:bg-amber-600" }],
-  [{ role: "observation", detail: "找到8个Java文件，准备逐个分析", colorClass: "bg-green-500 dark:bg-green-600" }],
-  [{ role: "thought", detail: "继续分析核心文件Agent.java", colorClass: "bg-indigo-500 dark:bg-indigo-600" }],
-  [{ role: "action", detail: "analyze_code(file='Agent.java')", colorClass: "bg-amber-500 dark:bg-amber-600" }],
-  [{ role: "observation", detail: "注释不足(4/10)，复杂度高(6/10)", colorClass: "bg-green-500 dark:bg-green-600" }],
-  [{ role: "thought", detail: "信息已充足，可以给出完整的分析报告", colorClass: "bg-indigo-500 dark:bg-indigo-600" }],
-  [{ role: "assistant", detail: "分析完成！项目整体质量7.5/10，建议增加注释和测试覆盖率。", colorClass: "bg-purple-500 dark:bg-purple-600" }],
+  [{ role: "user", detail: "帮我分析项目代码质量并给出改进建议", colorClass: "bg-[#889df0]" }],
+  [{ role: "thought", detail: "需要列出项目文件，然后逐个分析代码质量", colorClass: "bg-[#889df0]" }],
+  [{ role: "action", detail: "list_files(pattern='**/*.java')", colorClass: "bg-[#e59266]" }],
+  [{ role: "observation", detail: "找到8个Java文件，准备逐个分析", colorClass: "bg-[#82d5bb]" }],
+  [{ role: "thought", detail: "继续分析核心文件Agent.java", colorClass: "bg-[#889df0]" }],
+  [{ role: "action", detail: "analyze_code(file='Agent.java')", colorClass: "bg-[#e59266]" }],
+  [{ role: "observation", detail: "注释不足(4/10)，复杂度高(6/10)", colorClass: "bg-[#82d5bb]" }],
+  [{ role: "thought", detail: "信息已充足，可以给出完整的分析报告", colorClass: "bg-[#889df0]" }],
+  [{ role: "assistant", detail: "分析完成！项目整体质量7.5/10，建议增加注释和测试覆盖率。", colorClass: "bg-[#b77dee]" }],
 ];
 
 // -- Step annotations --
@@ -208,49 +208,49 @@ export default function ReactPattern({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "ReAct: 思考-行动-观察模式"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* Left panel: SVG Flowchart (60%) */}
           <div className="w-full lg:w-[60%]">
-            <div className="mb-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               while (需要工具调用) {"{"} 思考 → 行动 → 观察 {"}"}
             </div>
             <svg
               viewBox="0 0 550 450"
-              className="w-full rounded-md border border-zinc-100 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950"
+              className="w-full rounded-md border border-[#e8dcc8] bg-[#fbf7eb]"
               style={{ minHeight: 350 }}
             >
               <defs>
                 {/* Glowing filters */}
                 <filter id="glow-thought" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#6366f1" floodOpacity="0.8" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#889df0" floodOpacity="0.8" />
                 </filter>
                 <filter id="glow-action" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#f59e0b" floodOpacity="0.8" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#e59266" floodOpacity="0.8" />
                 </filter>
                 <filter id="glow-observation" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#10b981" floodOpacity="0.8" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#82d5bb" floodOpacity="0.8" />
                 </filter>
                 <filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#a855f7" floodOpacity="0.8" />
+                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#b77dee" floodOpacity="0.8" />
                 </filter>
 
                 {/* Gradients */}
                 <linearGradient id="grad-thought" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#818cf8" />
-                  <stop offset="100%" stopColor="#6366f1" />
+                  <stop offset="0%" stopColor="#889df0" />
+                  <stop offset="100%" stopColor="#889df0" />
                 </linearGradient>
                 <linearGradient id="grad-action" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#fbbf24" />
-                  <stop offset="100%" stopColor="#f59e0b" />
+                  <stop offset="0%" stopColor="#e59266" />
+                  <stop offset="100%" stopColor="#e59266" />
                 </linearGradient>
                 <linearGradient id="grad-observation" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#34d399" />
-                  <stop offset="100%" stopColor="#10b981" />
+                  <stop offset="0%" stopColor="#82d5bb" />
+                  <stop offset="100%" stopColor="#82d5bb" />
                 </linearGradient>
               </defs>
 
@@ -485,7 +485,7 @@ export default function ReactPattern({ title }: { title?: string }) {
                   initial={{ opacity: 0, scale: 0.5 }}
                   animate={{ opacity: 1, scale: 1 }}
                 >
-                  <rect x="30" y="160" width="70" height="32" rx="8" fill="#6366f1" opacity="0.9" />
+                  <rect x="30" y="160" width="70" height="32" rx="8" fill="#889df0" opacity="0.9" />
                   <motion.text
                     x="65"
                     y="182"
@@ -509,7 +509,7 @@ export default function ReactPattern({ title }: { title?: string }) {
                   textAnchor="middle"
                   fontSize={12}
                   fontWeight="bold"
-                  fill="#6366f1"
+                  fill="#889df0"
                   opacity="0.7"
                   animate={{
                     scale: [1, 1.1, 1],
@@ -528,10 +528,10 @@ export default function ReactPattern({ title }: { title?: string }) {
 
           {/* Right panel: messages[] array (40%) */}
           <div className="w-full lg:w-[40%]">
-            <div className="mb-2 font-mono text-xs text-zinc-400 dark:text-zinc-500">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               messages[]
             </div>
-            <div className="min-h-[300px] space-y-2 rounded-md border border-zinc-100 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="min-h-[300px] space-y-2 rounded-md border border-[#e8dcc8] bg-[#fbf7eb] p-3">
               <AnimatePresence mode="popLayout">
                 {visibleMessages.length === 0 && (
                   <motion.div
@@ -539,7 +539,7 @@ export default function ReactPattern({ title }: { title?: string }) {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="py-8 text-center text-xs text-zinc-400 dark:text-zinc-600"
+                    className="py-8 text-center text-xs text-[#725d42]"
                   >
                     [ 空的 ]
                   </motion.div>
@@ -570,8 +570,8 @@ export default function ReactPattern({ title }: { title?: string }) {
 
               {/* Array index markers */}
               {visibleMessages.length > 0 && (
-                <div className="mt-3 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-                  <span className="font-mono text-[10px] text-zinc-400">
+                <div className="mt-3 border-t border-[#e8dcc8] pt-2">
+                  <span className="font-mono text-[10px] text-[#725d42]">
                     循环次数: {currentIteration} | 消息条数: {visibleMessages.length}
                   </span>
                 </div>

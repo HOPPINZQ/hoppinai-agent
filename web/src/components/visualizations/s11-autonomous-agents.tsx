@@ -33,9 +33,9 @@ function fsmPos(angle: number) {
 
 const PHASE_COLORS: Record<Phase, string> = {
   idle: "#a1a1aa",
-  poll: "#f59e0b",
-  claim: "#3b82f6",
-  work: "#10b981",
+  poll: "#e59266",
+  claim: "#889df0",
+  work: "#82d5bb",
 };
 
 // -- Task board data --
@@ -172,7 +172,7 @@ function TimerRing({ cx, cy, r, fill }: { cx: number; cy: number; r: number; fil
       cy={cy}
       r={r + 4}
       fill="none"
-      stroke="#f59e0b"
+      stroke="#e59266"
       strokeWidth={3}
       strokeDasharray={circumference}
       strokeDashoffset={offset}
@@ -233,14 +233,14 @@ export default function AutonomousAgents({ title }: { title?: string }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Autonomous Agent Cycle"}
       </h2>
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 min-h-[500px]">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4 min-h-[500px]">
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Left panel: spatial view with agents and task board */}
           <div className="flex-1">
-            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">Spatial View</div>
+            <div className="text-xs font-medium text-[#8a7b66] mb-2">Spatial View</div>
             <svg viewBox="0 0 280 240" className="w-full">
               {/* Task board (small table in center) */}
               <rect x={BOARD_CX - 35} y={BOARD_CY - 20} width={70} height={40} rx={4}
@@ -257,7 +257,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
                 {tasks.filter((t) => t.status === "unclaimed").length} unclaimed
               </text>
               <text x={BOARD_CX} y={BOARD_CY + 14} textAnchor="middle" fontSize={6} fontFamily="monospace"
-                fill="#10b981"
+                fill="#82d5bb"
               >
                 {tasks.filter((t) => t.status === "complete").length} complete
               </text>
@@ -274,7 +274,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
                     {isPolling && (
                       <motion.line
                         x1={pos.x} y1={pos.y} x2={BOARD_CX} y2={BOARD_CY}
-                        stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="4 3"
+                        stroke="#e59266" strokeWidth={1.5} strokeDasharray="4 3"
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         transition={{ duration: 0.3 }}
                       />
@@ -283,7 +283,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
                     {state.phase === "claim" && (
                       <motion.line
                         x1={pos.x} y1={pos.y} x2={BOARD_CX} y2={BOARD_CY}
-                        stroke="#3b82f6" strokeWidth={2}
+                        stroke="#889df0" strokeWidth={2}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         transition={{ duration: 0.3 }}
                       />
@@ -296,7 +296,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
                     <motion.circle
                       cx={pos.x} cy={pos.y} r={AGENT_R}
                       fill={state.color}
-                      stroke={state.phase === "work" ? "#059669" : palette.nodeStroke}
+                      stroke={state.phase === "work" ? "#82d5bb" : palette.nodeStroke}
                       strokeWidth={1.5}
                       animate={{
                         scale: isPulsing ? [1, 1.1, 1] : 1,
@@ -319,7 +319,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
                       <motion.text
                         x={pos.x} y={pos.y + AGENT_R + 12}
                         textAnchor="middle" fontSize={7} fontFamily="monospace"
-                        fill={state.phase === "work" ? "#10b981" : "#3b82f6"}
+                        fill={state.phase === "work" ? "#82d5bb" : "#889df0"}
                         fontWeight={600}
                         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                         transition={{ duration: 0.3 }}
@@ -333,31 +333,31 @@ export default function AutonomousAgents({ title }: { title?: string }) {
             </svg>
 
             {/* Task table below the spatial view */}
-            <div className="mt-2 border border-zinc-200 rounded dark:border-zinc-700 overflow-hidden">
+            <div className="mt-2 border border-[#e8dcc8] rounded overflow-hidden">
               <table className="w-full text-[10px]">
                 <thead>
-                  <tr className="bg-zinc-50 dark:bg-zinc-800">
-                    <th className="px-2 py-1 text-left font-medium text-zinc-500 dark:text-zinc-400">Task</th>
-                    <th className="px-2 py-1 text-left font-medium text-zinc-500 dark:text-zinc-400">Status</th>
-                    <th className="px-2 py-1 text-left font-medium text-zinc-500 dark:text-zinc-400">Owner</th>
+                  <tr className="bg-[#fbf7eb]">
+                    <th className="px-2 py-1 text-left font-medium text-[#8a7b66]">Task</th>
+                    <th className="px-2 py-1 text-left font-medium text-[#8a7b66]">Status</th>
+                    <th className="px-2 py-1 text-left font-medium text-[#8a7b66]">Owner</th>
                   </tr>
                 </thead>
                 <tbody>
                   {tasks.map((task) => (
-                    <tr key={task.id} className="border-t border-zinc-100 dark:border-zinc-800">
-                      <td className="px-2 py-1 font-mono text-zinc-700 dark:text-zinc-300">{task.name}</td>
+                    <tr key={task.id} className="border-t border-[#e8dcc8]">
+                      <td className="px-2 py-1 font-mono text-[#9f927d]">{task.name}</td>
                       <td className="px-2 py-1">
                         <span className={`inline-block rounded px-1.5 py-0.5 text-[9px] font-medium ${
                           task.status === "complete"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            ? "bg-[#e0f0e0] text-[#8ac68a]"
                             : task.status === "active"
-                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                              ? "bg-[#e6eafb] text-[#889df0]"
+                              : "bg-[#f6efe0] text-[#725d42]"
                         }`}>
                           {task.status}
                         </span>
                       </td>
-                      <td className="px-2 py-1 font-mono text-zinc-600 dark:text-zinc-400">{task.owner}</td>
+                      <td className="px-2 py-1 font-mono text-[#9f927d]">{task.owner}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -367,7 +367,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
 
           {/* Right panel: FSM state machine diagram */}
           <div className="flex-1">
-            <div className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">FSM Cycle</div>
+            <div className="text-xs font-medium text-[#8a7b66] mb-2">FSM Cycle</div>
             <svg viewBox="0 0 220 220" className="w-full">
               <defs>
                 <marker
@@ -439,7 +439,7 @@ export default function AutonomousAgents({ title }: { title?: string }) {
               {FSM_STATES.map((s) => (
                 <div key={s.id} className="flex items-center gap-1">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: PHASE_COLORS[s.id] }} />
-                  <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">{s.label}</span>
+                  <span className="text-[10px] font-mono text-[#8a7b66]">{s.label}</span>
                 </div>
               ))}
             </div>

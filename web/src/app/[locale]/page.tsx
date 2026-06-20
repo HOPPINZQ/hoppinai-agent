@@ -2,75 +2,68 @@
 
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n";
-import { LEARNING_PATH, VERSION_META, LAYERS } from "@/lib/constants";
+import {
+  LEARNING_PATH,
+  VERSION_META,
+  LAYERS,
+  LAYER_COLOR_BY_ID,
+} from "@/lib/constants";
 import { LayerBadge, NewBadge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
-import versionsData from "@/data/generated/versions.json";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { LightRays } from "@/components/backgrounds/light-rays";
 import { RotatingText } from "@/components/ui/rotating-text";
 import BentoCard from "@/components/ui/bento-card";
-import BentoGrid from "@/components/ui/bento-grid";
-import ScrollFloat from "@/components/ui/scroll-float";
 import ScrollReveal from "@/components/ui/scroll-reveal";
+import { Card, Title, Button } from "animal-island-ui";
+import hljs from "highlight.js/lib/common";
+import { cn } from "@/lib/utils";
+import versionsData from "@/data/generated/versions.json";
 
-const LAYER_GLOW_COLORS: Record<string, string> = {
-  tools: "from-blue-500/20 to-cyan-500/10",
-  planning: "from-violet-500/20 to-purple-500/10",
-  memory: "from-purple-500/20 to-fuchsia-500/10",
-  concurrency: "from-amber-500/20 to-orange-500/10",
-  collaboration: "from-rose-500/20 to-pink-500/10",
+const BENTO_LAYOUT: Record<string, { colSpan?: boolean }> = {
+  s01: { colSpan: true },
+  s05: { colSpan: true },
+  s09: { colSpan: true },
+  s12: { colSpan: true },
+  s13: { colSpan: true },
+  s14: { colSpan: true },
 };
 
-const LAYER_CARD_BORDER: Record<string, string> = {
-  tools: "border-blue-500/20 hover:border-blue-400/40",
-  planning: "border-violet-500/20 hover:border-violet-400/40",
-  memory: "border-purple-500/20 hover:border-purple-400/40",
-  concurrency: "border-amber-500/20 hover:border-amber-400/40",
-  collaboration: "border-rose-500/20 hover:border-rose-400/40",
-};
+const JAVA_LOOP_SOURCE = `while (true) {
+    Message message = chatMessage(messageParams);
+    messageParams.add(message.toParam());
+    List<ContentBlockParam> toolResults = new ArrayList<>();
+    boolean hasToolUse = false;
+    for (ContentBlock content : message.content()) {
+        if (content.isText()) {
+            String result = content.text().map(TextBlock::text).orElse("");
+        } else if (content.isToolUse()) {
+            hasToolUse = true;
+            ToolUseBlock toolUse = content.asToolUse();
+            String toolResult = executeTool(toolUse.name(), toolUse._input());
+            toolResults.add(ContentBlockParam.ofToolResult(
+                ToolResultBlockParam.builder()
+                    .toolUseId(toolUse.id())
+                    .content(toolResult)
+                    .build()));
+        }
+    }
+    if (!hasToolUse) break;
+    MessageParam.Content content = MessageParam.Content.ofBlockParams(toolResults);
+    MessageParam toolResultMessage = MessageParam.builder()
+        .role(MessageParam.Role.USER)
+        .content(toolResults).build();
+    messageParams.add(toolResultMessage);
+}`;
 
-const LAYER_DOT_COLORS: Record<string, string> = {
-  tools: "bg-blue-500",
-  planning: "bg-violet-500",
-  memory: "bg-purple-500",
-  concurrency: "bg-amber-500",
-  collaboration: "bg-rose-500",
-};
-
-const LAYER_TEXT_COLORS: Record<string, string> = {
-  tools: "text-blue-400",
-  planning: "text-violet-400",
-  memory: "text-purple-400",
-  concurrency: "text-amber-400",
-  collaboration: "text-rose-400",
-};
-
-const LAYER_BADGE_DARK: Record<string, string> = {
-  tools: "bg-blue-500/15 text-blue-300 border border-blue-500/20",
-  planning: "bg-violet-500/15 text-violet-300 border border-violet-500/20",
-  memory: "bg-purple-500/15 text-purple-300 border border-purple-500/20",
-  concurrency: "bg-amber-500/15 text-amber-300 border border-amber-500/20",
-  collaboration: "bg-rose-500/15 text-rose-300 border border-rose-500/20",
-};
-
-const LAYER_GLOW_RGB: Record<string, string> = {
-  tools: "59, 130, 246",
-  planning: "139, 92, 246",
-  memory: "168, 85, 247",
-  concurrency: "245, 158, 11",
-  collaboration: "244, 63, 94",
-};
-
-const BENTO_LAYOUT: Record<string, { colSpan?: number }> = {
-  s01: { colSpan: 2 },
-  s05: { colSpan: 2 },
-  s09: { colSpan: 2 },
-  s12: { colSpan: 2 },
-  s13: { colSpan: 2 },
-  s14: { colSpan: 2 },
-};
+const PYTHON_LOOP_SOURCE = `while True:
+    response = client.messages.create(
+        messages=messages, tools=tools
+    )
+    if response.stop_reason != "tool_use":
+        break
+    for tool_call in response.content:
+        result = execute_tool(tool_call.name, tool_call.input)
+        messages.append(result)`;
 
 function getVersionData(id: string) {
   return versionsData.versions.find((v) => v.id === id);
@@ -82,63 +75,60 @@ export default function HomePage() {
   const [codeLanguage, setCodeLanguage] = useState<"java" | "python">("java");
   const [adImageOpen, setAdImageOpen] = useState(false);
 
+  const source =
+    codeLanguage === "java" ? JAVA_LOOP_SOURCE : PYTHON_LOOP_SOURCE;
+  const highlighted = useMemo(() => {
+    const lang = codeLanguage === "java" ? "java" : "python";
+    try {
+      return hljs.highlight(source, { language: lang }).value;
+    } catch {
+      return source;
+    }
+  }, [source, codeLanguage]);
+
   return (
     <div className="relative min-h-screen">
-      {/* Light Rays Background */}
-      <LightRays
-        raysOrigin="top-center"
-        raysColor="#8B5CF6"
-        raysSpeed={0.8}
-        lightSpread={1.5}
-        rayLength={1.8}
-        followMouse={true}
-        mouseInfluence={0.15}
-      />
-
       <div className="flex flex-col gap-20 pb-16">
-            {/* Hero Section */}
-            <section className="flex flex-col items-center px-2 pt-8 text-center sm:pt-20">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-4 py-1.5 text-sm font-medium text-violet-300">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500"></span>
-                </span>
-                Java AI Agent Framework
-              </div>
-              <h1 className="mt-6 text-3xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                <span className="bg-gradient-to-r from-white via-violet-200 to-purple-400 bg-clip-text text-transparent">
-                  {t("hero_title")}
-                </span>
-              </h1>
-              <p className="mt-4 flex items-center justify-center gap-1.5 text-base text-zinc-400 sm:text-xl">
-                <span>从零构建</span>
-                <RotatingText
-                  texts={["AI 编程助手", "Agent 框架", "多智能体协作", "XX Claw"]}
-                  rotationInterval={2500}
-                  staggerDuration={0.03}
-                  mainClassName="text-violet-400"
-                  elementLevelClassName="font-bold"
-                />
-              </p>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-                <Link
-                  href={`/${locale}/timeline`}
-                  className="group relative inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-3 text-sm font-medium text-white shadow-lg shadow-violet-500/25 transition-all duration-300 hover:shadow-violet-500/40 hover:brightness-110"
-                >
-                  {t("start")}
-                  <span
-                    aria-hidden="true"
-                    className="transition-transform group-hover:translate-x-0.5"
-                  >
-                    &rarr;
-                  </span>
-                </Link>
-                <a
-                  href="https://github.com/HOPPINZQ/hoppinai-agent"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-zinc-300 backdrop-blur-sm transition-all duration-200 hover:border-white/20 hover:bg-white/10 hover:text-white"
-                >
+        {/* Hero Section */}
+        <section className="flex flex-col items-center px-2 pt-8 text-center sm:pt-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#82d5bb] bg-[#e6f9f6] px-4 py-1.5 text-sm font-semibold text-[#11a89b]">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#82d5bb] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#19c8b9]"></span>
+            </span>
+            Java AI Agent Framework
+          </div>
+
+          <div className="mt-6">
+            <Title size="large" color="app-teal">
+              {t("hero_title")}
+            </Title>
+          </div>
+
+          <p className="mt-6 flex items-center justify-center gap-1.5 text-base text-[#725d42] sm:text-xl">
+            <span>从零构建</span>
+            <RotatingText
+              texts={["AI 编程助手", "Agent 框架", "多智能体协作", "XX Claw"]}
+              rotationInterval={2500}
+              staggerDuration={0.03}
+              mainClassName="text-[#11a89b]"
+              elementLevelClassName="font-extrabold"
+            />
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <Link href={`/${locale}/timeline`}>
+              <Button type="primary" size="large">
+                {t("start")} <span aria-hidden="true" className="ml-1">&rarr;</span>
+              </Button>
+            </Link>
+            <a
+              href="https://github.com/HOPPINZQ/hoppinai-agent"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button type="default" size="large">
+                <span className="inline-flex items-center gap-2">
                   <svg
                     className="h-4 w-4"
                     fill="currentColor"
@@ -152,683 +142,427 @@ export default function HomePage() {
                     />
                   </svg>
                   GitHub
-                </a>
-              </div>
-            </section>
+                </span>
+              </Button>
+            </a>
+          </div>
+        </section>
 
-            {/* Ad Banner */}
-            <section className="px-2">
-              <div className="mx-auto max-w-4xl">
-                <ScrollReveal animation="fade-up" duration={0.6}>
-                  <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm transition-all duration-300 hover:border-rose-500/30 hover:bg-white/[0.04]">
-                    <div className="flex flex-col sm:flex-row items-center gap-4 p-4 sm:p-5">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src="https://hoppinzq.com/ai/BigmodelPoster.png"
-                        alt="智谱 Coding Plan"
-                        className="h-20 w-20 shrink-0 cursor-zoom-in rounded-xl object-cover transition-transform hover:scale-105 sm:h-24 sm:w-24"
-                        onClick={() => setAdImageOpen(true)}
+        {/* Ad Banner */}
+        <section className="px-2">
+          <div className="mx-auto max-w-4xl">
+            <ScrollReveal animation="fade-up" duration={0.6}>
+              <Card className="transition-colors hover:border-[#f8a6b2]">
+                <div className="flex flex-col items-center gap-4 p-1 sm:flex-row sm:p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="https://hoppinzq.com/ai/BigmodelPoster.png"
+                    alt="智谱 Coding Plan"
+                    className="h-20 w-20 shrink-0 cursor-zoom-in rounded-2xl object-cover transition-transform hover:scale-105 sm:h-24 sm:w-24"
+                    onClick={() => setAdImageOpen(true)}
+                  />
+                  <div className="text-center sm:text-left">
+                    <p className="text-sm font-semibold text-[#794f27]">
+                      🙋 蹲队友拼智谱 Coding Plan！
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-[#8a7b66]">
+                      🧩 国内顶流编程大模型，20+ 主流工具全适配，性价比拉满
+                    </p>
+                    <a
+                      href="https://www.bigmodel.cn/glm-coding?ic=75JGQG0W9G"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-xs font-bold text-[#fc736d] underline decoration-[#f8a6b2] underline-offset-2 transition-colors hover:text-[#c44a4a]"
+                    >
+                      👉 立即参与「拼好模」→
+                    </a>
+                  </div>
+                </div>
+              </Card>
+            </ScrollReveal>
+            {/* Ad Image Lightbox - rendered via portal to escape stacking context */}
+            {adImageOpen &&
+              typeof window !== "undefined" &&
+              createPortal(
+                <div
+                  className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+                  onClick={() => setAdImageOpen(false)}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="https://hoppinzq.com/ai/BigmodelPoster.png"
+                    alt="智谱 Coding Plan"
+                    className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <button
+                    onClick={() => setAdImageOpen(false)}
+                    className="fixed top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/30 text-white backdrop-blur-sm transition-colors hover:bg-white/50"
+                  >
+                    ✕
+                  </button>
+                </div>,
+                document.body
+              )}
+          </div>
+        </section>
+
+        {/* Feature Cards */}
+        <section className="px-2">
+          <div className="mx-auto max-w-5xl">
+            <ScrollReveal
+              animation="fade-up"
+              staggerChildren
+              stagger={0.12}
+            >
+              <div className="grid gap-4 sm:grid-cols-3">
+                <BentoCard className="p-6 sm:col-span-2" color="app-blue">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/30">
+                    <svg
+                      className="h-5 w-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
                       />
-                      <div className="text-center sm:text-left">
-                        <p className="text-sm font-medium text-zinc-200">
-                          🙋 蹲队友拼智谱 Coding Plan！
-                        </p>
-                        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-                          🧩 国内顶流编程大模型，20+ 主流工具全适配，性价比拉满
-                        </p>
-                        <a
-                          href="https://www.bigmodel.cn/glm-coding?ic=75JGQG0W9G"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-2 inline-block text-xs font-medium text-rose-400 transition-colors hover:text-rose-300"
-                        >
-                          👉 立即参与「拼好模」→
-                        </a>
-                      </div>
+                    </svg>
+                  </div>
+                  <h3 className="mb-2 text-sm font-bold text-white">
+                    项目介绍
+                  </h3>
+                  <p className="text-xs leading-relaxed text-white/90">
+                    基于 <span className="font-bold">Java</span> 开发的 AI
+                    Agent 框架，从零构建一个功能完整的 AI 编程助手，深入理解
+                    Agent 的核心机制。提供{" "}
+                    <span className="font-bold">Anthropic API</span> 的完整兼容。
+                  </p>
+                </BentoCard>
+
+                <BentoCard className="p-6" color="purple">
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-white/30">
+                    <svg
+                      className="h-5 w-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="mb-2 text-sm font-bold text-white">项目背景</h3>
+                  <p className="text-xs leading-relaxed text-white/90">
+                    完全参考开源项目{" "}
+                    <a
+                      href="https://github.com/shareAI-lab/learn-claude-code"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold underline decoration-white/50 underline-offset-2"
+                    >
+                      learn-claude-code
+                    </a>
+                    ，使用 Java 重新实现，兼顾性能与企业级应用。
+                  </p>
+                </BentoCard>
+
+                <BentoCard className="p-6 sm:col-span-3" color="app-teal">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/30">
+                      <svg
+                        className="h-5 w-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="mb-2 text-sm font-bold text-white">
+                        项目特点
+                      </h3>
+                      <ul className="grid gap-1.5 text-xs leading-relaxed text-white/95 sm:grid-cols-2">
+                        {[
+                          ["递进式架构", "从单一工具调用到多工具协同，逐步引入新能力"],
+                          ["统一基类", "ZQAgent 提供标准化的 Agent 循环"],
+                          ["工具系统", "ToolDefinition + Schema，支持动态注册"],
+                          ["上下文管理", "三层压缩策略（微压缩、自动压缩、手动压缩）"],
+                          ["技能系统", "两层注入的 Skill 技能加载机制"],
+                          ["任务管理", "基于 DAG 的任务图，支持依赖解析"],
+                          ["后台执行", "守护线程后台任务 + 通知队列注入"],
+                          ["MCP 协议", "支持 STDIO / SSE / Streamable HTTP"],
+                          ["ReAct 模式", "Thought → Action → Observation 推理循环"],
+                          ["Web 服务", "Spring Boot 集成，会话管理 + REST API"],
+                        ].map(([term, desc]) => (
+                          <li
+                            key={term}
+                            className="flex items-start gap-1.5"
+                          >
+                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
+                            <span>
+                              <span className="font-bold whitespace-nowrap">
+                                {term}
+                              </span>
+                              ：{desc}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </div>
-                </ScrollReveal>
-                {/* Ad Image Lightbox - rendered via portal to escape stacking context */}
-                {adImageOpen && typeof window !== "undefined" && createPortal(
-                  <div
-                    className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-                    onClick={() => setAdImageOpen(false)}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="https://hoppinzq.com/ai/BigmodelPoster.png"
-                      alt="智谱 Coding Plan"
-                      className="max-h-[90vh] max-w-[90vw] rounded-2xl object-contain shadow-2xl"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <button
-                      onClick={() => setAdImageOpen(false)}
-                      className="fixed top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-                    >
-                      ✕
-                    </button>
-                  </div>,
-                  document.body
-                )}
+                </BentoCard>
               </div>
-            </section>
-            {/* Feature Cards - Bento Layout */}
-            <section className="px-2">
-              <div className="mx-auto max-w-5xl">
-                <ScrollReveal animation="fade-up" staggerChildren stagger={0.12}>
-                <BentoGrid spotlightColor="rgba(139, 92, 246, 0.05)" spotlightRadius={400}>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <BentoCard glowColor="59, 130, 246" className="p-6 sm:col-span-2">
-                      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10">
-                        <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      </div>
-                      <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目介绍</h3>
-                      <p className="text-xs leading-relaxed text-zinc-500">
-                        基于 <span className="text-blue-400">Java</span> 开发的 AI Agent 框架，从零构建一个功能完整的 AI
-                        编程助手，深入理解 Agent 的核心机制。提供{" "}
-                        <span className="text-blue-400">Anthropic API</span> 的完整兼容。
-                      </p>
-                    </BentoCard>
+            </ScrollReveal>
+          </div>
+        </section>
 
-                    <BentoCard glowColor="139, 92, 246" className="p-6">
-                      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10">
-                        <svg className="h-5 w-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目背景</h3>
-                      <p className="text-xs leading-relaxed text-zinc-500">
-                        完全参考开源项目{" "}
-                        <a href="https://github.com/shareAI-lab/learn-claude-code" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:underline">
-                          learn-claude-code
-                        </a>
-                        ，使用 Java 重新实现，兼顾性能与企业级应用。
-                      </p>
-                    </BentoCard>
+        {/* Recent Updates */}
+        <section className="px-2">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-6 flex items-center gap-3">
+              <Title size="small" color="app-yellow">
+                最近更新
+              </Title>
+              <NewBadge>New</NewBadge>
+            </div>
+            <ScrollReveal animation="fade-up" staggerChildren stagger={0.1}>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Link href={`/${locale}/s02`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-blue">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#3a3a5a]">
+                        s02
+                      </span>
+                      <span className="text-xs font-semibold text-[#5a4a30]">
+                        工具层
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#5a4a30] group-hover:text-[#3a3a5a]">
+                      新增文件搜索工具
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#6a5a40]">
+                      增加了 <code className="font-mono text-[11px] font-bold">list_files</code>{" "}
+                      和 <code className="font-mono text-[11px] font-bold">content_search</code>{" "}
+                      两个工具，基于 ripgrep 实现高效的文件列表与内容搜索。
+                    </p>
+                  </BentoCard>
+                </Link>
 
-                    <BentoCard glowColor="16, 185, 129" className="p-6 sm:col-span-3">
-                      <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10">
-                          <svg className="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h3 className="mb-2 text-sm font-semibold text-zinc-100">项目特点</h3>
-                          <ul className="space-y-1.5 text-xs leading-relaxed text-zinc-500">
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">递进式架构</span>：从单一工具调用到多工具协同，逐步引入新能力</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">统一基类</span>：<code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300 whitespace-nowrap">ZQAgent</code> 提供标准化的 Agent 循环（用户输入 → LLM 推理 → 工具调用 → 结果返回 → 循环）</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">工具系统</span>：灵活的 <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300 whitespace-nowrap">ToolDefinition</code> + Schema 定义，支持动态工具注册</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">上下文管理</span>：三层压缩策略（微压缩、自动压缩、手动压缩）</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">技能系统</span>：两层注入的 Skill 技能加载机制</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">任务管理</span>：基于 DAG 的任务图，支持依赖解析</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">后台执行</span>：守护线程后台任务 + 通知队列注入</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">MCP 协议</span>：支持 STDIO / SSE / Streamable HTTP 三种传输方式</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">ReAct 模式</span>：Thought → Action → Observation 推理循环</span>
-                            </li>
-                            <li className="flex items-start gap-1.5">
-                              <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
-                              <span><span className="font-medium text-zinc-300 whitespace-nowrap">Web 服务</span>：Spring Boot 集成，会话管理 + REST API</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </BentoCard>
-                  </div>
-                </BentoGrid>
-                </ScrollReveal>
+                <Link href={`/${locale}/s04`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-teal">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#2a5a4a]">
+                        s04
+                      </span>
+                      <span className="text-xs font-semibold text-[#2a5a4a]">
+                        规划层
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#2a5a4a] group-hover:text-[#1a4a3a]">
+                      重写核心逻辑
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#3a6a5a]">
+                      完全重写了子智能体{" "}
+                      <code className="font-mono text-[11px] font-bold">SubAgent</code>、
+                      <code className="font-mono text-[11px] font-bold">后台任务</code>、
+                      <code className="font-mono text-[11px] font-bold">Skills</code>{" "}
+                      的逻辑，提升任务委派与执行能力。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s13`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="purple">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#5a2a8a]">
+                        s13
+                      </span>
+                      <NewBadge>MCP</NewBadge>
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#5a2a8a]">
+                        s14
+                      </span>
+                      <NewBadge>ReAct</NewBadge>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#5a2a8a] group-hover:text-[#3a1a6a]">
+                      MCP 协议 + ReAct 框架
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#6a4a9a]">
+                      新增 MCP 协议章节，标准化 AI 与外部系统的连接；新增
+                      ReAct 行为框架，通过「思考-行动-观察」循环增强推理能力。
+                    </p>
+                  </BentoCard>
+                </Link>
               </div>
-            </section>
+            </ScrollReveal>
+          </div>
+        </section>
 
-            {/* Recent Updates - Bento Layout */}
-            <section className="px-2">
-              <div className="mx-auto max-w-5xl">
-                <div className="mb-6 flex items-center gap-3">
-                  <ScrollFloat className="text-xl sm:text-2xl text-zinc-100">
-                    最近更新
-                  </ScrollFloat>
-                  <span className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-sm shadow-pink-500/30">
-                    New
+        {/* Core Pattern Section */}
+        <section className="px-2">
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-6 text-center">
+              <Title size="middle" color="app-orange">
+                {t("core_pattern")}
+              </Title>
+              <p className="mt-4 text-sm text-[#8a7b66]">
+                {t("core_pattern_desc")}
+              </p>
+            </div>
+            <ScrollReveal animation="blur" duration={0.8}>
+              <div className="overflow-hidden rounded-2xl border border-[#e8dcc8] bg-[#fbf7eb] shadow-sm">
+                <div className="flex items-center gap-2 border-b border-[#e8dcc8] bg-[#f6efe0] px-4 py-2.5">
+                  <span className="h-3 w-3 rounded-full bg-[#fc736d]" />
+                  <span className="h-3 w-3 rounded-full bg-[#f7cd67]" />
+                  <span className="h-3 w-3 rounded-full bg-[#8ac68a]" />
+                  <span className="ml-3 text-xs font-semibold text-[#8a7b66]">
+                    {codeLanguage === "java"
+                      ? "AgentLoop.java"
+                      : "agent_loop.py"}
                   </span>
                 </div>
-                <ScrollReveal animation="fade-up" staggerChildren stagger={0.1}>
-                <BentoGrid spotlightColor="rgba(139, 92, 246, 0.04)" spotlightRadius={350}>
-                  <div className="grid gap-4 sm:grid-cols-3">
-                    <Link href={`/${locale}/s02`} className="group block">
-                      <BentoCard glowColor="59, 130, 246" className="p-5 h-full">
-                        <div className="mb-3 flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-md bg-blue-500/15 px-2 py-0.5 text-xs font-medium text-blue-300 border border-blue-500/20">
-                            s02
-                          </span>
-                          <span className="text-xs text-zinc-600">工具层</span>
-                        </div>
-                        <h3 className="mb-1.5 text-sm font-semibold text-zinc-200 group-hover:text-white">
-                          新增文件搜索工具
-                        </h3>
-                        <p className="text-xs leading-relaxed text-zinc-500">
-                          增加了{" "}
-                          <code className="rounded bg-blue-500/10 px-1 py-0.5 font-mono text-[11px] text-blue-300">
-                            list_files
-                          </code>{" "}
-                          和{" "}
-                          <code className="rounded bg-blue-500/10 px-1 py-0.5 font-mono text-[11px] text-blue-300">
-                            content_search
-                          </code>{" "}
-                          两个工具，基于 ripgrep 实现高效的文件列表与内容搜索。
-                        </p>
-                      </BentoCard>
-                    </Link>
-
-                    <Link href={`/${locale}/s04`} className="group block">
-                      <BentoCard glowColor="16, 185, 129" className="p-5 h-full">
-                        <div className="mb-3 flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300 border border-emerald-500/20">
-                            s04
-                          </span>
-                          <span className="text-xs text-zinc-600">规划层</span>
-                        </div>
-                        <h3 className="mb-1.5 text-sm font-semibold text-zinc-200 group-hover:text-white">
-                          重写核心逻辑
-                        </h3>
-                        <p className="text-xs leading-relaxed text-zinc-500">
-                          完全重写了子智能体{" "}
-                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
-                            SubAgent
-                          </code>、
-                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
-                            后台任务
-                          </code>、
-                          <code className="rounded bg-emerald-500/10 px-1 py-0.5 font-mono text-[11px] text-emerald-300">
-                            Skills
-                          </code>{" "}
-                          的逻辑，提升任务委派与执行能力。
-                        </p>
-                      </BentoCard>
-                    </Link>
-
-                    <Link href={`/${locale}/s13`} className="group block">
-                      <BentoCard glowColor="139, 92, 246" className="p-5 h-full">
-                        <div className="mb-3 flex items-center gap-2">
-                          <span className="inline-flex items-center rounded-md bg-violet-500/15 px-2 py-0.5 text-xs font-medium text-violet-300 border border-violet-500/20">
-                            s13
-                          </span>
-                          <span className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-1.5 py-0 text-[10px] font-bold text-white">
-                            MCP
-                          </span>
-                          <span className="inline-flex items-center rounded-md bg-violet-500/15 px-2 py-0.5 text-xs font-medium text-violet-300 border border-violet-500/20">
-                            s14
-                          </span>
-                          <span className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-1.5 py-0 text-[10px] font-bold text-white">
-                            ReAct
-                          </span>
-                        </div>
-                        <h3 className="mb-1.5 text-sm font-semibold text-zinc-200 group-hover:text-white">
-                          MCP 协议 + ReAct 框架
-                        </h3>
-                        <p className="text-xs leading-relaxed text-zinc-500">
-                          新增 MCP 协议章节，标准化 AI 与外部系统的连接；新增 ReAct
-                          行为框架，通过「思考-行动-观察」循环增强推理能力。
-                        </p>
-                      </BentoCard>
-                    </Link>
-                  </div>
-                </BentoGrid>
-                </ScrollReveal>
-              </div>
-            </section>
-
-            {/* Core Pattern Section */}
-            <section className="px-2">
-              <div className="mx-auto max-w-3xl">
-                <div className="mb-6 text-center">
-                  <div className="text-2xl sm:text-3xl text-zinc-100">
-                    {t("core_pattern")}
-                  </div>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    {t("core_pattern_desc")}
-                  </p>
+                <div className="flex border-b border-[#e8dcc8]">
+                  <button
+                    onClick={() => setCodeLanguage("java")}
+                    className={cn(
+                      "cursor-pointer px-4 py-2 text-xs font-bold transition-colors",
+                      codeLanguage === "java"
+                        ? "bg-[#19c8b9] text-white"
+                        : "text-[#8a7b66] hover:bg-[#f0e8d8] hover:text-[#794f27]"
+                    )}
+                  >
+                    Java
+                  </button>
+                  <button
+                    onClick={() => setCodeLanguage("python")}
+                    className={cn(
+                      "cursor-pointer px-4 py-2 text-xs font-bold transition-colors",
+                      codeLanguage === "python"
+                        ? "bg-[#19c8b9] text-white"
+                        : "text-[#8a7b66] hover:bg-[#f0e8d8] hover:text-[#794f27]"
+                    )}
+                  >
+                    Python
+                  </button>
                 </div>
-                <ScrollReveal animation="blur" duration={1}>
-                <div className="overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0d0c1d]">
-                  <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5">
-                    <span className="h-3 w-3 rounded-full bg-red-500/70" />
-                    <span className="h-3 w-3 rounded-full bg-yellow-500/70" />
-                    <span className="h-3 w-3 rounded-full bg-green-500/70" />
-                    <span className="ml-3 text-xs text-zinc-600">
-                      {codeLanguage === "java"
-                        ? "AgentLoop.java"
-                        : "agent_loop.py"}
-                    </span>
-                  </div>
-                  <div className="flex border-b border-white/[0.06]">
-                    <button
-                      onClick={() => setCodeLanguage("java")}
+                <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
+                  <code
+                    className={`hljs language-${codeLanguage}`}
+                    dangerouslySetInnerHTML={{ __html: highlighted }}
+                  />
+                </pre>
+              </div>
+            </ScrollReveal>
+          </div>
+        </section>
+
+        {/* Learning Path */}
+        <section className="px-2">
+          <div className="mx-auto max-w-6xl">
+            <div className="mb-8 text-center">
+              <Title size="middle" color="app-green">
+                {t("learning_path")}
+              </Title>
+              <p className="mt-4 text-sm text-[#8a7b66]">
+                {t("learning_path_desc")}
+              </p>
+            </div>
+            <ScrollReveal animation="fade-up" staggerChildren stagger={0.06}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {LEARNING_PATH.map((versionId) => {
+                  const meta = VERSION_META[versionId];
+                  const data = getVersionData(versionId);
+                  if (!meta || !data) return null;
+                  const layout = BENTO_LAYOUT[versionId];
+                  const layerColor = LAYER_COLOR_BY_ID[meta.layer];
+                  return (
+                    <Link
+                      key={versionId}
+                      href={`/${locale}/${versionId}`}
                       className={cn(
-                        "cursor-pointer px-3 py-1.5 text-xs font-medium transition-all duration-200",
-                        codeLanguage === "java"
-                          ? "bg-white/[0.08] text-violet-300"
-                          : "text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.03]"
+                        "group block",
+                        layout?.colSpan ? "sm:col-span-2" : undefined
                       )}
                     >
-                      Java
-                    </button>
-                    <button
-                      onClick={() => setCodeLanguage("python")}
-                      className={cn(
-                        "cursor-pointer px-3 py-1.5 text-xs font-medium transition-all duration-200",
-                        codeLanguage === "python"
-                          ? "bg-white/[0.08] text-violet-300"
-                          : "text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.03]"
-                      )}
-                    >
-                      Python
-                    </button>
-                  </div>
-                  <pre className="overflow-x-auto p-4 text-sm leading-relaxed">
-                    <code>
-                      {codeLanguage === "java" ? (
-                        <>
-                          <span className="text-purple-400">while</span>
-                          <span className="text-zinc-300"> </span>
-                          <span className="text-orange-300">(true)</span>
-                          <span className="text-zinc-600"> {"{"}</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}Message message ={" "}
-                          </span>
-                          <span className="text-blue-400">chatMessage</span>
-                          <span className="text-zinc-600">
-                            (messageParams);
-                          </span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}messageParams.
-                          </span>
-                          <span className="text-blue-400">add</span>
-                          <span className="text-zinc-600">
-                            (message.
-                          </span>
-                          <span className="text-blue-400">toParam</span>
-                          <span className="text-zinc-600">());</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}List&lt;ContentBlockParam&gt; toolResults ={" "}
-                          </span>
-                          <span className="text-purple-400">new</span>
-                          <span className="text-zinc-300">
-                            {" "}
-                            ArrayList&lt;&gt;();
-                          </span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"    "}boolean
-                          </span>
-                          <span className="text-zinc-300">
-                            {" "}hasToolUse ={" "}
-                          </span>
-                          <span className="text-orange-300">false</span>
-                          <span className="text-zinc-600">;</span>
-                          {"\n"}
-                          <span className="text-purple-400">{"    "}for</span>
-                          <span className="text-zinc-300">
-                            {" "}
-                            (ContentBlock content : message.
-                          </span>
-                          <span className="text-blue-400">content</span>
-                          <span className="text-zinc-600">()) {"{"}</span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"        "}if
-                          </span>
-                          <span className="text-zinc-300">
-                            {" "}(
-                          </span>
-                          <span className="text-zinc-300">content.</span>
-                          <span className="text-blue-400">isText</span>
-                          <span className="text-zinc-600">()) {"{"}</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"            "}String result = content.
-                          </span>
-                          <span className="text-blue-400">text</span>
-                          <span className="text-zinc-600">().</span>
-                          <span className="text-blue-400">map</span>
-                          <span className="text-zinc-600">
-                            (TextBlock::text).
-                          </span>
-                          <span className="text-blue-400">orElse</span>
-                          <span className="text-zinc-600">(</span>
-                          <span className="text-green-400">""</span>
-                          <span className="text-zinc-600">);</span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"        "}
-                            {"}"}
-                          </span>
-                          <span className="text-purple-400">
-                            {" "}else if
-                          </span>
-                          <span className="text-zinc-300">
-                            {" "}(
-                          </span>
-                          <span className="text-zinc-300">content.</span>
-                          <span className="text-blue-400">isToolUse</span>
-                          <span className="text-zinc-600">()) {"{"}</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"            "}hasToolUse ={" "}
-                          </span>
-                          <span className="text-orange-300">true</span>
-                          <span className="text-zinc-600">;</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"            "}ToolUseBlock toolUse = content.
-                          </span>
-                          <span className="text-blue-400">asToolUse</span>
-                          <span className="text-zinc-600">();</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"            "}String toolResult ={" "}
-                          </span>
-                          <span className="text-blue-400">executeTool</span>
-                          <span className="text-zinc-600">
-                            (toolUse.
-                          </span>
-                          <span className="text-blue-400">name</span>
-                          <span className="text-zinc-600">(), toolUse.</span>
-                          <span className="text-blue-400">_input</span>
-                          <span className="text-zinc-600">());</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"            "}toolResults.
-                          </span>
-                          <span className="text-blue-400">add</span>
-                          <span className="text-zinc-600">
-                            (ContentBlockParam.
-                          </span>
-                          <span className="text-blue-400">ofToolResult</span>
-                          <span className="text-zinc-600">(</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"                "}ToolResultBlockParam.
-                          </span>
-                          <span className="text-blue-400">builder</span>
-                          <span className="text-zinc-600">()</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"                    "}.toolUseId(toolUse.
-                          </span>
-                          <span className="text-blue-400">id</span>
-                          <span className="text-zinc-600">())</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"                    "}.content(toolResult)
-                          </span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"                    "}.
-                          </span>
-                          <span className="text-blue-400">build</span>
-                          <span className="text-zinc-600">()));</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"        "}
-                            {"}"}
-                          </span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}
-                            {"}"}
-                          </span>
-                          {"\n"}
-                          <span className="text-purple-400">{"    "}if</span>
-                          <span className="text-zinc-300">
-                            {" "}(!hasToolUse){" "}
-                          </span>
-                          <span className="text-purple-400">break</span>
-                          <span className="text-zinc-600">;</span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"    "}MessageParam.Content
-                          </span>
-                          <span className="text-zinc-300">
-                            {" "}content = MessageParam.Content.
-                          </span>
-                          <span className="text-blue-400">ofBlockParams</span>
-                          <span className="text-zinc-300">(toolResults)</span>
-                          <span className="text-zinc-600">;</span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"    "}MessageParam
-                          </span>
-                          <span className="text-zinc-300">
-                            {" "}toolResultMessage = MessageParam.
-                          </span>
-                          <span className="text-blue-400">builder</span>
-                          <span className="text-zinc-600">()</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"        "}.role(MessageParam.Role.USER)
-                          </span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"        "}.content(toolResults).
-                          </span>
-                          <span className="text-blue-400">build</span>
-                          <span className="text-zinc-600">();</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}messageParams.
-                          </span>
-                          <span className="text-blue-400">add</span>
-                          <span className="text-zinc-600">
-                            (toolResultMessage);
-                          </span>
-                          {"\n"}
-                          <span className="text-zinc-300">{"}"}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-purple-400">while</span>
-                          <span className="text-zinc-300"> </span>
-                          <span className="text-orange-300">True</span>
-                          <span className="text-zinc-600">:</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"    "}response = client.messages.
-                          </span>
-                          <span className="text-blue-400">create</span>
-                          <span className="text-zinc-600">(</span>
-                          <span className="text-zinc-300">messages=</span>
-                          <span className="text-zinc-300">messages</span>
-                          <span className="text-zinc-600">,</span>
-                          <span className="text-zinc-300"> tools=</span>
-                          <span className="text-zinc-300">tools</span>
-                          <span className="text-zinc-600">)</span>
-                          {"\n"}
-                          <span className="text-purple-400">{"    "}if</span>
-                          <span className="text-zinc-300">
-                            {" "}response.stop_reason !={" "}
-                          </span>
-                          <span className="text-green-400">
-                            &quot;tool_use&quot;
-                          </span>
-                          <span className="text-zinc-600">:</span>
-                          {"\n"}
-                          <span className="text-purple-400">
-                            {"        "}break
-                          </span>
-                          {"\n"}
-                          <span className="text-purple-400">{"    "}for</span>
-                          <span className="text-zinc-300"> tool_call </span>
-                          <span className="text-purple-400">in</span>
-                          <span className="text-zinc-300"> response.content</span>
-                          <span className="text-zinc-600">:</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"        "}result ={" "}
-                          </span>
-                          <span className="text-blue-400">execute_tool</span>
-                          <span className="text-zinc-600">(</span>
-                          <span className="text-zinc-300">tool_call.name</span>
-                          <span className="text-zinc-600">,</span>
-                          <span className="text-zinc-300"> tool_call.input</span>
-                          <span className="text-zinc-600">)</span>
-                          {"\n"}
-                          <span className="text-zinc-300">
-                            {"        "}messages.
-                          </span>
-                          <span className="text-blue-400">append</span>
-                          <span className="text-zinc-600">(</span>
-                          <span className="text-zinc-300">result</span>
-                          <span className="text-zinc-600">)</span>
-                        </>
-                      )}
-                    </code>
-                  </pre>
-                </div>
-                </ScrollReveal>
-              </div>
-            </section>
-
-            {/* Learning Path - Bento Grid Showcase */}
-            <section className="px-2">
-              <div className="mx-auto max-w-6xl">
-                <div className="mb-8 text-center">
-                  <div className="text-2xl sm:text-3xl text-zinc-100">
-                    {t("learning_path")}
-                  </div>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    {t("learning_path_desc")}
-                  </p>
-                </div>
-                <ScrollReveal animation="fade-up" staggerChildren stagger={0.06}>
-                <BentoGrid spotlightColor="rgba(139, 92, 246, 0.04)" spotlightRadius={500}>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {LEARNING_PATH.map((versionId) => {
-                      const meta = VERSION_META[versionId];
-                      const data = getVersionData(versionId);
-                      if (!meta || !data) return null;
-                      const layout = BENTO_LAYOUT[versionId];
-                      return (
-                        <Link
-                          key={versionId}
-                          href={`/${locale}/${versionId}`}
-                          className={cn(
-                            "group block",
-                            layout?.colSpan ? "sm:col-span-2" : undefined
-                          )}
-                        >
-                          <BentoCard
-                            glowColor={LAYER_GLOW_RGB[meta.layer]}
-                            className={cn(
-                              "p-5 h-full",
-                              LAYER_CARD_BORDER[meta.layer]
+                      <BentoCard
+                        className={cn("h-full p-5 hover:-translate-y-1")}
+                      >
+                        <div
+                          className="mb-3 h-1 w-full rounded-full"
+                          style={{ backgroundColor: layerColor }}
+                        />
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <LayerBadge layer={meta.layer}>
+                              {versionId}
+                            </LayerBadge>
+                            {(versionId === "s13" || versionId === "s14") && (
+                              <NewBadge>New</NewBadge>
                             )}
-                            enableTilt
-                            enableGlow
-                            enableParticles
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className={cn(
-                                    "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
-                                    LAYER_BADGE_DARK[meta.layer]
-                                  )}
-                                >
-                                  {versionId}
-                                </span>
-                                {(versionId === "s13" || versionId === "s14") && (
-                                  <span className="rounded-full bg-gradient-to-r from-pink-500 to-rose-500 px-1.5 py-0 text-[10px] font-bold text-white">
-                                    New
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-xs tabular-nums text-zinc-600">
-                                {data.loc} {t("loc")}
-                              </span>
-                            </div>
-                            <h3
-                              className={cn(
-                                "mt-3 text-sm font-semibold text-zinc-200 group-hover:text-white",
-                                LAYER_TEXT_COLORS[meta.layer],
-                                "group-hover:brightness-125"
-                              )}
-                            >
-                              {meta.title}
-                            </h3>
-                            <p className="mt-1.5 text-xs leading-relaxed text-zinc-500">
-                              {meta.keyInsight}
-                            </p>
-                          </BentoCard>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </BentoGrid>
-                </ScrollReveal>
+                          </div>
+                          <span className="text-xs font-semibold tabular-nums text-[#9f927d]">
+                            {data.loc} {t("loc")}
+                          </span>
+                        </div>
+                        <h3
+                          className="mt-3 text-sm font-bold transition-transform group-hover:scale-[1.02]"
+                          style={{ color: "#3a3a5a" }}
+                        >
+                          {meta.title}
+                        </h3>
+                        <p className="mt-1.5 text-xs leading-relaxed text-[#725d42]">
+                          {meta.keyInsight}
+                        </p>
+                      </BentoCard>
+                    </Link>
+                  );
+                })}
               </div>
-            </section>
+            </ScrollReveal>
+          </div>
+        </section>
 
-            {/* Layer Overview */}
-            <section className="px-2">
-              <div className="mx-auto max-w-4xl">
-                <div className="mb-6 text-center">
-                  <div className="text-2xl sm:text-3xl text-zinc-100">
-                    {t("layers_title")}
-                  </div>
-                  <p className="mt-2 text-sm text-zinc-500">
-                    {t("layers_desc")}
-                  </p>
-                </div>
-                <ScrollReveal animation="fade-up" staggerChildren stagger={0.12}>
-                <div className="flex flex-col gap-3">
-                  {LAYERS.map((layer) => (
-                    <div
-                      key={layer.id}
-                      className="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 backdrop-blur-sm"
-                    >
+        {/* Layer Overview */}
+        <section className="px-2">
+          <div className="mx-auto max-w-4xl">
+            <div className="mb-6 text-center">
+              <Title size="middle" color="purple">
+                {t("layers_title")}
+              </Title>
+              <p className="mt-4 text-sm text-[#8a7b66]">
+                {t("layers_desc")}
+              </p>
+            </div>
+            <ScrollReveal animation="fade-up" staggerChildren stagger={0.12}>
+              <div className="flex flex-col gap-3">
+                {LAYERS.map((layer) => (
+                  <Card key={layer.id} className="transition-transform hover:-translate-y-1">
+                    <div className="flex items-center gap-4 p-1">
                       <div
-                        className={cn(
-                          "h-full w-1.5 self-stretch rounded-full",
-                          LAYER_DOT_COLORS[layer.id]
-                        )}
+                        className="h-12 w-1.5 self-stretch rounded-full"
+                        style={{
+                          backgroundColor: LAYER_COLOR_BY_ID[layer.id],
+                        }}
                       />
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-sm font-semibold text-zinc-200">
+                          <h3 className="text-sm font-bold text-[#794f27]">
                             {layer.label}
                           </h3>
-                          <span className="text-xs text-zinc-600">
+                          <span className="text-xs text-[#9f927d]">
                             {layer.versions.length} {t("versions_in_layer")}
                           </span>
                         </div>
@@ -838,10 +572,11 @@ export default function HomePage() {
                             return (
                               <Link key={vid} href={`/${locale}/${vid}`}>
                                 <span
-                                  className={cn(
-                                    "inline-flex cursor-pointer items-center rounded-md px-2 py-0.5 text-xs font-medium transition-opacity hover:opacity-80",
-                                    LAYER_BADGE_DARK[layer.id]
-                                  )}
+                                  className="inline-flex cursor-pointer items-center rounded-full px-2.5 py-0.5 text-xs font-semibold text-white transition-transform hover:scale-105"
+                                  style={{
+                                    backgroundColor:
+                                      LAYER_COLOR_BY_ID[layer.id],
+                                  }}
                                 >
                                   {vid}: {meta?.title}
                                 </span>
@@ -851,12 +586,13 @@ export default function HomePage() {
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-                </ScrollReveal>
+                  </Card>
+                ))}
               </div>
-            </section>
-        </div>
+            </ScrollReveal>
+          </div>
+        </section>
       </div>
+    </div>
   );
 }

@@ -2,17 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LAYERS, VERSION_META, UNIMPLEMENTED_VERSIONS } from "@/lib/constants";
+import {
+  LAYERS,
+  VERSION_META,
+  UNIMPLEMENTED_VERSIONS,
+  getLayerColor,
+} from "@/lib/constants";
 import { useTranslations } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-
-const LAYER_DOT_BG: Record<string, string> = {
-  tools: "bg-blue-500",
-  planning: "bg-violet-500",
-  memory: "bg-purple-500",
-  concurrency: "bg-amber-500",
-  collaboration: "bg-rose-500",
-};
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -26,12 +23,15 @@ export function Sidebar() {
         {LAYERS.map((layer) => (
           <div key={layer.id}>
             <div className="flex items-center gap-1.5 pb-1.5">
-              <span className={cn("h-2 w-2 rounded-full", LAYER_DOT_BG[layer.id])} />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: getLayerColor(layer.id) }}
+              />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#8a7b66]">
                 {tLayer(layer.id)}
               </span>
             </div>
-            <ul className="space-y-0.5">
+            <ul className="space-y-1">
               {layer.versions.map((vId) => {
                 const meta = VERSION_META[vId];
                 const isUnimplemented = UNIMPLEMENTED_VERSIONS.has(vId);
@@ -45,25 +45,29 @@ export function Sidebar() {
                   <li key={vId}>
                     {isUnimplemented ? (
                       <span
-                        className="block rounded-md px-2.5 py-1.5 text-sm text-zinc-700 cursor-not-allowed select-none"
+                        className="block cursor-not-allowed select-none rounded-xl px-2.5 py-1.5 text-sm text-[#c4b89e]"
                         title="还没有实现"
                       >
                         <span className="font-mono text-xs">{vId}</span>
                         <span className="ml-1.5">{t(vId) || meta?.title}</span>
-                        <span className="ml-1.5 text-[10px] opacity-60">(WIP)</span>
+                        <span className="ml-1.5 text-[10px] opacity-70">
+                          (WIP)
+                        </span>
                       </span>
                     ) : (
                       <Link
                         href={href}
                         className={cn(
-                          "block rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                          "block rounded-xl px-2.5 py-1.5 text-sm transition-colors",
                           isActive
-                            ? "bg-white/[0.08] font-medium text-white"
-                            : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300"
+                            ? "bg-[#b7c6e5] font-semibold text-[#3a3a5a]"
+                            : "text-[#725d42] hover:bg-[#f0e8d8] hover:text-[#794f27]"
                         )}
                       >
                         <span className="font-mono text-xs">{vId}</span>
-                        <span className="ml-1.5">{t(vId) || meta?.title}</span>
+                        <span className="ml-1.5">
+                          {t(vId) || meta?.title}
+                        </span>
                       </Link>
                     )}
                   </li>

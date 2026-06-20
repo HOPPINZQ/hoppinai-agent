@@ -11,11 +11,11 @@ const NODE_HEIGHT = 40;
 const DIAMOND_SIZE = 50;
 
 const LAYER_COLORS: Record<string, string> = {
-  start: "#3B82F6",
-  process: "#10B981",
-  decision: "#F59E0B",
-  subprocess: "#8B5CF6",
-  end: "#EF4444",
+  start: "#889df0",
+  process: "#82d5bb",
+  decision: "#e59266",
+  subprocess: "#b77dee",
+  end: "#fc736d",
 };
 
 function getNodeCenter(node: FlowNode): { cx: number; cy: number } {

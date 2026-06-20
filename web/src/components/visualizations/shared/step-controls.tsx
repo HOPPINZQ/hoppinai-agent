@@ -31,11 +31,11 @@ export function StepControls({
   return (
     <div className={cn("space-y-3", className)}>
       {/* Annotation */}
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/40">
-        <div className="mb-1 text-sm font-semibold text-blue-900 dark:text-blue-200">
+      <div className="rounded-lg border border-[#889df0]/40 bg-[#e6eafb] px-4 py-3">
+        <div className="mb-1 text-sm font-semibold text-[#889df0]">
           {stepTitle}
         </div>
-        <div className="text-sm text-blue-700 dark:text-blue-300">
+        <div className="text-sm text-[#889df0]">
           {stepDescription}
         </div>
       </div>
@@ -45,7 +45,7 @@ export function StepControls({
         <div className="flex items-center gap-1">
           <button
             onClick={onReset}
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-md p-1.5 text-[#8a7b66] hover:bg-[#f6efe0] hover:text-[#794f27]"
             title="重置"
           >
             <RotateCcw size={16} />
@@ -53,14 +53,14 @@ export function StepControls({
           <button
             onClick={onPrev}
             disabled={currentStep === 0}
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-md p-1.5 text-[#8a7b66] hover:bg-[#f6efe0] hover:text-[#794f27] disabled:opacity-30"
             title="上一步"
           >
             <SkipBack size={16} />
           </button>
           <button
             onClick={onToggleAutoPlay}
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-md p-1.5 text-[#8a7b66] hover:bg-[#f6efe0] hover:text-[#794f27]"
             title={isPlaying ? "暂停" : "自动播放"}
           >
             {isPlaying ? <Pause size={16} /> : <Play size={16} />}
@@ -68,7 +68,7 @@ export function StepControls({
           <button
             onClick={onNext}
             disabled={currentStep === totalSteps - 1}
-            className="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+            className="rounded-md p-1.5 text-[#8a7b66] hover:bg-[#f6efe0] hover:text-[#794f27] disabled:opacity-30"
             title="下一步"
           >
             <SkipForward size={16} />
@@ -84,15 +84,15 @@ export function StepControls({
                 className={cn(
                   "h-1.5 w-1.5 rounded-full transition-colors",
                   i === currentStep
-                    ? "bg-blue-500"
+                    ? "bg-[#889df0]"
                     : i < currentStep
-                      ? "bg-blue-300 dark:bg-blue-700"
-                      : "bg-zinc-200 dark:bg-zinc-700"
+                      ? "bg-[#889df0]/60"
+                      : "bg-[#e8dcc8]"
                 )}
               />
             ))}
           </div>
-          <span className="font-mono text-xs text-zinc-400">
+          <span className="font-mono text-xs text-[#725d42]">
             {currentStep + 1}/{totalSteps}
           </span>
         </div>

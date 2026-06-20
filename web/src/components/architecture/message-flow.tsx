@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const FLOW_STEPS = [
-  { role: "user", label: "user", color: "bg-blue-500" },
-  { role: "assistant", label: "assistant", color: "bg-zinc-600" },
-  { role: "tool_call", label: "tool_call", color: "bg-amber-500" },
-  { role: "tool_result", label: "tool_result", color: "bg-emerald-500" },
-  { role: "assistant", label: "assistant", color: "bg-zinc-600" },
-  { role: "tool_call", label: "tool_call", color: "bg-amber-500" },
-  { role: "tool_result", label: "tool_result", color: "bg-emerald-500" },
-  { role: "assistant", label: "assistant (final)", color: "bg-zinc-600" },
+  { role: "user", label: "user", color: "bg-[#889df0]" },
+  { role: "assistant", label: "assistant", color: "bg-[#9f927d]" },
+  { role: "tool_call", label: "tool_call", color: "bg-[#e59266]" },
+  { role: "tool_result", label: "tool_result", color: "bg-[#82d5bb]" },
+  { role: "assistant", label: "assistant", color: "bg-[#9f927d]" },
+  { role: "tool_call", label: "tool_call", color: "bg-[#e59266]" },
+  { role: "tool_result", label: "tool_result", color: "bg-[#82d5bb]" },
+  { role: "assistant", label: "assistant (final)", color: "bg-[#9f927d]" },
 ];
 
 export function MessageFlow() {
@@ -39,7 +39,7 @@ export function MessageFlow() {
         <span className="font-mono text-xs text-[var(--color-text-secondary)]">
           messages[]
         </span>
-        <span className="ml-auto rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-xs tabular-nums dark:bg-zinc-800">
+        <span className="ml-auto rounded bg-[#f6efe0] px-1.5 py-0.5 font-mono text-xs tabular-nums">
           len={count}
         </span>
       </div>

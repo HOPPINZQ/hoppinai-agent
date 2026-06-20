@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* =========================================================================
+   ANIMAL-ISLAND-UI — LIGHT PARCHMENT THEME
+   Light mode is the only mode. Dark tokens and the .dark variant are gone.
+   Library CSS (animal-island-ui/style, imported in [locale]/layout.tsx) is
+   UNLAYERED, so at equal specificity it beats Tailwind utilities. To override
+   a library rule, use the `!` important modifier (e.g. `!bg-red-500`) or wrap
+   the import in a Tailwind @layer block.
+   ========================================================================= */
 
 @keyframes fade-in {
   from {
@@ -18,28 +25,56 @@
 }
 
 :root {
-  --color-layer-tools: #3B82F6;
-  --color-layer-planning: #10B981;
-  --color-layer-memory: #8B5CF6;
-  --color-layer-concurrency: #F59E0B;
-  --color-layer-collaboration: #EF4444;
-  --color-bg: #0d0b1a;
-  --color-bg-secondary: #13112a;
-  --color-text: #fafafa;
-  --color-text-secondary: #a1a1aa;
-  --color-border: #1e1e24;
-}
+  /* Layer colors (canonical copy — single source of truth lives in
+     src/lib/constants.ts; these CSS vars mirror LAYERS[].color). */
+  --color-layer-tools: #889df0;
+  --color-layer-planning: #82d5bb;
+  --color-layer-memory: #b77dee;
+  --color-layer-concurrency: #e59266;
+  --color-layer-collaboration: #f8a6b2;
 
-.dark {
-  --color-bg: #0d0b1a;
-  --color-bg-secondary: #13112a;
-  --color-text: #fafafa;
-  --color-text-secondary: #a1a1aa;
-  --color-border: #1e1e24;
+  /* Parchment backgrounds */
+  --color-bg: #f8f8f0;
+  --color-bg-secondary: #f0e8d8;
+  --color-bg-content: rgb(247, 243, 223);
+
+  /* Warm-brown text hierarchy (never pure black) */
+  --color-text: #794f27;
+  --color-text-body: #725d42;
+  --color-text-secondary: #9f927d;
+  --color-text-muted: #8a7b66;
+
+  /* Accent (mint teal) + focus (yellow, never cold blue) */
+  --color-accent: #19c8b9;
+  --color-accent-hover: #3dd4c6;
+  --color-accent-active: #11a89b;
+  --color-focus: #ffcc00;
+
+  /* Borders */
+  --color-border: #c4b89e;
+  --color-border-strong: #9f927d;
+
+  /* 13-color NookPhone palette (mirrors LAYERS + Card `color` prop) */
+  --nook-app-pink: #f8a6b2;
+  --nook-purple: #b77dee;
+  --nook-app-blue: #889df0;
+  --nook-app-yellow: #f7cd67;
+  --nook-app-orange: #e59266;
+  --nook-app-teal: #82d5bb;
+  --nook-app-green: #8ac68a;
+  --nook-app-red: #fc736d;
+  --nook-lime-green: #d1da49;
+  --nook-yellow-green: #ecdf52;
+  --nook-brown: #9a835a;
+  --nook-warm-peach-pink: #e18c6f;
+  --nook-default: rgb(247, 243, 223);
 }
 
 body {
-  color: var(--color-text);
+  color: var(--color-text-body);
+  background: var(--color-bg);
+  font-family: Nunito, "Noto Sans SC", -apple-system, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
 }
 
 @media (max-width: 640px) {
@@ -53,7 +88,7 @@ body {
 }
 
 /* =====================================================
-   PROSE-CUSTOM: Premium documentation rendering
+   PROSE-CUSTOM: light parchment documentation rendering
    ===================================================== */
 
 /* -- Headings -- */
@@ -65,11 +100,7 @@ body {
   line-height: 2rem;
   font-weight: 800;
   letter-spacing: -0.02em;
-  color: #09090b;
-}
-
-.dark .prose-custom h1 {
-  color: #fafafa;
+  color: #794f27;
 }
 
 .prose-custom h2 {
@@ -80,13 +111,8 @@ body {
   line-height: 1.75rem;
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: #09090b;
-  border-bottom: 1px solid #e4e4e7;
-}
-
-.dark .prose-custom h2 {
-  color: #fafafa;
-  border-bottom-color: #27272a;
+  color: #794f27;
+  border-bottom: 1px dashed #d4c9b4;
 }
 
 .prose-custom h3 {
@@ -94,12 +120,8 @@ body {
   margin-bottom: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.5rem;
-  font-weight: 600;
-  color: #18181b;
-}
-
-.dark .prose-custom h3 {
-  color: #e4e4e7;
+  font-weight: 700;
+  color: #794f27;
 }
 
 .prose-custom h4 {
@@ -108,11 +130,7 @@ body {
   font-size: 0.9375rem;
   line-height: 1.5rem;
   font-weight: 600;
-  color: #27272a;
-}
-
-.dark .prose-custom h4 {
-  color: #d4d4d8;
+  color: #8a6e3d;
 }
 
 /* -- Paragraphs -- */
@@ -122,11 +140,7 @@ body {
   margin-bottom: 0.75rem;
   font-size: 0.9rem;
   line-height: 1.7;
-  color: #3f3f46;
-}
-
-.dark .prose-custom p {
-  color: #d4d4d8;
+  color: #725d42;
 }
 
 /* -- Hero callout (first blockquote) -- */
@@ -137,7 +151,7 @@ body {
   margin-bottom: 1.5rem;
   border-left: none;
   border-radius: 0.75rem;
-  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  background: linear-gradient(135deg, #fef9e7 0%, #f0f7e8 100%);
   padding: 1.25rem 1.5rem 1.25rem 1.75rem;
   font-style: normal;
   overflow: hidden;
@@ -150,7 +164,7 @@ body {
   top: 0;
   bottom: 0;
   width: 4px;
-  background: linear-gradient(to bottom, #3b82f6, #10b981);
+  background: linear-gradient(to bottom, #19c8b9, #8ac68a);
   border-radius: 4px 0 0 4px;
 }
 
@@ -158,16 +172,8 @@ body {
   font-size: 0.95rem;
   line-height: 1.65;
   font-weight: 500;
-  color: #1e40af;
+  color: #5a8a3a;
   margin: 0;
-}
-
-.dark .prose-custom blockquote.hero-callout {
-  background: linear-gradient(135deg, #172554 0%, #052e16 100%);
-}
-
-.dark .prose-custom blockquote.hero-callout p {
-  color: #93c5fd;
 }
 
 /* -- Regular blockquotes -- */
@@ -175,26 +181,17 @@ body {
 .prose-custom blockquote {
   margin-top: 1rem;
   margin-bottom: 1rem;
-  border-left: 3px solid #a5b4fc;
+  border-left: 3px solid #82d5bb;
   border-radius: 0 0.5rem 0.5rem 0;
-  background-color: #eef2ff;
+  background-color: #f0f7e8;
   padding: 0.75rem 1rem;
   font-style: normal;
 }
 
 .prose-custom blockquote p {
-  color: #4338ca;
+  color: #4a7028;
   font-size: 0.875rem;
   margin: 0;
-}
-
-.dark .prose-custom blockquote {
-  border-left-color: #6366f1;
-  background-color: rgba(99, 102, 241, 0.1);
-}
-
-.dark .prose-custom blockquote p {
-  color: #c7d2fe;
 }
 
 /* -- Code blocks with language label -- */
@@ -205,12 +202,12 @@ body {
   margin-top: 1rem;
   margin-bottom: 1rem;
   border-radius: 0.75rem;
-  border: 1px solid #1e293b;
-  background-color: #0f172a;
+  border: 1px solid #e8dcc8;
+  background-color: #fbf7eb;
   padding: 1.25rem;
   font-size: 0.8125rem;
   line-height: 1.6;
-  color: #e2e8f0;
+  color: #5a4a30;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
@@ -224,7 +221,7 @@ body {
   top: 0;
   right: 0.75rem;
   padding: 0.125rem 0.625rem 0.25rem;
-  background: #3b82f6;
+  background: #19c8b9;
   color: #ffffff;
   font-size: 0.625rem;
   font-weight: 700;
@@ -235,69 +232,48 @@ body {
 }
 
 .prose-custom pre.code-block[data-language="sh"]::before {
-  background: #22c55e;
+  background: #8ac68a;
   content: "terminal";
 }
 
 /* -- ASCII diagram containers -- */
 
 .prose-custom pre.ascii-diagram {
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-  border: 1px solid #cbd5e1;
-  color: #334155;
+  background: linear-gradient(135deg, #fdfbf3, #f6efe0);
+  border: 1px solid #d4c9b4;
+  color: #6a5a40;
   text-align: center;
   font-size: 0.75rem;
   line-height: 1.35;
   padding: 1.5rem 1rem;
 }
 
-.dark .prose-custom pre.ascii-diagram {
-  background: linear-gradient(135deg, #1e1b4b, #172554);
-  border-color: #312e81;
-  color: #c7d2fe;
-}
-
 /* -- Inline code -- */
 
 .prose-custom :not(pre) > code {
   border-radius: 0.375rem;
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background-color: #f6efe0;
+  border: 1px solid #e8dcc8;
   padding: 0.125rem 0.425rem;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #be185d;
+  color: #a85a8a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
-.dark .prose-custom :not(pre) > code {
-  background-color: #27272a;
-  border-color: #3f3f46;
-  color: #f9a8d4;
 }
 
 /* -- Links -- */
 
 .prose-custom a {
-  color: #2563eb;
+  color: #11a89b;
   font-weight: 500;
   text-decoration: underline;
-  text-decoration-color: #93c5fd;
+  text-decoration-color: #82d5bb;
   text-underline-offset: 2px;
   transition: text-decoration-color 0.15s;
 }
 
 .prose-custom a:hover {
-  text-decoration-color: #2563eb;
-}
-
-.dark .prose-custom a {
-  color: #60a5fa;
-  text-decoration-color: #1e40af;
-}
-
-.dark .prose-custom a:hover {
-  text-decoration-color: #60a5fa;
+  text-decoration-color: #11a89b;
 }
 
 /* -- Lists -- */
@@ -308,11 +284,7 @@ body {
   padding-left: 1.5rem;
   font-size: 0.9rem;
   line-height: 1.7;
-  color: #3f3f46;
-}
-
-.dark .prose-custom ul {
-  color: #d4d4d8;
+  color: #725d42;
 }
 
 .prose-custom ul > li {
@@ -322,7 +294,7 @@ body {
 }
 
 .prose-custom ul > li::marker {
-  color: #3b82f6;
+  color: #82d5bb;
 }
 
 .prose-custom ol {
@@ -333,11 +305,7 @@ body {
   counter-reset: step-counter;
   font-size: 0.9rem;
   line-height: 1.7;
-  color: #3f3f46;
-}
-
-.dark .prose-custom ol {
-  color: #d4d4d8;
+  color: #725d42;
 }
 
 .prose-custom ol > li {
@@ -359,7 +327,7 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 0.5rem;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  background: linear-gradient(135deg, #19c8b9, #82d5bb);
   color: #ffffff;
   font-size: 0.75rem;
   font-weight: 700;
@@ -392,11 +360,7 @@ body {
   line-height: 1.5;
   border-radius: 0.75rem;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
-}
-
-.dark .prose-custom table {
-  border-color: #27272a;
+  border: 1px solid #e8dcc8;
 }
 
 .prose-custom thead {
@@ -406,34 +370,23 @@ body {
 .prose-custom th {
   padding: 0.625rem 1rem;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #64748b;
-  background-color: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.dark .prose-custom th {
-  color: #94a3b8;
-  background-color: #18181b;
-  border-bottom-color: #27272a;
+  color: #794f27;
+  background-color: #f6efe0;
+  border-bottom: 1px solid #d4c9b4;
 }
 
 .prose-custom td {
   padding: 0.625rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
-  color: #475569;
+  border-bottom: 1px dashed #e8dcc8;
+  color: #725d42;
 }
 
 .prose-custom td code {
   font-size: 0.75rem;
-}
-
-.dark .prose-custom td {
-  border-bottom-color: #1e1e22;
-  color: #cbd5e1;
 }
 
 .prose-custom tbody tr:last-child td {
@@ -441,11 +394,7 @@ body {
 }
 
 .prose-custom tbody tr:hover {
-  background-color: #f8fafc;
-}
-
-.dark .prose-custom tbody tr:hover {
-  background-color: #111113;
+  background-color: #fbf7eb;
 }
 
 /* -- Horizontal rules -- */
@@ -455,115 +404,105 @@ body {
   margin-bottom: 2rem;
   border: none;
   height: 1px;
-  background: linear-gradient(to right, transparent, #d4d4d8, transparent);
-}
-
-.dark .prose-custom hr {
-  background: linear-gradient(to right, transparent, #3f3f46, transparent);
+  background: linear-gradient(to right, transparent, #d4c9b4, transparent);
 }
 
 /* -- Strong / Em -- */
 
 .prose-custom strong {
   font-weight: 700;
-  color: #09090b;
-}
-
-.dark .prose-custom strong {
-  color: #fafafa;
+  color: #794f27;
 }
 
 .prose-custom em {
   font-style: italic;
-  color: #52525b;
-}
-
-.dark .prose-custom em {
-  color: #a1a1aa;
+  color: #8a6e3d;
 }
 
 /* =====================================================
-   HIGHLIGHT.JS TOKEN THEME (code syntax highlighting)
+   HIGHLIGHT.JS TOKEN THEME — light parchment
+   Matches warm-brown / parchment palette.
    ===================================================== */
 
 .hljs {
   background: transparent !important;
+  color: #5a4a30;
 }
 
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-type {
-  color: #c084fc;
-  font-weight: 500;
+  color: #b85a9c;
+  font-weight: 600;
 }
 
 .hljs-literal,
 .hljs-symbol,
 .hljs-bullet {
-  color: #fb923c;
+  color: #a85a3a;
 }
 
 .hljs-string,
 .hljs-doctag,
 .hljs-template-variable,
 .hljs-variable {
-  color: #34d399;
+  color: #5a9e1e;
 }
 
 .hljs-number {
-  color: #fb923c;
+  color: #a85a3a;
 }
 
 .hljs-comment,
 .hljs-quote {
-  color: #64748b;
+  color: #9f927d;
   font-style: italic;
 }
 
 .hljs-title,
 .hljs-section {
-  color: #60a5fa;
+  color: #11a89b;
   font-weight: 600;
 }
 
 .hljs-title.function_,
 .hljs-title.class_ {
-  color: #60a5fa;
+  color: #11a89b;
 }
 
 .hljs-built_in {
-  color: #f472b6;
+  color: #b77dee;
 }
 
 .hljs-attr,
 .hljs-attribute {
-  color: #fbbf24;
+  color: #c89a3a;
 }
 
 .hljs-params {
-  color: #e2e8f0;
+  color: #6a5a40;
 }
 
 .hljs-meta {
-  color: #94a3b8;
+  color: #8a7b66;
 }
 
 .hljs-name,
 .hljs-tag {
-  color: #f87171;
+  color: #c44a4a;
 }
 
 .hljs-selector-class,
 .hljs-selector-id {
-  color: #a78bfa;
+  color: #b85a9c;
 }
 
 .hljs-deletion {
-  color: #fca5a5;
-  background-color: rgba(239, 68, 68, 0.15);
+  color: #c44a4a;
+  background-color: rgba(252, 115, 109, 0.15);
 }
 
 .hljs-addition {
-  color: #86efac;
-  background-color: rgba(34, 197, 94, 0.15);
+  color: #4a8a2a;
+  background-color: rgba(138, 198, 138, 0.18);
 }

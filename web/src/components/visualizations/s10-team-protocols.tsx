@@ -107,8 +107,8 @@ function SequenceArrow({
             width={72}
             height={16}
             rx={3}
-            fill={tagBg || "#f5f3ff"}
-            stroke={tagStroke || "#c4b5fd"}
+            fill={tagBg || "#efe2fb"}
+            stroke={tagStroke || "#b77dee"}
             strokeWidth={0.5}
           />
           <text
@@ -117,7 +117,7 @@ function SequenceArrow({
             textAnchor="middle"
             fontSize={6}
             fontFamily="monospace"
-            fill={tagText || "#7c3aed"}
+            fill={tagText || "#b77dee"}
           >
             {tagLabel}
           </text>
@@ -138,17 +138,17 @@ function DecisionBox({ x, y }: { x: number; y: number }) {
     >
       <polygon
         points={`${x},${y - size} ${x + size},${y} ${x},${y + size} ${x - size},${y}`}
-        fill="#fef3c7"
-        stroke="#f59e0b"
+        fill="#fde6d8"
+        stroke="#e59266"
         strokeWidth={1}
       />
       <text x={x} y={y + 1} textAnchor="middle" dominantBaseline="middle" fontSize={7} fontWeight={700} fill="#92400e">
         ?
       </text>
-      <text x={x + size + 6} y={y - 4} fontSize={6} fontFamily="monospace" fill="#10b981">
+      <text x={x + size + 6} y={y - 4} fontSize={6} fontFamily="monospace" fill="#82d5bb">
         approve
       </text>
-      <text x={x + size + 6} y={y + 6} fontSize={6} fontFamily="monospace" fill="#ef4444">
+      <text x={x + size + 6} y={y + 6} fontSize={6} fontFamily="monospace" fill="#fc736d">
         reject
       </text>
     </motion.g>
@@ -202,18 +202,18 @@ export default function TeamProtocols({ title }: { title?: string }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "FSM Team Protocols"}
       </h2>
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 min-h-[500px]">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4 min-h-[500px]">
         {/* Protocol toggle */}
         <div className="flex justify-center gap-2 mb-4">
           <button
             onClick={() => switchProtocol("shutdown")}
             className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
               protocol === "shutdown"
-                ? "bg-blue-500 text-white"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                ? "bg-[#889df0] text-white"
+                : "bg-[#f6efe0] text-[#9f927d] hover:bg-[#e8dcc8]"
             }`}
           >
             Shutdown Protocol
@@ -222,8 +222,8 @@ export default function TeamProtocols({ title }: { title?: string }) {
             onClick={() => switchProtocol("plan")}
             className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${
               protocol === "plan"
-                ? "bg-emerald-500 text-white"
-                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
+                ? "bg-[#8ac68a] text-white"
+                : "bg-[#f6efe0] text-[#9f927d] hover:bg-[#e8dcc8]"
             }`}
           >
             Plan Approval Protocol
@@ -247,12 +247,12 @@ export default function TeamProtocols({ title }: { title?: string }) {
           </defs>
 
           {/* Lifeline headers */}
-          <rect x={LIFELINE_LEFT_X - 40} y={20} width={80} height={28} rx={6} fill="#3b82f6" />
+          <rect x={LIFELINE_LEFT_X - 40} y={20} width={80} height={28} rx={6} fill="#889df0" />
           <text x={LIFELINE_LEFT_X} y={37} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={11} fontWeight={700}>
             {leftLabel}
           </text>
 
-          <rect x={LIFELINE_RIGHT_X - 40} y={20} width={80} height={28} rx={6} fill="#8b5cf6" />
+          <rect x={LIFELINE_RIGHT_X - 40} y={20} width={80} height={28} rx={6} fill="#b77dee" />
           <text x={LIFELINE_RIGHT_X} y={37} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize={11} fontWeight={700}>
             {rightLabel}
           </text>
@@ -286,7 +286,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     x={LIFELINE_LEFT_X}
                     yStart={ARROW_Y_START - 10}
                     yEnd={step >= 3 ? ARROW_Y_START + ARROW_Y_GAP * 2 + 20 : ARROW_Y_START + 30}
-                    color="#3b82f6"
+                    color="#889df0"
                   />
                 )}
                 {step >= 1 && (
@@ -294,7 +294,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     x={LIFELINE_RIGHT_X}
                     yStart={ARROW_Y_START - 5}
                     yEnd={step >= 3 ? ARROW_Y_START + ARROW_Y_GAP * 2 + 15 : ARROW_Y_START + ARROW_Y_GAP + 20}
-                    color="#8b5cf6"
+                    color="#b77dee"
                   />
                 )}
 
@@ -305,7 +305,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     direction="right"
                     label="shutdown_request"
                     tagLabel={`request_id: ${REQUEST_ID}`}
-                    color="#3b82f6"
+                    color="#889df0"
                     tagBg={palette.bgSubtle}
                     tagStroke={palette.nodeStroke}
                     tagText={palette.nodeText}
@@ -327,7 +327,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     direction="left"
                     label="shutdown_response { approve: true }"
                     tagLabel={`request_id: ${REQUEST_ID}`}
-                    color="#10b981"
+                    color="#82d5bb"
                     tagBg={palette.bgSubtle}
                     tagStroke={palette.nodeStroke}
                     tagText={palette.nodeText}
@@ -346,7 +346,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                       y1={ARROW_Y_START + ARROW_Y_GAP * 2 + 20}
                       x2={LIFELINE_RIGHT_X + 10}
                       y2={ARROW_Y_START + ARROW_Y_GAP * 2 + 36}
-                      stroke="#ef4444"
+                      stroke="#fc736d"
                       strokeWidth={2}
                     />
                     <line
@@ -354,14 +354,14 @@ export default function TeamProtocols({ title }: { title?: string }) {
                       y1={ARROW_Y_START + ARROW_Y_GAP * 2 + 20}
                       x2={LIFELINE_RIGHT_X - 10}
                       y2={ARROW_Y_START + ARROW_Y_GAP * 2 + 36}
-                      stroke="#ef4444"
+                      stroke="#fc736d"
                       strokeWidth={2}
                     />
                     <text
                       x={LIFELINE_RIGHT_X + 24}
                       y={ARROW_Y_START + ARROW_Y_GAP * 2 + 32}
                       fontSize={8}
-                      fill="#ef4444"
+                      fill="#fc736d"
                       fontWeight={600}
                     >
                       exit
@@ -379,7 +379,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     x={LIFELINE_RIGHT_X}
                     yStart={ARROW_Y_START - 10}
                     yEnd={step >= 2 ? ARROW_Y_START + ARROW_Y_GAP * 2 + 15 : ARROW_Y_START + 30}
-                    color="#8b5cf6"
+                    color="#b77dee"
                   />
                 )}
                 {step >= 1 && (
@@ -387,7 +387,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     x={LIFELINE_LEFT_X}
                     yStart={ARROW_Y_START - 5}
                     yEnd={step >= 2 ? ARROW_Y_START + ARROW_Y_GAP * 2 + 15 : ARROW_Y_START + ARROW_Y_GAP + 10}
-                    color="#3b82f6"
+                    color="#889df0"
                   />
                 )}
 
@@ -398,7 +398,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     direction="left"
                     label="exit_plan_mode { plan }"
                     tagLabel={`request_id: ${REQUEST_ID}`}
-                    color="#8b5cf6"
+                    color="#b77dee"
                     tagBg={palette.bgSubtle}
                     tagStroke={palette.nodeStroke}
                     tagText={palette.nodeText}
@@ -444,7 +444,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     direction="right"
                     label="plan_approval_response { approve: true }"
                     tagLabel={`request_id: ${REQUEST_ID}`}
-                    color="#10b981"
+                    color="#82d5bb"
                     tagBg={palette.bgSubtle}
                     tagStroke={palette.nodeStroke}
                     tagText={palette.nodeText}
@@ -458,7 +458,7 @@ export default function TeamProtocols({ title }: { title?: string }) {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 }}
                   >
-                    <circle cx={LIFELINE_RIGHT_X + 40} cy={ARROW_Y_START + ARROW_Y_GAP * 2} r={10} fill="#10b981" />
+                    <circle cx={LIFELINE_RIGHT_X + 40} cy={ARROW_Y_START + ARROW_Y_GAP * 2} r={10} fill="#82d5bb" />
                     <text
                       x={LIFELINE_RIGHT_X + 40}
                       y={ARROW_Y_START + ARROW_Y_GAP * 2 + 1}

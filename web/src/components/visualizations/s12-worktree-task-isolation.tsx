@@ -143,16 +143,16 @@ const STEPS: StepState[] = [
 ];
 
 function statusClass(status: TaskStatus): string {
-  if (status === "completed") return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
-  if (status === "in_progress") return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
-  return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  if (status === "completed") return "bg-[#e0f0e0] text-[#8ac68a]";
+  if (status === "in_progress") return "bg-[#fde6d8] text-[#e59266]";
+  return "bg-[#f6efe0] text-[#9f927d]";
 }
 
 function worktreeClass(state: WorktreeRow["state"]): string {
-  if (state === "active") return "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20";
-  if (state === "kept") return "border-sky-300 bg-sky-50 dark:border-sky-800 dark:bg-sky-900/20";
-  if (state === "removed") return "border-zinc-200 bg-zinc-100 opacity-70 dark:border-zinc-700 dark:bg-zinc-800";
-  return "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900";
+  if (state === "active") return "border-[#8ac68a]/40 bg-[#e0f0e0]";
+  if (state === "kept") return "border-[#889df0]/40 bg-[#e6eafb]";
+  if (state === "removed") return "border-[#e8dcc8] bg-[#f6efe0] opacity-70";
+  return "border-[#e8dcc8] bg-[#fbf7eb]";
 }
 
 export default function WorktreeTaskIsolation({ title }: { title?: string }) {
@@ -161,18 +161,18 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Worktree Task Isolation"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
-        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 font-mono text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
+        <div className="mb-3 rounded-md border border-[#889df0]/40 bg-[#e6eafb] px-3 py-2 font-mono text-xs text-[#889df0]">
           {step.op}
         </div>
 
         <div className="grid gap-3 lg:grid-cols-3">
-          <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-            <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <div className="rounded-md border border-[#e8dcc8]">
+            <div className="border-b border-[#e8dcc8] bg-[#fbf7eb] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#9f927d]">
               Task Board (.tasks)
             </div>
             <div className="space-y-2 p-2">
@@ -182,16 +182,16 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25 }}
-                  className="rounded border border-zinc-200 p-2 text-xs dark:border-zinc-700"
+                  className="rounded border border-[#e8dcc8] p-2 text-xs"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-zinc-500 dark:text-zinc-400">#{task.id}</span>
+                    <span className="font-mono text-[#725d42]">#{task.id}</span>
                     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${statusClass(task.status)}`}>
                       {task.status}
                     </span>
                   </div>
-                  <div className="mt-1 font-medium text-zinc-800 dark:text-zinc-100">{task.subject}</div>
-                  <div className="mt-1 font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
+                  <div className="mt-1 font-medium text-[#794f27]">{task.subject}</div>
+                  <div className="mt-1 font-mono text-[10px] text-[#725d42]">
                     worktree: {task.worktree || "-"}
                   </div>
                 </motion.div>
@@ -199,13 +199,13 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
             </div>
           </div>
 
-          <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-            <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <div className="rounded-md border border-[#e8dcc8]">
+            <div className="border-b border-[#e8dcc8] bg-[#fbf7eb] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#9f927d]">
               Worktree Index (.worktrees/index.json)
             </div>
             <div className="space-y-2 p-2">
               {step.worktrees.length === 0 && (
-                <div className="rounded border border-dashed border-zinc-300 px-3 py-4 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                <div className="rounded border border-dashed border-[#d4c9b4] px-3 py-4 text-center text-xs text-[#725d42]">
                   no worktrees yet
                 </div>
               )}
@@ -217,16 +217,16 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
                   transition={{ duration: 0.25 }}
                   className={`rounded border p-2 text-xs ${worktreeClass(wt.state)}`}
                 >
-                  <div className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-100">{wt.name}</div>
-                  <div className="font-mono text-[10px] text-zinc-500 dark:text-zinc-400">{wt.branch}</div>
-                  <div className="mt-1 text-[10px] text-zinc-600 dark:text-zinc-300">task: {wt.task}</div>
+                  <div className="font-mono text-[11px] font-semibold text-[#794f27]">{wt.name}</div>
+                  <div className="font-mono text-[10px] text-[#725d42]">{wt.branch}</div>
+                  <div className="mt-1 text-[10px] text-[#9f927d]">task: {wt.task}</div>
                 </motion.div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-md border border-zinc-200 dark:border-zinc-700">
-            <div className="border-b border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+          <div className="rounded-md border border-[#e8dcc8]">
+            <div className="border-b border-[#e8dcc8] bg-[#fbf7eb] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#9f927d]">
               Execution Lanes
             </div>
             <div className="space-y-2 p-2">
@@ -238,12 +238,12 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
                   transition={{ duration: 0.25 }}
                   className={`rounded border p-2 text-xs ${
                     lane.highlight
-                      ? "border-blue-300 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
-                      : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+                      ? "border-[#889df0]/40 bg-[#e6eafb]"
+                      : "border-[#e8dcc8] bg-[#fbf7eb]"
                   }`}
                 >
-                  <div className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-100">{lane.name}</div>
-                  <div className="mt-1 space-y-1 font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
+                  <div className="font-mono text-[11px] font-semibold text-[#794f27]">{lane.name}</div>
+                  <div className="mt-1 space-y-1 font-mono text-[10px] text-[#725d42]">
                     {lane.files.length === 0 ? (
                       <div>(no changes)</div>
                     ) : (
@@ -256,9 +256,9 @@ export default function WorktreeTaskIsolation({ title }: { title?: string }) {
           </div>
         </div>
 
-        <div className="mt-4 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800/60">
-          <div className="font-medium text-zinc-800 dark:text-zinc-100">{step.title}</div>
-          <div className="text-zinc-600 dark:text-zinc-300">{step.desc}</div>
+        <div className="mt-4 rounded-md border border-[#e8dcc8] bg-[#fbf7eb] px-3 py-2 text-sm">
+          <div className="font-medium text-[#794f27]">{step.title}</div>
+          <div className="text-[#9f927d]">{step.desc}</div>
         </div>
       </div>
 

@@ -22,9 +22,9 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "dark",
+  theme: "light",
   setTheme: () => {},
-  resolvedTheme: "dark",
+  resolvedTheme: "light",
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -32,7 +32,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
     return stored === "dark" || stored === "light" || stored === "auto"
       ? stored
-      : "dark";
+      : "light";
   });
 
   useEffect(() => {

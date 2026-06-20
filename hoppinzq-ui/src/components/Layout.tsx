@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock, LogOut, ChevronDown, Sun, Moon } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Settings, Bell, Search, User, Crosshair, Clock, LogOut, ChevronDown, Sun, Moon, Leaf } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/useTheme";
 import { useAuth, useIframeLogin, getCachedUserInfo, isLoggedIn, redirectToLogin, handleAuthCallback, getUserInfo, type IframeLoginData } from "@/lib/zaiAuth";
@@ -106,15 +106,15 @@ export function Layout({ children }: LayoutProps) {
         {/* Logo */}
         <div className="h-16 flex items-center px-5 border-b border-[var(--border)]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] flex items-center justify-center shadow-lg shadow-[var(--accent)]/15">
-              <Crosshair className="w-5 h-5 text-[var(--bg)]" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-dim)] flex items-center justify-center shadow-lg shadow-[var(--accent)]/20">
+              <Leaf className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="text-[15px] font-bold tracking-wide text-[var(--text-primary)] font-display">
-                CSGO TRADE
+              <div className="text-[15px] font-extrabold tracking-wide text-[var(--text-primary)] font-display">
+                岛屿集市
               </div>
-              <div className="text-[9px] uppercase tracking-[0.2em] text-[var(--accent)] font-medium">
-                Market Hub
+              <div className="text-[9px] uppercase tracking-[0.2em] text-[var(--accent)] font-bold">
+                Island Hub
               </div>
             </div>
           </div>
@@ -129,9 +129,9 @@ export function Layout({ children }: LayoutProps) {
                 key={item.name}
                 to={item.path}
                 className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-[13px] font-medium relative group",
+                  "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-[13px] font-bold relative group",
                   isActive
-                    ? "bg-[var(--accent)]/10 text-[var(--accent)]"
+                    ? "bg-[var(--accent)]/15 text-[var(--accent)]"
                     : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
                 )}
               >
@@ -161,12 +161,12 @@ export function Layout({ children }: LayoutProps) {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Top Header */}
         <header className="h-14 flex-shrink-0 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-xl flex items-center justify-between px-6 z-10">
-          <div className="flex items-center bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3.5 py-1.5 w-80 focus-within:border-[var(--accent)]/40 transition-all">
+          <div className="flex items-center bg-[var(--bg)] border-[2px] border-[var(--border)] rounded-full px-4 py-1.5 w-80 focus-within:border-[#ffcc00] focus-within:shadow-[0_0_0_3px_rgba(255,204,0,0.15)] transition-all">
             <Search className="w-4 h-4 text-[var(--text-muted)] mr-2" />
             <input
               type="text"
               placeholder="搜索皮肤、武器..."
-              className="bg-transparent border-none outline-none text-[13px] w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+              className="bg-transparent border-none outline-none text-[13px] font-semibold w-full text-[var(--text-primary)] placeholder:text-[var(--text-muted)] placeholder:font-medium"
             />
           </div>
 

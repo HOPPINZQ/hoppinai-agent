@@ -17,6 +17,17 @@
         <module>hoppinzq-module-agent-08</module>
         <module>hoppinzq-module-agent-13-mcp</module>
         <module>hoppinzq-module-agent-14-react</module>
+        <module>hoppinzq-module-agent-permission</module>
+        <module>hoppinzq-module-agent-hooks</module>
+        <module>hoppinzq-module-agent-memory</module>
+        <module>hoppinzq-module-agent-sysprompt</module>
+        <module>hoppinzq-module-agent-errorrecovery</module>
+        <module>hoppinzq-module-agent-cron</module>
+        <module>hoppinzq-module-agent-teams</module>
+        <module>hoppinzq-module-agent-protocols</module>
+        <module>hoppinzq-module-agent-autonomous</module>
+        <module>hoppinzq-module-agent-worktree</module>
+        <module>hoppinzq-module-agent-comprehensive</module>
         <module>hoppinzq-module-agent-web</module>
     </modules>
     <groupId>com.hoppinzq</groupId>

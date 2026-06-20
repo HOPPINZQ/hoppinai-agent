@@ -75,7 +75,7 @@ const WORK_BLOCKS: WorkBlock[] = [
     lane: "main",
     startFraction: 0,
     endFraction: 1,
-    color: "#8b5cf6",
+    color: "#b77dee",
     label: "Main agent loop",
     appearsAtStep: 1,
   },
@@ -83,7 +83,7 @@ const WORK_BLOCKS: WorkBlock[] = [
     lane: "bg1",
     startFraction: 0.18,
     endFraction: 0.75,
-    color: "#10b981",
+    color: "#82d5bb",
     label: "Run tests",
     appearsAtStep: 2,
     completesAtStep: 5,
@@ -92,7 +92,7 @@ const WORK_BLOCKS: WorkBlock[] = [
     lane: "bg2",
     startFraction: 0.35,
     endFraction: 0.58,
-    color: "#3b82f6",
+    color: "#889df0",
     label: "Lint code",
     appearsAtStep: 3,
     completesAtStep: 4,
@@ -169,11 +169,11 @@ export default function BackgroundTasks({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Background Task Lanes"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         <svg viewBox="0 0 780 380" className="w-full" aria-label="Background task lanes">
           <defs>
             <marker
@@ -196,11 +196,11 @@ export default function BackgroundTasks({ title }: { title?: string }) {
               markerHeight="5"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#e59266" />
             </marker>
             <filter id="blockGlow" x="-10%" y="-20%" width="120%" height="140%">
               <feGaussianBlur stdDeviation="2" result="blur" />
-              <feFlood floodColor="#8b5cf6" floodOpacity="0.2" result="color" />
+              <feFlood floodColor="#b77dee" floodOpacity="0.2" result="color" />
               <feComposite in="color" in2="blur" operator="in" result="glow" />
               <feMerge>
                 <feMergeNode in="glow" />
@@ -331,7 +331,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                     dominantBaseline="middle"
                     fontSize="9"
                     fontFamily="monospace"
-                    fill="#10b981"
+                    fill="#82d5bb"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                   >
@@ -378,7 +378,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                 y1={LANE_Y.main}
                 x2={fractionToX(llmCallFraction)}
                 y2={LANE_Y.main + LANE_HEIGHT}
-                stroke="#f59e0b"
+                stroke="#e59266"
                 strokeWidth={2}
                 strokeDasharray="3 2"
               />
@@ -388,7 +388,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                 width={72}
                 height={16}
                 rx={3}
-                fill="#f59e0b"
+                fill="#e59266"
               />
               <text
                 x={fractionToX(llmCallFraction)}
@@ -464,8 +464,8 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                       width={130}
                       height={34}
                       rx={5}
-                      fill={isDark ? "#451a0340" : "#fef3c7"}
-                      stroke="#f59e0b"
+                      fill={isDark ? "#451a0340" : "#fde6d8"}
+                      stroke="#e59266"
                       strokeWidth={1}
                     />
                     <text
@@ -475,7 +475,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                       dominantBaseline="middle"
                       fontSize="9"
                       fontWeight="600"
-                      fill={isDark ? "#fbbf24" : "#b45309"}
+                      fill={isDark ? "#e59266" : "#b45309"}
                     >
                       tool_result
                     </text>
@@ -486,7 +486,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                       dominantBaseline="middle"
                       fontSize="8"
                       fontFamily="monospace"
-                      fill={isDark ? "#f59e0b" : "#92400e"}
+                      fill={isDark ? "#e59266" : "#92400e"}
                     >
                       {card.label}
                     </text>
@@ -507,8 +507,8 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                     width={130}
                     height={34}
                     rx={5}
-                    fill={isDark ? "#06402740" : "#d1fae5"}
-                    stroke="#10b981"
+                    fill={isDark ? "#06402740" : "#e0f0e0"}
+                    stroke="#82d5bb"
                     strokeWidth={1}
                   />
                   <text
@@ -518,7 +518,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                     dominantBaseline="middle"
                     fontSize="9"
                     fontWeight="600"
-                    fill={isDark ? "#34d399" : "#047857"}
+                    fill={isDark ? "#82d5bb" : "#047857"}
                   >
                     tool_result
                   </text>
@@ -529,7 +529,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                     dominantBaseline="middle"
                     fontSize="8"
                     fontFamily="monospace"
-                    fill={isDark ? "#10b981" : "#065f46"}
+                    fill={isDark ? "#82d5bb" : "#065f46"}
                   >
                     {card.label}
                   </text>
@@ -550,7 +550,7 @@ export default function BackgroundTasks({ title }: { title?: string }) {
                 y1={QUEUE_Y}
                 x2={fractionToX(llmCallFraction) + 20}
                 y2={LANE_Y.main + LANE_HEIGHT + 4}
-                stroke="#f59e0b"
+                stroke="#e59266"
                 strokeWidth={1.5}
                 markerEnd="url(#drainArrow)"
                 initial={{ pathLength: 0 }}
@@ -582,26 +582,26 @@ export default function BackgroundTasks({ title }: { title?: string }) {
         {/* Legend */}
         <div className="mt-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded" style={{ background: "#8b5cf6" }} />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded" style={{ background: "#b77dee" }} />
+            <span className="text-[10px] text-[#8a7b66]">
               Main thread
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded" style={{ background: "#10b981" }} />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded" style={{ background: "#82d5bb" }} />
+            <span className="text-[10px] text-[#8a7b66]">
               Background 1
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded" style={{ background: "#3b82f6" }} />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded" style={{ background: "#889df0" }} />
+            <span className="text-[10px] text-[#8a7b66]">
               Background 2
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded" style={{ background: "#f59e0b" }} />
-            <span className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            <div className="h-3 w-3 rounded" style={{ background: "#e59266" }} />
+            <span className="text-[10px] text-[#8a7b66]">
               LLM boundary
             </span>
           </div>
