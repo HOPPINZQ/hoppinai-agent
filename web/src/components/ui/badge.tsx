@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { getLayerColor } from "@/lib/constants";
 
 interface BadgeProps {
-  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration";
+  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration" | "production";
   children: React.ReactNode;
   className?: string;
 }

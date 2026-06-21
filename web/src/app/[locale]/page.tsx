@@ -15,7 +15,7 @@ import { RotatingText } from "@/components/ui/rotating-text";
 import BentoCard from "@/components/ui/bento-card";
 import ScrollReveal from "@/components/ui/scroll-reveal";
 import { Card, Title, Button } from "animal-island-ui";
-import hljs from "highlight.js/lib/common";
+import hljs from "highlight.js";
 import { cn } from "@/lib/utils";
 import versionsData from "@/data/generated/versions.json";
 
@@ -292,36 +292,99 @@ export default function HomePage() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="mb-2 text-sm font-bold text-white">
+                      <h3 className="mb-3 text-sm font-bold text-white">
                         项目特点
                       </h3>
-                      <ul className="grid gap-1.5 text-xs leading-relaxed text-white/95 sm:grid-cols-2">
-                        {[
-                          ["递进式架构", "从单一工具调用到多工具协同，逐步引入新能力"],
-                          ["统一基类", "ZQAgent 提供标准化的 Agent 循环"],
-                          ["工具系统", "ToolDefinition + Schema，支持动态注册"],
-                          ["上下文管理", "三层压缩策略（微压缩、自动压缩、手动压缩）"],
-                          ["技能系统", "两层注入的 Skill 技能加载机制"],
-                          ["任务管理", "基于 DAG 的任务图，支持依赖解析"],
-                          ["后台执行", "守护线程后台任务 + 通知队列注入"],
-                          ["MCP 协议", "支持 STDIO / SSE / Streamable HTTP"],
-                          ["ReAct 模式", "Thought → Action → Observation 推理循环"],
-                          ["Web 服务", "Spring Boot 集成，会话管理 + REST API"],
-                        ].map(([term, desc]) => (
-                          <li
-                            key={term}
-                            className="flex items-start gap-1.5"
-                          >
-                            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-white" />
-                            <span>
-                              <span className="font-bold whitespace-nowrap">
-                                {term}
-                              </span>
-                              ：{desc}
+                      {[
+                        {
+                          label: "工具与执行",
+                          color: "#889df0",
+                          items: [
+                            ["工具系统", "ToolDefinition + Schema，支持动态注册"],
+                            ["权限系统", "denyList → permissionRules → askUser 三道闸"],
+                            ["钩子机制", "PreToolUse / PostToolUse / Stop 可插拔扩展点"],
+                            ["ReAct 模式", "Thought → Action → Observation 推理循环"],
+                            ["MCP 协议", "支持 STDIO / SSE / Streamable HTTP"],
+                            ["CLI 可视化 Agent", "纯命令行 ANSI 面板渲染，双模式支持"],
+                          ]
+                        },
+                        {
+                          label: "规划与协调",
+                          color: "#f0a8b8",
+                          items: [
+                            ["递进式架构", "从单一工具调用到多工具协同，逐步引入新能力"],
+                            ["统一基类", "ZQAgent 提供标准化的 Agent 循环"],
+                            ["技能系统", "两层注入的 Skill 技能加载机制"],
+                            ["任务管理", "基于 DAG 的任务图，支持依赖解析"],
+                            ["动态系统提示", "PromptAssembler 按 AgentContext 装配并缓存"],
+                            ["Web 服务", "Spring Boot 集成，会话管理 + REST API"],
+                            ["Agent 团队", "lead / teammate 文件邮箱异步协作"],
+                            ["团队协议", "shutdown / plan_approval 状态机协商"],
+                            ["自主 Agent", "IdlePoller 扫任务板，自动认领"],
+                          ]
+                        },
+                        {
+                          label: "记忆管理",
+                          color: "#b77dee",
+                          items: [
+                            ["上下文管理", "三层压缩策略（微压缩、自动压缩、手动压缩）"],
+                            ["持久化记忆", "YAML 索引 + 分类型 .memory/*.md，跨会话保留偏好"],
+                            ["错误恢复", "ErrorClassifier 分类 + RetryWrapper 指数退避"],
+                          ]
+                        },
+                        {
+                          label: "并发",
+                          color: "#e59266",
+                          items: [
+                            ["后台执行", "守护线程后台任务 + 通知队列注入"],
+                            ["定时调度", "Cron 双线程解耦触发与执行"],
+                            ["Worktree 隔离", "ThreadLocal 路由，多 agent 互不干扰"],
+                          ]
+                        },
+                        {
+                          label: "生产化",
+                          color: "#f7cd67",
+                          items: [
+                            ["多模态输入", "MessageContent 多类型消息管道，read_file 自动 base64"],
+                            ["安全沙箱", "4 层沙箱防护（L1 静态分析 → L2 目录监禁 → L3 OS → L4 容器）"],
+                            ["综合集成", "27 工具 + 全部基础设施塞进同一个循环"],
+                          ]
+                        },
+                      ].map((group) => (
+                        <div key={group.label} className="mb-3 last:mb-0">
+                          <div className="mb-1.5 flex items-center gap-1.5">
+                            <span
+                              className="inline-block h-2 w-2 rounded-full"
+                              style={{ backgroundColor: group.color }}
+                            />
+                            <span
+                              className="text-[11px] font-bold tracking-wider uppercase"
+                              style={{ color: group.color }}
+                            >
+                              {group.label}
                             </span>
-                          </li>
-                        ))}
-                      </ul>
+                          </div>
+                          <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                            {group.items.map(([term, desc]) => (
+                              <div
+                                key={term}
+                                className="flex items-start gap-2 rounded-xl bg-white/15 px-3 py-2 backdrop-blur-sm transition-colors hover:bg-white/25"
+                              >
+                                <span
+                                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
+                                  style={{ backgroundColor: group.color }}
+                                />
+                                <span className="text-xs leading-relaxed text-black/75">
+                                  <span className="font-semibold whitespace-nowrap text-black/85">
+                                    {term}
+                                  </span>
+                                  ：{desc}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </BentoCard>
@@ -340,7 +403,114 @@ export default function HomePage() {
               <NewBadge>New</NewBadge>
             </div>
             <ScrollReveal animation="fade-up" staggerChildren stagger={0.1}>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 mb-4 sm:grid-cols-3">
+                <Link href={`/${locale}/cli`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        cli
+                      </span>
+                      <NewBadge>CLI</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        工具层
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      CLI 可视化 Agent
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      新增纯命令行模块，ANSI box-drawing 面板渲染 Agent 思考/工具调用/结果/耗时，
+                      去掉 Spring Boot/MySQL 依赖，ReAct 与原生 tool_use 双模式支持。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s22`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s22
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        生产化
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      多模态输入
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      新增 MessageContent 多类型消息管道，read_file 自动检测图片并 base64 编码，
+                      screenshot 截屏工具，视觉 API 适配与降级策略。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s23`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s23
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        生产化
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      安全沙箱
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      新增四层 bash 沙箱防护：L1 静态分析黑名单 → L2 目录监禁 → L3 bwrap OS 沙箱 → L4 docker 容器隔离，
+                      与 s09 权限 + s10 钩子形成完整安全链。
+                    </p>
+                  </BentoCard>
+                </Link>
+              </div>
+            </ScrollReveal>
+          </div>
+        </section>
+
+        {/* V2 Major Update */}
+        <section className="px-2">
+          <div className="mx-auto max-w-5xl">
+            <div className="mb-6 flex items-center gap-3">
+              <Title size="small" color="app-orange">
+                v2 大版本更新
+              </Title>
+              <NewBadge>v2</NewBadge>
+            </div>
+
+            {/* Stats banner */}
+            <ScrollReveal animation="fade-up">
+              <div className="mb-4 grid grid-cols-2 gap-3 rounded-2xl border border-[#e8dcc8] bg-[#fbf7eb] p-4 sm:grid-cols-4">
+                {[
+                  ["13", "port 可视化"],
+                  ["3", "新增章节 (s21-s23)"],
+                  ["200+", "UI 文案翻译"],
+                  ["8", "扩展项目特点"],
+                ].map(([num, label]) => (
+                  <div key={label} className="text-center">
+                    <div className="font-mono text-2xl font-black text-[#794f27]">
+                      {num}
+                    </div>
+                    <div className="mt-0.5 text-[11px] font-medium text-[#8a7b66]">
+                      {label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollReveal>
+
+            {/* Former updates */}
+            <div className="mb-3 flex items-center gap-2">
+              <span className="text-xs font-bold tracking-wider text-[#8a7b66] uppercase">
+                以往更新
+              </span>
+              <div className="h-px flex-1 bg-[#e8dcc8]" />
+            </div>
+            <ScrollReveal animation="fade-up" staggerChildren stagger={0.1}>
+              <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <Link href={`/${locale}/s02`} className="group block">
                   <BentoCard className="h-full p-5" pattern="app-blue">
                     <div className="mb-3 flex items-center gap-2">
@@ -406,6 +576,166 @@ export default function HomePage() {
                     </p>
                   </BentoCard>
                 </Link>
+              </div>
+            </ScrollReveal>
+
+            <ScrollReveal animation="fade-up" staggerChildren stagger={0.08}>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <Link href={`/${locale}/s09`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-blue">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#3a3a5a]">
+                        s07 — s20
+                      </span>
+                      <NewBadge>14 viz</NewBadge>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#5a4a30] group-hover:text-[#3a3a5a]">
+                      可视化大对齐
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#6a5a40]">
+                      重写 <code className="font-mono text-[11px] font-bold">s07-s20</code>{" "}
+                      共 14 个版本的概念可视化：每个版本号终于对上自己的主题（权限、钩子、记忆、错误恢复、cron、团队协议、自主
+                      Agent、worktree 隔离等）。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s21`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-teal">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#2a5a4a]">
+                        s21
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#2a5a4a]">协作层</span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#2a5a4a] group-hover:text-[#1a4a3a]">
+                      综合集成
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#3a6a5a]">
+                      新增 <code className="font-mono text-[11px] font-bold">s21</code>：把前面所有机制塞进同一个 agent
+                      loop。7 阶段流水线动画演示"机制可以很多，循环只有一个"。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <BentoCard className="h-full p-5" pattern="app-yellow">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                      s09 / s10 / s11 / s12
+                    </span>
+                    <NewBadge>FIX</NewBadge>
+                  </div>
+                  <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a]">
+                    主题错配修正
+                  </h3>
+                  <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                    历史遗留的 4 个错配可视化被替换：s09 团队 → 权限系统、s10 协议 →
+                    钩子机制、s11 自主 → 持久化记忆、s12 worktree → 错误恢复。每个版本号现在讲述自己的故事。
+                  </p>
+                </BentoCard>
+
+                <BentoCard className="h-full p-5" pattern="purple">
+                  <div className="mb-3 flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#5a2a8a]">
+                      全部组件
+                    </span>
+                    <NewBadge>i18n</NewBadge>
+                  </div>
+                  <h3 className="mb-1.5 text-sm font-bold text-[#5a2a8a]">
+                    全部中文化
+                  </h3>
+                  <p className="text-xs leading-relaxed text-[#6a4a9a]">
+                    13 个新可视化合计 200+ 条 UI
+                    文案翻译：步骤标题、状态标签（待处理/进行中/完成）、SVG 内嵌文字、图例、状态机字段名、提示信息全部本地化。
+                  </p>
+                </BentoCard>
+
+                <Link href={`/${locale}/layers`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-pink">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#8a3a4a]">
+                        collaboration
+                      </span>
+                      <NewBadge>+1</NewBadge>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#8a3a4a] group-hover:text-[#6a1a2a]">
+                      协作层扩容
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#9a4a5a]">
+                      s21 综合集成加入协作层，让"协作"分组从
+                      s17/s18/s19 三节扩展到 4 节。layers 页、侧边栏分组、首页 Bento 全部同步纳入。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/timeline`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-green">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#2a5a3a]">
+                        全站
+                      </span>
+                      <NewBadge>UX</NewBadge>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#2a5a3a] group-hover:text-[#1a4a2a]">
+                      学习体验优化
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#3a6a4a]">
+                      侧边栏支持滚动（21 个版本不再溢出视口）；首页"项目特点"从 10 项扩展到 21 项，3 列布局更紧凑；
+                      s15-s20 此前 Hero 区空白，全部补齐。
+                    </p>
+                  </BentoCard>
+                </Link>
+              </div>
+            </ScrollReveal>
+
+            {/* Detailed changelog */}
+            <ScrollReveal animation="fade-up">
+              <div className="mt-4 rounded-2xl border border-[#e8dcc8] bg-[#fbf7eb] p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <span className="text-sm font-bold text-[#794f27]">详细变更日志</span>
+                  <span className="rounded-full bg-[#fc736d] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white whitespace-nowrap">
+                    changelog
+                  </span>
+                </div>
+                <ul className="grid gap-2 text-xs leading-relaxed text-[#725d42] sm:grid-cols-2">
+                  {[
+                    ["port", "s07-task-system / s08-background-tasks 覆盖重写"],
+                    ["new", "s09-permission 三道闸可视化（denyList → rules → askUser）"],
+                    ["new", "s10-hooks 钩子工作台（PreToolUse/PostToolUse/Stop）"],
+                    ["new", "s11-memory 记忆图书馆（YAML 索引 + .memory/*.md）"],
+                    ["new", "s12-error-recovery 错误恢复路径（4 类 + 重试退避）"],
+                    ["port", "s13-mcp 工具桥（内置工具箱 / 外部 MCP / 调用本）"],
+                    ["new", "s15-system-prompt 运行时提示组装 + 缓存键"],
+                    ["new", "s16-cron-scheduler 每周时钟 + 双线程队列"],
+                    ["new", "s17-agent-teams 主管/编码员/审查员 .jsonl 邮箱"],
+                    ["new", "s18-team-protocols 关停协议 / 方案审批切换"],
+                    ["new", "s19-autonomous-agents 自主工作看板（计时器+认领）"],
+                    ["new", "s20-worktree-task-isolation 任务板 + worktree 索引 + 车道"],
+                    ["new", "s21-comprehensive 综合智能体一轮（7 阶段流水线）"],
+                    ["new", "s22-multimodal 多模态输入（MessageContent + screenshot）"],
+                    ["new", "s23-sandbox 四层沙箱防御（静态分析→目录监禁→OS→容器）"],
+                    ["new", "cli CLI 可视化 Agent（ANSI 面板渲染，无 Spring 依赖）"],
+                    ["fix", "registry 13 处 lazy import 修正，build 通过"],
+                    ["ux", "侧边栏 max-h + overflow-y-auto，21 版本不再溢出"],
+                    ["ux", "首页项目特点 10 → 21 项，sm:2 列 → lg:3 列"],
+                  ].map(([tag, desc]) => (
+                    <li key={desc} className="flex items-start gap-2">
+                      <span
+                        className={cn(
+                          "mt-0.5 shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
+                          tag === "new" && "bg-[#19c8b9]/20 text-[#0e8a7f]",
+                          tag === "port" && "bg-[#889df0]/30 text-[#3a3a5a]",
+                          tag === "fix" && "bg-[#fc736d]/20 text-[#a04030]",
+                          tag === "ux" && "bg-[#f7cd67]/40 text-[#7a5a1a]"
+                        )}
+                      >
+                        {tag}
+                      </span>
+                      <span className="min-w-0 break-words">{desc}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </ScrollReveal>
           </div>

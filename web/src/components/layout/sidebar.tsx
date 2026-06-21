@@ -19,7 +19,7 @@ export function Sidebar() {
 
   return (
     <nav className="hidden w-56 shrink-0 md:block">
-      <div className="sticky top-[calc(3.5rem+2rem)] space-y-5 mt-8">
+      <div className="sticky top-[calc(3.5rem+2rem)] mt-8 max-h-[calc(100vh-7.5rem)] space-y-5 overflow-y-auto pr-1 [scrollbar-width:thin]">
         {LAYERS.map((layer) => (
           <div key={layer.id}>
             <div className="flex items-center gap-1.5 pb-1.5">
