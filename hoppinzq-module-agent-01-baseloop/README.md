@@ -1,6 +1,6 @@
 # AI智能体 - Java实现 (Module 01)
 
-基于 Java 的 AI 智能体实现，通过 Anthropic API 与语言模型交互，支持工具调用（Function Calling）。这是整个项目的起点 —— **一个工具 + 一个循环 = 一个智能体**。
+基于 Java 的 AI 智能体实现，通过 Anthropic API 与语言模型交互，支持工具调用（Tool Calling）。这是整个项目的起点 —— **一个工具 + 一个循环 = 一个智能体**。
 
 ## 项目简介
 
@@ -21,16 +21,7 @@
 
 ### 架构设计
 
-```
-+--------+      +-------+      +---------+
-|  User  | ---> |  LLM  | ---> |  Tool   |
-| prompt |      |       |      | execute |
-+--------+      +---+---+      +----+----+
-                    ^                |
-                    |   tool_result  |
-                    +----------------+
-                    (loop until stop_reason != "tool_use")
-```
+![架构图](./img/agent-loop.svg)
 
 Agent01 使用**组合模式**（不继承 ZQAgent），创建 `ZQAgent` 实例并注入工具列表：
 
@@ -113,7 +104,7 @@ public static final String MODEL = "deepseek-chat";
 
 支持的API服务商示例：
 
-```java
+```text
 // DeepSeek代理
 BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic"
 MODEL    = "deepseek-chat"
