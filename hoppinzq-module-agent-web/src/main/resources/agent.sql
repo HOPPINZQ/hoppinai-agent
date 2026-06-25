@@ -153,6 +153,108 @@ CREATE TABLE `chat_session` (
   PRIMARY KEY (`session_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+/*Table structure for table `csgo_goods` */
+
+DROP TABLE IF EXISTS `csgo_goods`;
+
+CREATE TABLE `csgo_goods` (
+  `goods_id` int NOT NULL COMMENT '饰品ID(CSQAQ API返回的id)',
+  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '饰品名称',
+  `exterior_localized_name` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '磨损名称(崭新出厂、略有磨损等)',
+  `rarity_localized_name` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '品质名称(隐秘、受限、非凡等)',
+  `img` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '饰品图片URL',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`goods_id`),
+  KEY `idx_exterior` (`exterior_localized_name`),
+  KEY `idx_rarity` (`rarity_localized_name`),
+  KEY `idx_name` (`name`(100))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CSGO饰品基础信息表';
+
+/*Table structure for table `csgo_market_price` */
+
+DROP TABLE IF EXISTS `csgo_market_price`;
+
+CREATE TABLE `csgo_market_price` (
+  `goods_id` int NOT NULL COMMENT '饰品ID',
+  `buff_id` int DEFAULT NULL COMMENT 'BUFF平台饰品ID',
+  `yyyp_id` int DEFAULT NULL COMMENT '悠悠有品饰品ID',
+  `c5_id` varchar(32) DEFAULT NULL COMMENT 'C5GAME饰品ID',
+  `igxe_id` varchar(32) DEFAULT NULL COMMENT 'IGXE饰品ID',
+  `eco_id` varchar(32) DEFAULT NULL COMMENT 'ECOSteam饰品ID',
+  `buff_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'BUFF在售价',
+  `buff_buy_price` decimal(12,2) DEFAULT NULL COMMENT 'BUFF求购价',
+  `buff_sell_num` int DEFAULT NULL COMMENT 'BUFF在售数量',
+  `buff_buy_num` int DEFAULT NULL COMMENT 'BUFF求购数量',
+  `yyyp_sell_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品在售价',
+  `yyyp_sell_num` int DEFAULT NULL COMMENT '悠悠有品在售数量',
+  `yyyp_buy_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品求购价',
+  `yyyp_buy_num` int DEFAULT NULL COMMENT '悠悠有品求购数量',
+  `yyyp_lease_num` int DEFAULT NULL COMMENT '悠悠有品在租数量',
+  `yyyp_transfer_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品过户底价',
+  `yyyp_lease_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品短租价格',
+  `yyyp_long_lease_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品长租价格',
+  `yyyp_lease_annual` decimal(8,4) DEFAULT NULL COMMENT '悠悠有品短租年收益率',
+  `yyyp_long_lease_annual` decimal(8,4) DEFAULT NULL COMMENT '悠悠有品长租年收益率',
+  `yyyp_steam_price` decimal(12,2) DEFAULT NULL COMMENT '悠悠有品Steam指导价',
+  `steam_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'Steam在售价',
+  `steam_sell_num` int DEFAULT NULL COMMENT 'Steam在售数量',
+  `steam_buy_price` decimal(12,2) DEFAULT NULL COMMENT 'Steam求购价',
+  `steam_buy_num` int DEFAULT NULL COMMENT 'Steam求购数量',
+  `steam_buff_buy_conversion` decimal(8,4) DEFAULT NULL COMMENT 'Steam求购挂刀比例',
+  `steam_buff_sell_conversion` decimal(8,4) DEFAULT NULL COMMENT 'Steam在售挂刀比例',
+  `buff_steam_buy_conversion` decimal(8,4) DEFAULT NULL COMMENT 'BUFF求购套现比例',
+  `buff_steam_sell_conversion` decimal(8,4) DEFAULT NULL COMMENT 'BUFF售价套现比例',
+  `c5_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'C5GAME在售价',
+  `c5_sell_num` int DEFAULT NULL COMMENT 'C5GAME在售数量',
+  `c5_buy_price` decimal(12,2) DEFAULT NULL COMMENT 'C5GAME求购价',
+  `c5_buy_num` int DEFAULT NULL COMMENT 'C5GAME求购数量',
+  `c5_lease_price` decimal(12,2) DEFAULT NULL COMMENT 'C5GAME短租价格',
+  `c5_long_lease_price` decimal(12,2) DEFAULT NULL COMMENT 'C5GAME长租价格',
+  `igxe_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'IGXE在售价',
+  `igxe_sell_num` int DEFAULT NULL COMMENT 'IGXE在售数量',
+  `igxe_buy_price` decimal(12,2) DEFAULT NULL COMMENT 'IGXE求购价',
+  `igxe_buy_num` int DEFAULT NULL COMMENT 'IGXE求购数量',
+  `igxe_lease_price` decimal(12,2) DEFAULT NULL COMMENT 'IGXE短租价格',
+  `igxe_long_lease_price` decimal(12,2) DEFAULT NULL COMMENT 'IGXE长租价格',
+  `igxe_lease_num` int DEFAULT NULL COMMENT 'IGXE在租数量',
+  `eco_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'ECOSteam在售价',
+  `eco_sell_num` int DEFAULT NULL COMMENT 'ECOSteam在售数量',
+  `eco_buy_price` decimal(12,2) DEFAULT NULL COMMENT 'ECOSteam求购价',
+  `eco_buy_num` int DEFAULT NULL COMMENT 'ECOSteam求购数量',
+  `r8_sell_price` decimal(12,2) DEFAULT NULL COMMENT 'R8在售价',
+  `r8_sell_num` int DEFAULT NULL COMMENT 'R8在售数量',
+  `sell_price_rate_1` decimal(8,2) DEFAULT NULL COMMENT 'BUFF近1日涨跌幅(%)',
+  `sell_price_rate_7` decimal(8,2) DEFAULT NULL COMMENT 'BUFF近7日涨跌幅(%)',
+  `sell_price_rate_30` decimal(8,2) DEFAULT NULL COMMENT 'BUFF近30日涨跌幅(%)',
+  `sell_price_rate_180` decimal(8,2) DEFAULT NULL COMMENT 'BUFF近180日涨跌幅(%)',
+  `sell_price_1` decimal(12,2) DEFAULT NULL COMMENT 'BUFF近1日涨跌量',
+  `sell_price_7` decimal(12,2) DEFAULT NULL COMMENT 'BUFF近7日涨跌量',
+  `sell_price_30` decimal(12,2) DEFAULT NULL COMMENT 'BUFF近30日涨跌量',
+  `sell_price_180` decimal(12,2) DEFAULT NULL COMMENT 'BUFF近180日涨跌量',
+  `yyyp_sell_price_rate_1` decimal(8,2) DEFAULT NULL COMMENT 'YYYP近1日涨跌幅(%)',
+  `yyyp_sell_price_rate_7` decimal(8,2) DEFAULT NULL COMMENT 'YYYP近7日涨跌幅(%)',
+  `yyyp_sell_price_rate_30` decimal(8,2) DEFAULT NULL COMMENT 'YYYP近30日涨跌幅(%)',
+  `yyyp_sell_price_rate_180` decimal(8,2) DEFAULT NULL COMMENT 'YYYP近180日涨跌幅(%)',
+  `yyyp_sell_price_1` decimal(12,2) DEFAULT NULL COMMENT 'YYYP近1日涨跌量',
+  `yyyp_sell_price_7` decimal(12,2) DEFAULT NULL COMMENT 'YYYP近7日涨跌量',
+  `yyyp_sell_price_30` decimal(12,2) DEFAULT NULL COMMENT 'YYYP近30日涨跌量',
+  `yyyp_sell_price_180` decimal(12,2) DEFAULT NULL COMMENT 'YYYP近180日涨跌量',
+  `turnover_number` int DEFAULT NULL COMMENT 'Steam成交量',
+  `turnover_avg_price` decimal(12,2) DEFAULT NULL COMMENT 'Steam成交均价($)',
+  `statistic` int DEFAULT NULL COMMENT '存世量',
+  `rank_num` varchar(16) DEFAULT NULL COMMENT '热度排名',
+  `rank_num_change` varchar(16) DEFAULT NULL COMMENT '热度排名变化',
+  `min_float` decimal(6,4) DEFAULT NULL COMMENT '最小磨损值',
+  `max_float` decimal(6,4) DEFAULT NULL COMMENT '最大磨损值',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`goods_id`),
+  KEY `idx_buff_sell_price` (`buff_sell_price`),
+  KEY `idx_statistic` (`statistic`),
+  KEY `idx_sell_price_rate_1` (`sell_price_rate_1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='CSGO饰品市场价格表';
+
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
 /*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
 /*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
