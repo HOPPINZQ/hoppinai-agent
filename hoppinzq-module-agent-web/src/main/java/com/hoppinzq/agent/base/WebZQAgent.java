@@ -292,23 +292,13 @@ public class WebZQAgent {
                             log.error("Error: {}", toolError.getMessage());
                         }
 
-                        if (toolError != null) {
-                            toolResults.add(ContentBlockParam.ofToolResult(
-                                    ToolResultBlockParam.builder()
-                                            .toolUseId(toolUse.id())
-                                            .content(toolError.getMessage())
-                                            .isError(true)
-                                            .build()
-                            ));
-                        } else {
-                            toolResults.add(ContentBlockParam.ofToolResult(
-                                    ToolResultBlockParam.builder()
-                                            .toolUseId(toolUse.id())
-                                            .content(toolResult)
-                                            .isError(false)
-                                            .build()
-                            ));
-                        }
+                        toolResults.add(ContentBlockParam.ofToolResult(
+                                ToolResultBlockParam.builder()
+                                        .toolUseId(toolUse.id())
+                                        .content(toolError != null ? toolError.getMessage() : toolResult)
+                                        .isError(toolError != null)
+                                        .build()
+                        ));
                     }
                 }
 

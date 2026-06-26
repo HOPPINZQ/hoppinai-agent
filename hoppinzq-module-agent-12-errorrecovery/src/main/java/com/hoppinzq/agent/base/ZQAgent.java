@@ -108,23 +108,13 @@ public class ZQAgent {
                             System.out.printf("\u001b[91m错误\u001b[0m: %s%n", toolError.getMessage());
                         }
 
-                        if (toolError != null) {
-                            toolResults.add(ContentBlockParam.ofToolResult(
-                                    ToolResultBlockParam.builder()
-                                            .toolUseId(toolUse.id())
-                                            .content(toolError.getMessage())
-                                            .isError(true)
-                                            .build()
-                            ));
-                        } else {
-                            toolResults.add(ContentBlockParam.ofToolResult(
-                                    ToolResultBlockParam.builder()
-                                            .toolUseId(toolUse.id())
-                                            .content(toolResult)
-                                            .isError(false)
-                                            .build()
-                            ));
-                        }
+                        toolResults.add(ContentBlockParam.ofToolResult(
+                                ToolResultBlockParam.builder()
+                                        .toolUseId(toolUse.id())
+                                        .content(toolError != null ? toolError.getMessage() : toolResult)
+                                        .isError(toolError != null)
+                                        .build()
+                        ));
                     }
                 }
 
