@@ -11,11 +11,14 @@
 
 ## 核心特性
 
-- **工具调用循环**：自动检测 LLM 的工具调用请求，执行后返回结果，持续循环直到完成
+- **工具调用循环**：以官方推荐的 `stop_reason == TOOL_USE` 为循环条件（而非遍历 content 块的 `hasToolUse` 标志位），更可靠地处理空 tool_use / max_tokens 截断等边缘情况
+- **会话持久化与恢复**：`SessionManager` 把每条 user/assistant/tool_use/tool_result 消息自动落盘到 `.sessions/<sessionId>.json`；启动时交互式列出历史会话或开新会话，历史会话可完整恢复 `messageParams`
+- **纯文本回复可见**：每次 `create` 后都打印 assistant 的文本块，避免纯文本回复（无工具调用）被静默吞掉
+- **截断告警**：命中 `MAX_TOKENS` 时打印警告，避免工具调用被静默截断导致死循环
 - **多平台支持**：自动适配 Windows（cmd）、Linux/Mac（bash），支持 PowerShell
 - **中文系统提示词**：内置详细的中文系统提示词，引导 LLM 正确使用工具
 - **类型安全**：使用 `ToolDefinition` + `BashInput` 实现强类型工具定义
-- **错误处理**：工具未找到、执行异常等场景均有处理
+- **错误处理**：工具未找到、执行异常等场景都会被标记为 `isError=true` 回灌给模型
 
 ## 实现原理
 
@@ -36,6 +39,7 @@ public class Agent01 {
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
+        agent.setSessionManager(bootstrapSession(args));   // 启动时恢复历史会话或开新会话
         agent.run();
     }
 }
@@ -45,21 +49,25 @@ public class Agent01 {
 
 | 组件 | 职责 |
 |------|------|
-| `Agent01` | 入口类，配置客户端、工具和系统提示词 |
-| `ZQAgent` | 智能体基类，实现工具调用循环（`run()` / `chatMessage()` / `invokeTool()`） |
+| `Agent01` | 入口类，配置客户端、工具、系统提示词，并通过 `bootstrapSession(args)` 装配会话 |
+| `ZQAgent` | 智能体基类，实现工具调用循环（`run()` / `chatMessage()` / `invokeTool()`）与会话同步（`appendMessage()`） |
+| `session/SessionManager` | 会话管理器，启动时恢复历史、运行时持久化每条消息 |
+| `session/SessionStore` | `.sessions/<id>.json` 文件读写 |
+| `session/MessageConverter` | `MessageParam` ↔ 可序列化 `SessionMessage` 互转 |
 | `ToolDefinition` | 工具定义类，描述工具名称、描述、输入 Schema 和执行函数 |
 | `Tools` | 工具实现类，包含 `executeBash()` 方法 |
 | `BashInput` | Bash 工具的输入参数类（command + type） |
-| `AIConstants` | 常量配置（API地址、密钥、模型等） |
+| `AIConstants` | 常量配置（API地址、密钥、模型、MAX_TOKENS 等） |
 
 ### 工作流程
 
-1. **用户输入**：通过 `Scanner` 获取用户输入，构建 `MessageParam` 添加到消息列表
-2. **发送请求**：将消息历史 + 工具定义通过 `chatMessage()` 发送给 LLM
-3. **响应处理**：遍历响应内容块，文本直接输出，工具调用标记 `hasToolUse = true`
-4. **工具执行**：匹配工具名，通过 `invokeTool()` 转换参数并执行
-5. **结果返回**：工具结果作为 `ToolResultBlockParam` 追加到消息历史
-6. **循环判断**：`hasToolUse == false` 时退出内层循环，回到外层等待下一次用户输入
+1. **启动恢复**：若设置了 `SessionManager`，把 `.sessions/<id>.json` 里的历史回灌到 `messageParams`
+2. **用户输入**：通过 `Scanner` 获取输入，构建 user `MessageParam`，经 `appendMessage()` 追加（同时持久化）
+3. **发送请求**：将消息历史 + 工具定义通过 `chatMessage()` 发送给 LLM
+4. **响应处理**：每次 `create` 后调用 `printText()` 打印文本块；`appendMessage(message.toParam())` 回灌
+5. **循环判断**：以 `stop_reason == TOOL_USE` 为条件进入/继续内层工具循环（不再用 `hasToolUse` 标志位）
+6. **工具执行**：`executeToolCalls()` 遍历 tool_use 块，匹配工具名 → `invokeTool()` → 收集 `ToolResultBlockParam`，封装成 user 消息回灌
+7. **截断检查**：非 TOOL_USE 退出循环时调用 `warnIfTruncated()`，命中 `MAX_TOKENS` 打印警告
 
 ### 工具定义模式
 
@@ -99,7 +107,7 @@ public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthrop
 public static final String API_KEY = "your-api-key-here";
 
 // 模型名称
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 支持的API服务商示例：
@@ -107,11 +115,11 @@ public static final String MODEL = "deepseek-chat";
 ```text
 // DeepSeek代理
 BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic"
-MODEL    = "deepseek-chat"
+MODEL    = "deepseek-v4-flash"
 
 // Anthropic官方
 BASE_URL = "https://api.anthropic.com"
-MODEL    = "claude-3-5-sonnet-20241022"
+MODEL    = "claude-fable-5"
 ```
 
 ### 编译运行
@@ -129,15 +137,6 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent01"
 ### 交互示例
 
 ```
-你: 查看当前目录有哪些文件
-AI: 我来查看当前目录的文件列表。
-工具: bash({"command":"dir"})
-结果: hello.txt  test.py  README.md
-AI: 当前目录下有以下文件：
-    - hello.txt
-    - test.py
-    - README.md
-
 你: 打开百度
 AI: 好的，我来帮你打开百度。
 工具: bash({"command":"start https://www.baidu.com"})
@@ -148,16 +147,23 @@ AI: 好的，我来帮你打开百度。
 ```
 hoppinzq-module-agent-01/
 ├── src/main/java/com/hoppinzq/agent/
-│   ├── Agent01.java               # 入口类（组合模式，创建ZQAgent实例）
+│   ├── Agent01.java               # 入口类（组合模式，创建ZQAgent实例 + bootstrapSession）
 │   ├── base/
-│   │   └── ZQAgent.java           # 智能体基类（工具调用循环）
+│   │   └── ZQAgent.java           # 智能体基类（工具调用循环 + 会话同步）
+│   ├── session/                   # 会话持久化与恢复
+│   │   ├── SessionManager.java    # 会话管理器（恢复历史 / 运行时持久化）
+│   │   ├── SessionStore.java      # .sessions/<id>.json 文件读写
+│   │   ├── MessageConverter.java  # MessageParam ↔ SessionMessage 互转
+│   │   ├── SessionMessage.java    # 可序列化的消息块
+│   │   └── SessionBlock.java      # 单个内容块的序列化表示
 │   ├── tool/
 │   │   ├── Tools.java             # 工具实现（executeBash）
 │   │   ├── ToolDefinition.java    # 工具定义（BashDefinition）
 │   │   └── schema/
 │   │       └── BashInput.java     # Bash输入参数（command + type）
 │   └── constant/
-│       └── AIConstants.java       # 常量配置（API/模型/路径）
+│       └── AIConstants.java       # 常量配置（API/模型/路径/MAX_TOKENS）
+├── .sessions/                     # 运行时生成，存放每个会话的 JSON 快照
 ├── README.md                       # 本文件
 └── s1.md                           # 智能体循环原理解析
 ```
@@ -176,7 +182,7 @@ hoppinzq-module-agent-01/
 ## 设计亮点
 
 1. **组合优于继承**：Agent01 不继承 ZQAgent，而是创建实例并注入工具 —— 后续模块（03-08）才会使用继承
-2. **双循环架构**：外层循环处理多轮对话，内层循环处理单次工具调用链 —— 循环本身在后续 11 个模块中始终不变
+2. **双循环架构**：外层循环处理多轮对话，内层循环（`stop_reason == TOOL_USE` 驱动）处理单次工具调用链 —— 循环本身在后续 22 个模块中始终不变
 3. **自动平台适配**：Bash 工具根据 `os.name` 自动选择 cmd/bash 执行方式
 4. **静态工具定义**：`ToolDefinition` 作为静态字段，通过 `createInputSchema()` / `createProperty()` 辅助方法构建 JSON Schema
 5. **GBK 编码处理**：Windows 下命令输出使用 GBK 编码读取，避免乱码

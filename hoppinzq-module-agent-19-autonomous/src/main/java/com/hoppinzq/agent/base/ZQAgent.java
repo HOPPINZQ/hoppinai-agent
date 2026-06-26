@@ -3,6 +3,8 @@ package com.hoppinzq.agent.base;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.bus.MailboxMessage;
 import com.hoppinzq.agent.tool.bus.MessageBus;
@@ -111,66 +113,10 @@ public class ZQAgent {
                 continue;
             }
             messageParams.add(message.toParam());
+            printText(message);
 
-            while (true) {
-                List<ContentBlockParam> toolResults = new ArrayList<>();
-                boolean hasToolUse = false;
-
-                for (ContentBlock content : message.content()) {
-                    if (content.isText()) {
-                        Optional<TextBlock> text = content.text();
-                        String result = text.map(TextBlock::text).orElse("");
-                        System.out.printf("\u001b[93mAI\u001b[0m: %s%n", result);
-                    } else if (content.isToolUse()) {
-                        hasToolUse = true;
-                        ToolUseBlock toolUse = content.asToolUse();
-
-                        System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
-
-                        String toolResult = null;
-                        Exception toolError = null;
-                        boolean toolFound = false;
-
-                        for (ToolDefinition tool : tools) {
-                            if (tool.getName().equals(toolUse.name())) {
-                                try {
-                                    JsonValue input = toolUse._input();
-                                    toolResult = invokeTool(tool, input);
-                                    System.out.printf("\u001b[92m结果\u001b[0m: %s%n", toolResult);
-                                } catch (Exception e) {
-                                    toolError = e;
-                                    System.out.printf("\u001b[91m错误\u001b[0m: %s%n", e.getMessage());
-                                    e.printStackTrace();
-                                }
-                                toolFound = true;
-                                break;
-                            }
-                        }
-
-                        if (!toolFound) {
-                            toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
-                            System.out.printf("\u001b[91m错误\u001b[0m: %s%n", toolError.getMessage());
-                        }
-
-                        toolResults.add(ContentBlockParam.ofToolResult(
-                                ToolResultBlockParam.builder()
-                                        .toolUseId(toolUse.id())
-                                        .content(toolError != null ? toolError.getMessage() : toolResult)
-                                        .isError(toolError != null)
-                                        .build()
-                        ));
-                    }
-                }
-
-                if (!hasToolUse) {
-                    break;
-                }
-
-                MessageParam.Content content = MessageParam.Content.ofBlockParams(toolResults);
-                MessageParam toolResultMessage = MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(content)
-                        .build();
+            while (isToolUse(message)) {
+                MessageParam toolResultMessage = executeToolCalls(message);
                 messageParams.add(toolResultMessage);
                 try {
                     message = chatMessage(messageParams);
@@ -179,7 +125,9 @@ public class ZQAgent {
                     break;
                 }
                 messageParams.add(message.toParam());
+                printText(message);
             }
+            warnIfTruncated(message);
 
             // 一轮结束：poll lead 的 mailbox，按协议消息类型路由处理
             pollInbox();
@@ -189,6 +137,79 @@ public class ZQAgent {
                 cronScheduler.markIdle();
             }
         }
+    }
+
+    private void printText(Message message) {
+        for (ContentBlock content : message.content()) {
+            if (content.isText()) {
+                String text = content.text().map(TextBlock::text).orElse("");
+                if (!text.isBlank()) {
+                    System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
+                }
+            }
+        }
+    }
+
+    private boolean isToolUse(Message message) {
+        return message.stopReason()
+                .map(StopReason.TOOL_USE::equals)
+                .orElse(false);
+    }
+
+    private void warnIfTruncated(Message message) {
+        boolean maxTokens = message.stopReason()
+                .map(StopReason.MAX_TOKENS::equals)
+                .orElse(false);
+        if (maxTokens) {
+            System.out.printf("\u001b[91m[警告]\u001b[0m 本轮回复被 max_tokens=%d 截断，工具调用可能不完整。建议调大 MAX_TOKENS。%n",
+                    MAX_TOKENS);
+        }
+    }
+
+    private MessageParam executeToolCalls(Message message) {
+        List<ContentBlockParam> toolResults = new ArrayList<>();
+        for (ContentBlock content : message.content()) {
+            if (!content.isToolUse()) {
+                continue;
+            }
+            ToolUseBlock toolUse = content.asToolUse();
+            System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+
+            String toolResult = null;
+            Exception toolError = null;
+            ToolDefinition matched = null;
+            for (ToolDefinition tool : tools) {
+                if (tool.getName().equals(toolUse.name())) {
+                    matched = tool;
+                    break;
+                }
+            }
+            if (matched == null) {
+                toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
+                System.out.printf("\u001b[91m错误\u001b[0m: %s%n", toolError.getMessage());
+            } else {
+                try {
+                    toolResult = invokeTool(matched, toolUse._input());
+                    System.out.printf("\u001b[92m结果\u001b[0m: %s%n", toolResult);
+                } catch (Exception e) {
+                    toolError = e;
+                    System.out.printf("\u001b[91m错误\u001b[0m: %s%n", e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+
+            toolResults.add(ContentBlockParam.ofToolResult(
+                    ToolResultBlockParam.builder()
+                            .toolUseId(toolUse.id())
+                            .content(toolError != null ? toolError.getMessage() : toolResult)
+                            .isError(toolError != null)
+                            .build()
+            ));
+        }
+        return MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(MessageParam.Content.ofBlockParams(toolResults))
+                .build();
     }
 
     /**
@@ -214,24 +235,16 @@ public class ZQAgent {
         }
     }
 
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
-
-    }
-
-    private String invokeTool(ToolDefinition tool, JsonValue input) throws Exception {
-        if(tool.getType() == null){
-            Optional<Map<String, JsonValue>> object = input.asObject();
-            if(object.isPresent()){
-                Map<String, JsonValue> map = object.get();
-                Map<String, Object> callTool = new HashMap<>();
-                // todo : 这里没有处理嵌套的情况，需要进一步优化
-                callTool.put("input",map);
-                callTool.put("tool_name",tool.getName());
-                return tool.getFunction().apply(OBJECT_MAPPER.writeValueAsString(callTool));
-            }else{
-                throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数转换失败");
+    private String invokeTool(ToolDefinition tool, JsonValue input) {
+        if (tool.getType() == null) {
+            if (input.asObject().isEmpty()) {
+                throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数不是 JSON 对象");
             }
-        }else{
+            ObjectNode root = OBJECT_MAPPER.createObjectNode();
+            root.set("input", input.convert(JsonNode.class));
+            root.put("tool_name", tool.getName());
+            return tool.getFunction().apply(root.toString());
+        } else {
             return tool.getFunction().apply(Objects.requireNonNull(input.convert(tool.getType())).toString());
         }
     }

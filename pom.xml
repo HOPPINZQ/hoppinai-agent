@@ -32,6 +32,7 @@
         <module>hoppinzq-module-agent-23-sandbox</module>
         <module>hoppinzq-module-agent-web</module>
         <module>hoppinzq-module-agent-cli</module>
+        <module>hoppinzq-module-agent-demo</module>
     </modules>
     <groupId>com.hoppinzq</groupId>
     <version>1.0-SNAPSHOT</version>

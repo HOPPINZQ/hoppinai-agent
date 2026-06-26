@@ -46,8 +46,8 @@ export const VERSION_META: Record<string, {
 };
 
 export const LAYERS = [
-  { id: "tools" as const, label: "工具与执行", color: "#889df0", versions: ["s01", "s02", "s09", "s10", "s14", "s15", "cli"] },
-  { id: "planning" as const, label: "规划与协调", color: "#82d5bb", versions: ["s03", "s04", "s05", "s07", "s13"] },
+  { id: "tools" as const, label: "工具与执行", color: "#889df0", versions: ["s01", "s02","s05", "s13"] },
+  { id: "planning" as const, label: "规划与协调", color: "#82d5bb", versions: ["s03", "s04", "s07","s09", "s10", "s14", "s15", "cli"] },
   { id: "memory" as const, label: "记忆管理", color: "#b77dee", versions: ["s06", "s11", "s12"] },
   { id: "concurrency" as const, label: "并发", color: "#e59266", versions: ["s08", "s16", "s20"] },
   { id: "collaboration" as const, label: "协作", color: "#f8a6b2", versions: ["s17", "s18", "s19", "s21"] },

@@ -466,6 +466,49 @@ export default function HomePage() {
                     </p>
                   </BentoCard>
                 </Link>
+
+                <Link href={`/${locale}/s01`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s01
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        会话机制
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      sessionId 会话持久化
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      新增 SessionManager 编排器：每次对话生成 sessionId，消息自动落盘到 .sessions/&lt;id&gt;.json；
+                      启动时按 sessionId 恢复历史回放到上下文，原子写入 + 路径白名单安全防护。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s01`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s01
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        工具循环
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      工具调用 stop_reason 驱动
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      对齐官方 canonical agentic loop：循环退出条件改用 stop_reason == TOOL_USE，
+                      修复 JsonValue 序列化 bug（JsonNode 中转），新增 MAX_TOKENS 截断警告，
+                      抽出 printText/executeToolCalls 让纯文本回复不再被吞。
+                    </p>
+                  </BentoCard>
+                </Link>
               </div>
             </ScrollReveal>
           </div>
@@ -572,7 +615,7 @@ export default function HomePage() {
                     </h3>
                     <p className="text-xs leading-relaxed text-[#6a4a9a]">
                       新增 MCP 协议章节，标准化 AI 与外部系统的连接；新增
-                      ReAct 行为框架，通过「思考-行动-观察」循环增强推理能力。
+                      ReAct 行为模式，通过「思考-行动-观察」循环增强推理能力。
                     </p>
                   </BentoCard>
                 </Link>

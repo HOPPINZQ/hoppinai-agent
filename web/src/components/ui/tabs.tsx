@@ -18,7 +18,7 @@ interface TabsProps {
 
 /**
  * Adapts animal-island-ui Tabs (items[] + activeKey/onChange) to the
- * existing render-prop API (`<Tabs tabs={...}>{(active) => ...}</Tabs>`).
+ * existing render-prop API (`<Tabs={...}>{(active) => ...}</Tabs>`).
  * Library Tabs supplies the parchment tab-bar chrome + leaf animation;
  * we own the active-tab state and only render the active panel.
  */

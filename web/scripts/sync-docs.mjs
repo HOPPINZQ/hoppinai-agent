@@ -30,7 +30,7 @@ const TITLE_BY_VERSION = {
   s11: "s11: Persistent Memory (持久化记忆)",
   s12: "s12: Error Recovery (错误恢复)",
   s13: "s13: MCP Protocol (MCP 协议)",
-  s14: "s14: ReAct Framework (ReAct 行为框架)",
+  s14: "s14: ReAct Framework (ReAct 行为模式)",
   s15: "s15: Dynamic System Prompt (动态系统提示)",
   s16: "s16: Cron Scheduler (定时调度)",
   s17: "s17: Agent Teams (Agent 团队)",
