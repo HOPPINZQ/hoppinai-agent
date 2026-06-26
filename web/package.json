@@ -9,12 +9,13 @@
     "start": "next start"
   },
   "dependencies": {
+    "animal-island-ui": "^1.0.16",
+    "classnames": "^2.5.1",
     "diff": "^8.0.3",
     "framer-motion": "^12.38.0",
-    "gsap": "^3.14.2",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.564.0",
     "next": "16.1.6",
-    "ogl": "^1.0.11",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "rehype-highlight": "^7.0.2",

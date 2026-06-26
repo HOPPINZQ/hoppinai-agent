@@ -7,12 +7,13 @@
   "timeline": { "title": "学习路径", "subtitle": "s01 到 s12：渐进式 Agent 设计。s13到s14的拓展阅读。", "layer_legend": "层次图例", "loc_growth": "代码量增长", "learn_more": "了解更多" },
   "layers": {
     "title": "架构层次",
-    "subtitle": "五个正交关注点组合成完整的 Agent",
+    "subtitle": "六个正交关注点组合成完整的 Agent",
     "tools": "Agent 能做什么。基础层：工具赋予模型与外部世界交互的能力。",
     "planning": "如何组织工作。从简单的待办列表到跨 Agent 共享的依赖感知任务板。",
     "memory": "在上下文限制内保持记忆。压缩策略让 Agent 可以无限工作而不失去连贯性。",
     "concurrency": "非阻塞执行。后台线程和通知总线实现并行工作。",
-    "collaboration": "多 Agent 协作。团队、消息传递和能独立思考的自主队友。"
+    "collaboration": "多 Agent 协作。团队、消息传递和能独立思考的自主队友。",
+    "production": "走向生产。Spring Boot 集成、REST API、SSE 流式、多模态、安全沙箱。"
   },
   "compare": {
     "title": "版本对比",
@@ -47,19 +48,30 @@
     "s06": "上下文压缩",
     "s07": "任务系统",
     "s08": "后台任务",
-    "s09": "Agent 团队",
-    "s10": "团队协议",
-    "s11": "自主 Agent",
-    "s12": "Worktree + 任务隔离",
+    "s09": "权限系统",
+    "s10": "钩子机制",
+    "s11": "持久化记忆",
+    "s12": "错误恢复",
     "s13": "MCP 协议（拓展）",
-    "s14": "ReAct 行为框架（拓展）"
+    "s14": "ReAct 行为框架（拓展）",
+    "s15": "动态系统提示",
+    "s16": "定时调度",
+    "s17": "Agent 团队",
+    "s18": "团队协议",
+    "s19": "自主 Agent",
+    "s20": "Worktree 隔离",
+    "s21": "综合集成",
+    "s22": "多模态输入",
+    "s23": "安全沙箱",
+    "cli": "CLI 可视化 Agent"
   },
   "layer_labels": {
     "tools": "工具与执行",
     "planning": "规划与协调",
     "memory": "内存管理",
     "concurrency": "并发",
-    "collaboration": "协作"
+    "collaboration": "协作",
+    "production": "生产化"
   },
   "viz": {
     "s01": "Agent While 循环",
@@ -70,11 +82,21 @@
     "s06": "三层上下文压缩",
     "s07": "任务依赖图",
     "s08": "后台任务通道",
-    "s09": "Agent 团队邮箱",
-    "s10": "FSM 团队协议",
-    "s11": "自主 Agent 循环",
-    "s12": "Worktree 任务隔离",
+    "s09": "权限三道闸",
+    "s10": "HookRegistry 事件点",
+    "s11": "YAML 记忆索引",
+    "s12": "ErrorClassifier 分类重试",
     "s13": "AI连接外部工具 MCP 协议",
-    "s14": "Agent行为框架 ReAct"
+    "s14": "Agent行为框架 ReAct",
+    "s15": "PromptAssembler 分段装配",
+    "s16": "Cron 双线程调度",
+    "s17": "lead/teammate 文件邮箱",
+    "s18": "协议状态机",
+    "s19": "IDLE→WORK 自主循环",
+    "s20": "git worktree 路径隔离",
+    "s21": "综合智能体的一轮",
+    "s22": "多模态消息管道",
+    "s23": "bash 四层沙箱防护",
+    "cli": "ANSI 面板渲染 Agent 循环"
   }
 }

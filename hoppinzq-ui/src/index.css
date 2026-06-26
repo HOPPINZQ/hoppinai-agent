@@ -1,38 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Nunito", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-display: "Rajdhani", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Nunito", "Noto Sans SC", ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer base {
+  /*
+   * Animal Island palette (default = warm cream "light" theme).
+   * Mint-teal accent + warm brown text + cream background.
+   * Variable names are unchanged from the previous CSGO theme so all
+   * var(--*) references across pages restyle automatically.
+   */
   :root {
-    /* CSGO Dark Military Palette */
-    --bg: #0a0e13;
-    --bg-subtle: #0d1219;
-    --surface: #111820;
-    --surface-hover: #1a2332;
-    --surface-elevated: #172030;
-    --border: #1e2d3d;
-    --border-light: #2a3a4e;
+    /* Background — cream / milk */
+    --bg: #f8f8f0;
+    --bg-subtle: #f0e8d8;
+    --surface: rgb(247, 243, 223);       /* primary card/content surface */
+    --surface-hover: #f0e8d8;
+    --surface-elevated: #fffdf5;
 
-    /* Text */
-    --text-primary: #d4dce8;
-    --text-secondary: #6b7f96;
-    --text-muted: #3d5068;
+    /* Borders — soft warm taupe */
+    --border: #d4c9b4;
+    --border-light: #e8dcc8;
 
-    /* Accent - Gold/Amber for CSGO premium feel */
-    --accent: #de9b35;
-    --accent-hover: #c7882e;
-    --accent-dim: #b07a2a;
+    /* Text — warm brown tones */
+    --text-primary: #794f27;             /* header / sidebar */
+    --text-secondary: #9f927d;
+    --text-muted: #b0a48c;
 
-    /* Market Colors */
-    --up: #4ade80;
-    --down: #f87171;
+    /* Accent — mint teal (animal primary) */
+    --accent: #19c8b9;
+    --accent-hover: #3dd4c6;
+    --accent-dim: #11a89b;
 
-    /* Rarity Colors */
+    /* Market / status */
+    --up: #6fba2c;
+    --down: #e05a5a;
+
+    /* Rarity tiers — kept semantic (CSGO inventory badges) */
     --rarity-consumer: #b0c3d9;
     --rarity-industrial: #5e98d9;
     --rarity-milspec: #4b69ff;
@@ -42,54 +50,55 @@
     --rarity-contraband: #e4ae39;
   }
 
-  /* Light theme overrides */
-  [data-theme="light"] {
-    --bg: #f5f6f8;
-    --bg-subtle: #eef0f4;
-    --surface: #ffffff;
-    --surface-hover: #f0f2f5;
-    --surface-elevated: #fafbfc;
-    --border: #e2e5ea;
-    --border-light: #d0d4dc;
+  /* Cozy dusk — warm dark variant (never cold military black) */
+  [data-theme="dark"] {
+    --bg: #2a2420;
+    --bg-subtle: #241f1b;
+    --surface: #322b26;
+    --surface-hover: #3d342e;
+    --surface-elevated: #3a322c;
 
-    --text-primary: #1a202c;
-    --text-secondary: #5a6577;
-    --text-muted: #9aa5b4;
+    --border: #4a3f37;
+    --border-light: #5a4d43;
+
+    --text-primary: #f0e6d2;
+    --text-secondary: #b8a78f;
+    --text-muted: #8a7b66;
+
+    --accent: #3dd4c6;
+    --accent-hover: #5de0d2;
+    --accent-dim: #19c8b9;
+
+    --up: #86d67a;
+    --down: #e87878;
   }
 
   body {
     background-color: var(--bg);
     color: var(--text-primary);
     font-family: var(--font-sans);
+    font-weight: 500;
+    letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Subtle CSGO-style diagonal line background pattern */
+  /*
+   * Soft warm dot-grid backdrop (replaces the old CSGO diagonal-line
+   * military pattern). Very low opacity so it never fights content.
+   */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     background:
-      repeating-linear-gradient(
-        135deg,
-        transparent,
-        transparent 100px,
-        rgba(30, 45, 61, 0.08) 100px,
-        rgba(30, 45, 61, 0.08) 101px
-      );
+      radial-gradient(circle, rgba(159, 146, 125, 0.14) 1px, transparent 1px) 0 0 / 24px 24px;
     pointer-events: none;
     z-index: 0;
   }
 
-  [data-theme="light"] body::before {
+  [data-theme="dark"] body::before {
     background:
-      repeating-linear-gradient(
-        135deg,
-        transparent,
-        transparent 100px,
-        rgba(0, 0, 0, 0.03) 100px,
-        rgba(0, 0, 0, 0.03) 101px
-      );
+      radial-gradient(circle, rgba(240, 230, 210, 0.05) 1px, transparent 1px) 0 0 / 24px 24px;
   }
 }
 
@@ -107,7 +116,7 @@
     border-color: var(--border);
   }
 
-  /* CSGO-style top accent bar */
+  /* Soft top accent bar (mint teal wash) */
   .accent-bar-top {
     position: relative;
   }
@@ -119,10 +128,10 @@
     right: 0;
     height: 2px;
     background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    opacity: 0.6;
+    opacity: 0.5;
   }
 
-  /* CSGO-style card with subtle bottom glow */
+  /* Card hover underline glow */
   .card-glow {
     position: relative;
   }
@@ -141,26 +150,30 @@
     opacity: 0.4;
   }
 
-  /* CSGO font display */
+  /* Display font (round Nunito) */
   .font-display {
     font-family: var(--font-display);
   }
 }
 
-/* Custom Scrollbar - CSGO style */
+/* Soft rounded warm scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-light);
-  border-radius: 2px;
+  background: var(--border);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-secondary);
+  background: var(--text-muted);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 /* No-scrollbar utility */
@@ -172,10 +185,10 @@
   scrollbar-width: none;
 }
 
-/* CSGO-style Selection */
+/* Warm selection (mint accent) */
 ::selection {
   background: var(--accent);
-  color: var(--bg);
+  color: #fff;
 }
 
 /* Markdown Content Styles */
@@ -183,7 +196,7 @@
   line-height: 1.6;
 }
 
-/* Override highlight.js styles to match CSGO theme */
+/* Override highlight.js styles to match theme */
 .markdown-content pre {
   background: var(--bg) !important;
   border-color: var(--border) !important;
@@ -193,7 +206,7 @@
   font-family: var(--font-mono) !important;
 }
 
-/* Highlight.js syntax colors - CSGO theme */
+/* Highlight.js syntax colors — warm island code theme */
 .hljs {
   background: var(--bg) !important;
   color: var(--text-primary) !important;
@@ -264,7 +277,7 @@
   background: var(--surface-hover) !important;
   color: var(--accent) !important;
   padding: 0.2rem 0.4rem !important;
-  border-radius: 0.25rem !important;
+  border-radius: 0.375rem !important;
   font-size: 0.85em !important;
 }
 
@@ -279,40 +292,40 @@
   margin-bottom: 0.25rem;
 }
 
-/* Light theme code highlight overrides */
-[data-theme="light"] .hljs-keyword,
-[data-theme="light"] .hljs-selector-tag,
-[data-theme="light"] .hljs-literal,
-[data-theme="light"] .hljs-type {
-  color: #7c3aed !important;
+/* Dark-theme code highlight overrides */
+[data-theme="dark"] .hljs-keyword,
+[data-theme="dark"] .hljs-selector-tag,
+[data-theme="dark"] .hljs-literal,
+[data-theme="dark"] .hljs-type {
+  color: #c792ea !important;
 }
 
-[data-theme="light"] .hljs-string,
-[data-theme="light"] .hljs-title,
-[data-theme="light"] .hljs-name {
-  color: #16a34a !important;
+[data-theme="dark"] .hljs-string,
+[data-theme="dark"] .hljs-title,
+[data-theme="dark"] .hljs-name {
+  color: #c3e88d !important;
 }
 
-[data-theme="light"] .hljs-number,
-[data-theme="light"] .hljs-symbol {
-  color: #ea580c !important;
+[data-theme="dark"] .hljs-number,
+[data-theme="dark"] .hljs-symbol {
+  color: #f78c6c !important;
 }
 
-[data-theme="light"] .hljs-attr,
-[data-theme="light"] .hljs-variable,
-[data-theme="light"] .hljs-template-variable {
-  color: #2563eb !important;
+[data-theme="dark"] .hljs-attr,
+[data-theme="dark"] .hljs-variable,
+[data-theme="dark"] .hljs-template-variable {
+  color: #82aaff !important;
 }
 
-[data-theme="light"] .hljs-built_in,
-[data-theme="light"] .hljs-builtin-name {
-  color: #b45309 !important;
+[data-theme="dark"] .hljs-built_in,
+[data-theme="dark"] .hljs-builtin-name {
+  color: #ffcb6b !important;
 }
 
-[data-theme="light"] .hljs-function {
-  color: #2563eb !important;
+[data-theme="dark"] .hljs-function {
+  color: #82aaff !important;
 }
 
-[data-theme="light"] .hljs-class .hljs-title {
-  color: #b45309 !important;
+[data-theme="dark"] .hljs-class .hljs-title {
+  color: #ffcb6b !important;
 }

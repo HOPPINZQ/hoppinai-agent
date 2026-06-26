@@ -37,33 +37,33 @@ function getLayerColorClasses(versionId: string): {
   switch (layer) {
     case "tools":
       return {
-        border: "border-blue-500",
-        bg: "bg-blue-500/10",
+        border: "border-[#889df0]",
+        bg: "bg-[#e6eafb]",
       };
     case "planning":
       return {
-        border: "border-emerald-500",
-        bg: "bg-emerald-500/10",
+        border: "border-[#82d5bb]",
+        bg: "bg-[#e0f0e0]",
       };
     case "memory":
       return {
-        border: "border-purple-500",
-        bg: "bg-purple-500/10",
+        border: "border-[#b77dee]",
+        bg: "bg-[#efe2fb]",
       };
     case "concurrency":
       return {
-        border: "border-amber-500",
-        bg: "bg-amber-500/10",
+        border: "border-[#e59266]",
+        bg: "bg-[#fde6d8]",
       };
     case "collaboration":
       return {
-        border: "border-red-500",
-        bg: "bg-red-500/10",
+        border: "border-[#fc736d]",
+        bg: "bg-[#fde2e0]",
       };
     default:
       return {
-        border: "border-zinc-500",
-        bg: "bg-zinc-500/10",
+        border: "border-[#9f927d]",
+        bg: "bg-[#f6efe0]",
       };
   }
 }
@@ -158,7 +158,7 @@ export function ArchDiagram({ version }: ArchDiagramProps) {
               "rounded-lg border-2 px-4 py-3 transition-colors",
               isNew
                 ? cn(colorClasses.border, colorClasses.bg)
-                : "border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800/50"
+                : "border-[#e8dcc8] bg-[#fbf7eb]"
             )}
           >
             <div className="flex items-center justify-between">
@@ -167,8 +167,8 @@ export function ArchDiagram({ version }: ArchDiagramProps) {
                   className={cn(
                     "font-mono text-sm font-semibold",
                     isNew
-                      ? "text-zinc-900 dark:text-white"
-                      : "text-zinc-400 dark:text-zinc-500"
+                      ? "text-[#5a4a30]"
+                      : "text-[#725d42]"
                   )}
                 >
                   {cls.name}
@@ -177,19 +177,19 @@ export function ArchDiagram({ version }: ArchDiagramProps) {
                   className={cn(
                     "mt-0.5 text-xs",
                     isNew
-                      ? "text-zinc-600 dark:text-zinc-300"
-                      : "text-zinc-400 dark:text-zinc-500"
+                      ? "text-[#9f927d]"
+                      : "text-[#725d42]"
                   )}
                 >
                   {CLASS_DESCRIPTIONS[cls.name] || ""}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                <span className="text-xs text-[#725d42]">
                   {cls.introducedIn}
                 </span>
                 {isNew && (
-                  <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase text-white dark:bg-white dark:text-zinc-900">
+                  <span className="rounded-full bg-[#5a4a30] px-2 py-0.5 text-[10px] font-bold uppercase text-[#fbf7eb]">
                     NEW
                   </span>
                 )}
@@ -201,7 +201,7 @@ export function ArchDiagram({ version }: ArchDiagramProps) {
       })}
 
       {allClasses.length === 0 && (
-        <div className="rounded-lg border border-dashed border-zinc-300 px-4 py-6 text-center text-sm text-zinc-400 dark:border-zinc-600">
+        <div className="rounded-lg border border-dashed border-[#e8dcc8] px-4 py-6 text-center text-sm text-[#725d42]">
           该版本中没有类（仅包含函数）
         </div>
       )}
@@ -216,7 +216,7 @@ export function ArchDiagram({ version }: ArchDiagramProps) {
           {tools.map((tool) => (
             <span
               key={tool}
-              className="rounded-md bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+              className="rounded-md bg-[#f6efe0] px-2 py-1 font-mono text-xs text-[#9f927d]"
             >
               {tool}
             </span>

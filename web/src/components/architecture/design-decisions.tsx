@@ -72,18 +72,18 @@ function DecisionCard({
   const description = localized?.description || decision.description;
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb]">
       <button
         onClick={() => setOpen(!open)}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="pr-4 text-sm font-semibold text-zinc-900 dark:text-white">
+        <span className="pr-4 text-sm font-semibold text-[#5a4a30]">
           {title}
         </span>
         <ChevronDown
           size={16}
           className={cn(
-            "shrink-0 text-zinc-400 transition-transform duration-200",
+            "shrink-0 text-[#725d42] transition-transform duration-200",
             open && "rotate-180"
           )}
         />
@@ -98,17 +98,17 @@ function DecisionCard({
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="border-t border-zinc-100 px-4 py-3 dark:border-zinc-800">
-              <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+            <div className="border-t border-[#e8dcc8] px-4 py-3">
+              <p className="text-sm leading-relaxed text-[#9f927d]">
                 {description}
               </p>
 
               {decision.alternatives && (
                 <div className="mt-3">
-                  <h4 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                  <h4 className="text-xs font-medium uppercase tracking-wide text-[#725d42]">
                     {t("alternatives")}
                   </h4>
-                  <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  <p className="mt-1 text-sm leading-relaxed text-[#8a7b66]">
                     {decision.alternatives}
                   </p>
                 </div>

@@ -39,7 +39,7 @@ export function SimulatorControls({
         {isPlaying ? (
           <button
             onClick={onPause}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 text-white transition-colors hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5a4a30] text-[#fbf7eb] transition-colors hover:bg-[#794f27]"
             title={t("pause")}
           >
             <Pause size={16} />
@@ -48,7 +48,7 @@ export function SimulatorControls({
           <button
             onClick={onPlay}
             disabled={isComplete}
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 text-white transition-colors hover:bg-zinc-700 disabled:opacity-40 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5a4a30] text-[#fbf7eb] transition-colors hover:bg-[#794f27] disabled:opacity-40"
             title={t("play")}
           >
             <Play size={16} />
@@ -57,14 +57,14 @@ export function SimulatorControls({
         <button
           onClick={onStep}
           disabled={isComplete}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] transition-colors hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] transition-colors hover:bg-[#f6efe0] disabled:opacity-40"
           title={t("step")}
         >
           <SkipForward size={16} />
         </button>
         <button
           onClick={onReset}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] transition-colors hover:bg-[#f6efe0]"
           title={t("reset")}
         >
           <RotateCcw size={16} />
@@ -82,7 +82,7 @@ export function SimulatorControls({
             className={cn(
               "rounded px-2 py-1 text-xs font-medium transition-colors",
               speed === s
-                ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+                ? "bg-[#5a4a30] text-[#fbf7eb]"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
             )}
           >

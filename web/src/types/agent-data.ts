@@ -10,7 +10,7 @@ export interface AgentVersion {
   keyInsight: string;
   classes: { name: string; startLine: number; endLine: number }[];
   functions: { name: string; signature: string; startLine: number }[];
-  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration";
+  layer: "tools" | "planning" | "memory" | "concurrency" | "collaboration" | "production";
   source: string;
 }
 

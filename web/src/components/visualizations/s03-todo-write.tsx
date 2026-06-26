@@ -99,7 +99,7 @@ function KanbanColumn({
   headerBg: string;
 }) {
   return (
-    <div className="flex min-h-[280px] flex-1 flex-col rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="flex min-h-[280px] flex-1 flex-col rounded-lg border border-[#e8dcc8] bg-[#fbf7eb]">
       <div
         className={`rounded-t-lg px-3 py-2 text-center text-xs font-bold uppercase tracking-wider ${headerBg}`}
       >
@@ -115,7 +115,7 @@ function KanbanColumn({
           ))}
         </AnimatePresence>
         {tasks.length === 0 && (
-          <div className="flex flex-1 items-center justify-center text-xs text-zinc-400 dark:text-zinc-600">
+          <div className="flex flex-1 items-center justify-center text-xs text-[#725d42]">
             --
           </div>
         )}
@@ -128,15 +128,15 @@ function KanbanColumn({
 
 function TaskCard({ task }: { task: Task }) {
   const statusStyles: Record<TaskStatus, string> = {
-    pending: "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400",
-    in_progress: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-    done: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    pending: "bg-[#f6efe0] text-[#9f927d]",
+    in_progress: "bg-[#fde6d8] text-[#e59266]",
+    done: "bg-[#e0f0e0] text-[#8ac68a]",
   };
 
   const borderStyles: Record<TaskStatus, string> = {
-    pending: "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800",
-    in_progress: "border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30",
-    done: "border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30",
+    pending: "border-[#e8dcc8] bg-[#fbf7eb]",
+    in_progress: "border-[#e59266]/40 bg-[#fde6d8]",
+    done: "border-[#8ac68a]/40 bg-[#e0f0e0]",
   };
 
   return (
@@ -150,7 +150,7 @@ function TaskCard({ task }: { task: Task }) {
       className={`rounded-md border p-2.5 ${borderStyles[task.status]}`}
     >
       <div className="mb-1.5 flex items-center justify-between">
-        <span className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500">
+        <span className="font-mono text-[10px] text-[#725d42]">
           #{task.id}
         </span>
         <span
@@ -159,7 +159,7 @@ function TaskCard({ task }: { task: Task }) {
           {task.status.replace("_", " ")}
         </span>
       </div>
-      <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+      <div className="text-xs font-medium text-[#9f927d]">
         {task.label}
       </div>
     </motion.div>
@@ -173,24 +173,24 @@ function NagGauge({ value, max, firing }: { value: number; max: number; firing: 
 
   const barColor =
     value === 0
-      ? "bg-zinc-300 dark:bg-zinc-600"
+      ? "bg-[#d4c9b4]"
       : value === 1
-        ? "bg-green-400 dark:bg-green-500"
+        ? "bg-[#8ac68a]"
         : value === 2
-          ? "bg-yellow-400 dark:bg-yellow-500"
-          : "bg-red-500 dark:bg-red-500";
+          ? "bg-[#e59266]"
+          : "bg-[#fc736d]";
 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+        <span className="text-xs font-medium text-[#9f927d]">
           时间线
         </span>
-        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+        <span className="font-mono text-xs text-[#8a7b66]">
           {value}/{max}
         </span>
       </div>
-      <div className="relative h-4 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-700">
+      <div className="relative h-4 w-full overflow-hidden rounded-full bg-[#e8dcc8]">
         <motion.div
           className={`absolute inset-y-0 left-0 rounded-full ${barColor}`}
           initial={{ width: "0%" }}
@@ -205,7 +205,7 @@ function NagGauge({ value, max, firing }: { value: number; max: number; firing: 
         />
         {firing && (
           <motion.div
-            className="absolute inset-0 rounded-full border-2 border-red-500"
+            className="absolute inset-0 rounded-full border-2 border-[#fc736d]"
             initial={{ opacity: 0 }}
             animate={{ opacity: [0, 1, 0, 1, 0] }}
             transition={{ duration: 1 }}
@@ -240,11 +240,11 @@ export default function TodoWrite({ title }: { title?: string }) {
 
   return (
     <section className="min-h-[500px] space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "待办清单"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-4">
         {/* Nag gauge + nag message */}
         <div className="mb-4 space-y-2">
           <NagGauge value={nagValue} max={NAG_THRESHOLD} firing={nagFires} />
@@ -255,7 +255,7 @@ export default function TodoWrite({ title }: { title?: string }) {
                 initial={{ opacity: 0, y: -8, height: 0 }}
                 animate={{ opacity: 1, y: 0, height: "auto" }}
                 exit={{ opacity: 0, y: -8, height: 0 }}
-                className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-center text-xs font-bold text-red-700 dark:border-red-700 dark:bg-red-950/30 dark:text-red-300"
+                className="rounded-md border border-[#fc736d]/40 bg-[#fde2e0] px-3 py-2 text-center text-xs font-bold text-[#fc736d]"
               >
                 SYSTEM: "你有未完成的任务。现在就领取一个!"
               </motion.div>
@@ -268,26 +268,26 @@ export default function TodoWrite({ title }: { title?: string }) {
           <KanbanColumn
             title="Pending"
             tasks={pendingTasks}
-            accentClass="bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
-            headerBg="bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            accentClass="bg-[#e8dcc8] text-[#9f927d]"
+            headerBg="bg-[#e8dcc8] text-[#9f927d]"
           />
           <KanbanColumn
             title="In Progress"
             tasks={inProgressTasks}
-            accentClass="bg-amber-200 text-amber-700 dark:bg-amber-800 dark:text-amber-200"
-            headerBg="bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+            accentClass="bg-[#fde6d8] text-[#e59266]"
+            headerBg="bg-[#fde6d8] text-[#e59266]"
           />
           <KanbanColumn
             title="Done"
             tasks={doneTasks}
-            accentClass="bg-emerald-200 text-emerald-700 dark:bg-emerald-800 dark:text-emerald-200"
-            headerBg="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300"
+            accentClass="bg-[#e0f0e0] text-[#8ac68a]"
+            headerBg="bg-[#e0f0e0] text-[#8ac68a]"
           />
         </div>
 
         {/* Progress summary */}
-        <div className="mt-3 flex items-center justify-between rounded-md bg-zinc-100 px-3 py-2 dark:bg-zinc-800">
-          <span className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+        <div className="mt-3 flex items-center justify-between rounded-md bg-[#f6efe0] px-3 py-2">
+          <span className="font-mono text-[11px] text-[#8a7b66]">
             进度: {doneTasks.length}/{tasks.length} 完成
           </span>
           <div className="flex gap-0.5">
@@ -296,10 +296,10 @@ export default function TodoWrite({ title }: { title?: string }) {
                 key={t.id}
                 className={`h-2 w-6 rounded-sm ${
                   t.status === "done"
-                    ? "bg-emerald-500"
+                    ? "bg-[#8ac68a]"
                     : t.status === "in_progress"
-                      ? "bg-amber-400"
-                      : "bg-zinc-300 dark:bg-zinc-600"
+                      ? "bg-[#e59266]"
+                      : "bg-[#d4c9b4]"
                 }`}
               />
             ))}

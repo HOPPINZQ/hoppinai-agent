@@ -144,15 +144,6 @@ function formatMessageContent(rawText: string): Segment[] {
 // --- ThoughtBlock: collapsible thought container (mirrors index.html) ---
 function ThoughtBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   const [open, setOpen] = useState(true);
-  const prevIsStreamingRef = useRef(isStreaming ?? false);
-
-  useEffect(() => {
-    const prev = prevIsStreamingRef.current;
-    prevIsStreamingRef.current = isStreaming ?? false;
-    if (prev && !(isStreaming ?? false)) {
-      setOpen(false);
-    }
-  }, [isStreaming]);
 
   return (
     <div className="border border-[var(--border)]/60 rounded-md overflow-hidden bg-[var(--surface)]/30">
@@ -163,7 +154,9 @@ function ThoughtBlock({ content, isStreaming }: { content: string; isStreaming?:
         <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24">
           <path fill="currentColor" d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-1.3l-.85-.6C7.8 13.16 7 11.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.63-.8 4.16-2.15 5.1z" />
         </svg>
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">AI思考中🤔</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+          {isStreaming ? "AI思考中🤔" : "AI思考过程"}
+        </span>
         {open ? <ChevronUp className="w-3 h-3 text-[var(--text-muted)] ml-auto" /> : <ChevronDown className="w-3 h-3 text-[var(--text-muted)] ml-auto" />}
       </div>
       <AnimatePresence>
@@ -794,6 +787,34 @@ export function AIChat() {
         signal: controller.signal,
       });
 
+      // 检查 HTTP 状态码，非 2xx 时解析错误信息并回显
+      if (!response.ok) {
+        let errorText = "";
+        let errorDetail = "";
+        try {
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errJson = await response.json();
+            errorDetail = errJson.message || errJson.error || errJson.msg || JSON.stringify(errJson);
+          } else {
+            errorText = await response.text();
+          }
+        } catch (_) {
+          // 解析响应体失败时忽略
+        }
+        const statusText = response.statusText || "Unknown Error";
+        const errMsg = errorDetail || errorText || statusText;
+        console.error(`StreamChat HTTP ${response.status}:`, errMsg);
+        localUpdateMessages(prev => prev.map(m => {
+          if (m.id !== botId) return m;
+          return appendTextBlock(
+            m,
+            `> ⚠️ **服务异常** (HTTP ${response.status})\n>\n> ${errMsg}`
+          );
+        }));
+        return;
+      }
+
       const reader = response.body!.getReader();
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
@@ -846,13 +867,17 @@ export function AIChat() {
       if (error.name === "AbortError") {
         localUpdateMessages(prev => prev.map(m => {
           if (m.id !== botId) return m;
-          return appendTextBlock(m, (m.blocks || []).reduce((acc, b) => b.type === "text" ? b.content : acc, "") + "\n\n[对话已终止]");
+          return appendTextBlock(m, (m.blocks || []).reduce((acc, b) => b.type === "text" ? b.content : acc, "") + "\n\n> ⏹️ **[对话已终止]**");
         }));
       } else {
         console.error("Chat Error:", error);
+        const errReason = error?.message || String(error);
         localUpdateMessages(prev => prev.map(m => {
           if (m.id !== botId) return m;
-          return appendTextBlock(m, "Error communicating with the server.");
+          return appendTextBlock(
+            m,
+            `> ⚠️ **请求失败**\n>\n> ${errReason}\n>\n> 请检查网络连接或稍后重试。`
+          );
         }));
       }
     } finally {

@@ -17,10 +17,10 @@ spring:
       max-file-size: 1000MB
   ################ mysql配置 ########################
   datasource:
-    url: xxxxxxxxxx
-    username: xxxxxxxx
-    password: xxxxxxxx
-    db-name: xxxxxxxx
+    url: jdbc:mysql://43.142.242.237:3306/zq?useUnicode=true&autoReconnect=true&rewriteBatchedStatements=true
+    username: zhangqi
+    password: 19zhangqi
+    db-name: zq
     driverClassName: com.mysql.cj.jdbc.Driver
     hikari:
       max-lifetime: 120000

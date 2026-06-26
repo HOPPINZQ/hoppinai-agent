@@ -15,12 +15,21 @@ const visualizations: Record<
   s06: lazy(() => import("./s06-context-compact")),
   s07: lazy(() => import("./s07-task-system")),
   s08: lazy(() => import("./s08-background-tasks")),
-  s09: lazy(() => import("./s09-agent-teams")),
-  s10: lazy(() => import("./s10-team-protocols")),
-  s11: lazy(() => import("./s11-autonomous-agents")),
-  s12: lazy(() => import("./s12-worktree-task-isolation")),
+  s09: lazy(() => import("./s09-permission")),
+  s10: lazy(() => import("./s10-hooks")),
+  s11: lazy(() => import("./s11-memory")),
+  s12: lazy(() => import("./s12-error-recovery")),
   s13: lazy(() => import("./s13-mcp")),
   s14: lazy(() => import("./s14-react")),
+  s15: lazy(() => import("./s15-system-prompt")),
+  s16: lazy(() => import("./s16-cron-scheduler")),
+  s17: lazy(() => import("./s17-agent-teams")),
+  s18: lazy(() => import("./s18-team-protocols")),
+  s19: lazy(() => import("./s19-autonomous-agents")),
+  s20: lazy(() => import("./s20-worktree-task-isolation")),
+  s21: lazy(() => import("./s21-comprehensive")),
+  s22: lazy(() => import("./s22-multimodal")),
+  s23: lazy(() => import("./s23-sandbox")),
 };
 
 export function SessionVisualization({ version }: { version: string }) {
@@ -30,7 +39,7 @@ export function SessionVisualization({ version }: { version: string }) {
   return (
     <Suspense
       fallback={
-        <div className="min-h-[500px] animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-800" />
+        <div className="min-h-[500px] animate-pulse rounded-lg bg-[#f6efe0]" />
       }
     >
       <div className="min-h-[500px]">

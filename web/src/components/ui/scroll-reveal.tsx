@@ -1,11 +1,8 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useRef, useEffect, useState } from "react";
+import { motion, useInView, type Easing } from "framer-motion";
 import { cn } from "@/lib/utils";
-
-gsap.registerPlugin(ScrollTrigger);
 
 interface ScrollRevealProps {
   children: React.ReactNode;
@@ -14,98 +11,92 @@ interface ScrollRevealProps {
   animation?: "fade-up" | "fade-left" | "fade-right" | "fade-scale" | "blur";
   /** Duration in seconds */
   duration?: number;
-  /** GSAP ease */
-  ease?: string;
-  /** ScrollTrigger start position */
-  scrollStart?: string;
-  /** ScrollTrigger end position */
-  scrollEnd?: string;
-  /** Stagger delay between children (in seconds). 0 = no stagger, only animate as one block */
+  /** Framer-motion ease (cubic-bezier array or named ease) */
+  ease?: Easing;
+  /** Stagger delay between children (in seconds). 0 = no stagger */
   stagger?: number;
-  /** If true, direct children will animate individually with stagger */
+  /** If true, direct children animate individually with stagger */
   staggerChildren?: boolean;
   /** Delay before starting (seconds) */
   delay?: number;
 }
 
+const ANIMATIONS: Record<
+  NonNullable<ScrollRevealProps["animation"]>,
+  { from: Record<string, number | string>; to: Record<string, number | string> }
+> = {
+  "fade-up": { from: { opacity: 0, y: 30 }, to: { opacity: 1, y: 0 } },
+  "fade-left": { from: { opacity: 0, x: -50 }, to: { opacity: 1, x: 0 } },
+  "fade-right": { from: { opacity: 0, x: 50 }, to: { opacity: 1, x: 0 } },
+  "fade-scale": { from: { opacity: 0, scale: 0.95, y: 20 }, to: { opacity: 1, scale: 1, y: 0 } },
+  "blur": { from: { opacity: 0, filter: "blur(10px)", y: 10 }, to: { opacity: 1, filter: "blur(0px)", y: 0 } },
+};
+
+/**
+ * Slim framer-motion replacement for the old gsap-powered ScrollReveal.
+ * Preserves the same prop surface (animation / duration / stagger /
+ * staggerChildren / delay) so call sites don't need to change.
+ *
+ * Uses `useInView` to play once when the container enters the viewport.
+ * When `staggerChildren`, each direct child is wrapped in its own motion.div
+ * with an incremental delay.
+ */
 export default function ScrollReveal({
   children,
   className,
   animation = "fade-up",
-  duration = 0.8,
-  ease = "power3.out",
-  scrollStart = "top 88%",
-  scrollEnd = "bottom 20%",
+  duration = 0.6,
+  ease = [0.4, 0, 0.2, 1],
   stagger = 0.1,
   staggerChildren = false,
   delay = 0,
 }: ScrollRevealProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.2 });
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+  const variant = ANIMATIONS[animation];
+  const easeProp = ease;
 
-    const targets = staggerChildren ? el.children : [el];
-    const fromVars: gsap.TweenVars = {};
-    const toVars: gsap.TweenVars = {
-      duration,
-      ease,
-      delay,
-      opacity: 1,
-      x: 0,
-      y: 0,
-      scale: 1,
-      filter: "blur(0px)",
-    };
+  if (!staggerChildren) {
+    return (
+      <motion.div
+        ref={ref}
+        className={cn("will-change-transform", className)}
+        initial={variant.from}
+        animate={inView ? { ...variant.to, transition: { duration, ease: easeProp, delay } } : variant.from}
+      >
+        {children}
+      </motion.div>
+    );
+  }
 
-    switch (animation) {
-      case "fade-up":
-        fromVars.opacity = 0;
-        fromVars.y = 50;
-        fromVars.x = 0;
-        break;
-      case "fade-left":
-        fromVars.opacity = 0;
-        fromVars.x = -60;
-        fromVars.y = 0;
-        break;
-      case "fade-right":
-        fromVars.opacity = 0;
-        fromVars.x = 60;
-        fromVars.y = 0;
-        break;
-      case "fade-scale":
-        fromVars.opacity = 0;
-        fromVars.scale = 0.9;
-        fromVars.y = 30;
-        break;
-      case "blur":
-        fromVars.opacity = 0;
-        fromVars.filter = "blur(12px)";
-        fromVars.y = 20;
-        break;
-    }
-
-    const ctx = gsap.context(() => {
-      gsap.fromTo(targets, fromVars, {
-        ...toVars,
-        stagger: staggerChildren ? stagger : 0,
-        scrollTrigger: {
-          trigger: el,
-          start: scrollStart,
-          end: scrollEnd,
-          toggleActions: "play none none none",
-        },
-      });
-    }, el);
-
-    return () => ctx.revert();
-  }, [animation, duration, ease, scrollStart, scrollEnd, stagger, staggerChildren, delay]);
-
+  // staggerChildren: wrap each direct child in its own motion element
+  const childArray = Array.isArray(children) ? children : [children];
   return (
-    <div ref={containerRef} className={cn("will-change-transform", className)}>
-      {children}
-    </div>
+    <motion.div
+      ref={ref}
+      className={cn("will-change-transform", className)}
+      initial="hidden"
+      animate={inView ? "show" : "hidden"}
+      variants={{
+        hidden: {},
+        show: { transition: { staggerChildren: stagger, delayChildren: delay } },
+      }}
+    >
+      {mounted &&
+        childArray.map((child, i) => (
+          <motion.div
+            key={i}
+            variants={{
+              hidden: variant.from,
+              show: { ...variant.to, transition: { duration, ease: easeProp } },
+            }}
+          >
+            {child}
+          </motion.div>
+        ))}
+    </motion.div>
   );
 }

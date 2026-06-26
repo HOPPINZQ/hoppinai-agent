@@ -28,8 +28,8 @@
         }
       ],
       "layer": "tools",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "source": "#!/usr/bin/env python3\r\n\"\"\"\r\ns01_agent_loop.py - The Agent Loop\r\n\r\nThe entire secret of an AI coding agent in one pattern:\r\n\r\n    while stop_reason == \"tool_use\":\r\n        response = LLM(messages, tools)\r\n        execute tools\r\n        append results\r\n\r\n    +----------+      +-------+      +---------+\r\n    |   User   | ---> |  LLM  | ---> |  Tool   |\r\n    |  prompt  |      |       |      | execute |\r\n    +----------+      +---+---+      +----+----+\r\n                          ^               |\r\n                          |   tool_result |\r\n                          +---------------+\r\n                          (loop continues)\r\n\r\nThis is the core loop: feed tool results back to the model\r\nuntil the model decides to stop. Production agents layer\r\npolicy, hooks, and lifecycle controls on top.\r\n\"\"\"\r\n\r\nimport os\r\nimport subprocess\r\n\r\nfrom anthropic import Anthropic\r\nfrom dotenv import load_dotenv\r\n\r\nload_dotenv(override=True)\r\n\r\nif os.getenv(\"ANTHROPIC_BASE_URL\"):\r\n    os.environ.pop(\"ANTHROPIC_AUTH_TOKEN\", None)\r\n\r\nclient = Anthropic(base_url=os.getenv(\"ANTHROPIC_BASE_URL\"))\r\nMODEL = os.environ[\"MODEL_ID\"]\r\n\r\nSYSTEM = f\"You are a coding agent at {os.getcwd()}. Use bash to solve tasks. Act, don't explain.\"\r\n\r\nTOOLS = [{\r\n    \"name\": \"bash\",\r\n    \"description\": \"Run a shell command.\",\r\n    \"input_schema\": {\r\n        \"type\": \"object\",\r\n        \"properties\": {\"command\": {\"type\": \"string\"}},\r\n        \"required\": [\"command\"],\r\n    },\r\n}]\r\n\r\n\r\ndef run_bash(command: str) -> str:\r\n    dangerous = [\"rm -rf /\", \"sudo\", \"shutdown\", \"reboot\", \"> /dev/\"]\r\n    if any(d in command for d in dangerous):\r\n        return \"Error: Dangerous command blocked\"\r\n    try:\r\n        r = subprocess.run(command, shell=True, cwd=os.getcwd(),\r\n                           capture_output=True, text=True, timeout=120)\r\n        out = (r.stdout + r.stderr).strip()\r\n        return out[:50000] if out else \"(no output)\"\r\n    except subprocess.TimeoutExpired:\r\n        return \"Error: Timeout (120s)\"\r\n\r\n\r\n# -- The core pattern: a while loop that calls tools until the model stops --\r\ndef agent_loop(messages: list):\r\n    while True:\r\n        response = client.messages.create(\r\n            model=MODEL, system=SYSTEM, messages=messages,\r\n            tools=TOOLS, max_tokens=8000,\r\n        )\r\n        # Append assistant turn\r\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\r\n        # If the model didn't call a tool, we're done\r\n        if response.stop_reason != \"tool_use\":\r\n            return\r\n        # Execute each tool call, collect results\r\n        results = []\r\n        for block in response.content:\r\n            if block.type == \"tool_use\":\r\n                print(f\"\\033[33m$ {block.input['command']}\\033[0m\")\r\n                output = run_bash(block.input[\"command\"])\r\n                print(output[:200])\r\n                results.append({\"type\": \"tool_result\", \"tool_use_id\": block.id,\r\n                                \"content\": output})\r\n        messages.append({\"role\": \"user\", \"content\": results})\r\n\r\n\r\nif __name__ == \"__main__\":\r\n    history = []\r\n    while True:\r\n        try:\r\n            query = input(\"\\033[36ms01 >> \\033[0m\")\r\n        except (EOFError, KeyboardInterrupt):\r\n            break\r\n        if query.strip().lower() in (\"q\", \"exit\", \"\"):\r\n            break\r\n        history.append({\"role\": \"user\", \"content\": query})\r\n        agent_loop(history)\r\n        response_content = history[-1][\"content\"]\r\n        if isinstance(response_content, list):\r\n            for block in response_content:\r\n                if hasattr(block, \"text\"):\r\n                    print(block.text)\r\n        print()\r\n"
     },
     {
@@ -38,8 +38,8 @@
       "title": "工具",
       "subtitle": "每工具一个处理类",
       "loc": 0,
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "tools": [
         "bash",
         "read_file",
@@ -95,8 +95,8 @@
     },
     {
       "id": "s03",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s03_todo_write.py",
       "title": "todo规划",
       "subtitle": "行动前先规划",
@@ -164,8 +164,8 @@
     },
     {
       "id": "s04",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s04_subagent.py",
       "title": "子代理",
       "subtitle": "每个子任务独立的上下文",
@@ -239,8 +239,8 @@
     },
     {
       "id": "s05",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-05",
       "title": "技能加载",
       "subtitle": "按需加载",
@@ -310,8 +310,8 @@
     },
     {
       "id": "s13",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-13-mcp",
       "title": "MCP",
       "subtitle": "按需加载",
@@ -388,8 +388,8 @@
     },
     {
       "id": "s06",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-06",
       "title": "上下文压缩",
       "subtitle": "三层压缩策略",
@@ -465,8 +465,8 @@
     },
     {
       "id": "s07",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-07",
       "title": "任务系统",
       "subtitle": "任务图 + 依赖关系",
@@ -569,8 +569,8 @@
     },
     {
       "id": "s08",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-08",
       "title": "后台任务",
       "subtitle": "后台线程 + 通知",
@@ -688,8 +688,8 @@
     },
     {
       "id": "s09",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s09_agent_teams.py",
       "title": "多智能体",
       "subtitle": "队友 + 邮箱",
@@ -765,8 +765,8 @@
     },
     {
       "id": "s10",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s10_team_protocols.py",
       "title": "团队协议",
       "subtitle": "共享通信规则",
@@ -856,8 +856,8 @@
     },
     {
       "id": "s11",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s11_autonomous_agents.py",
       "title": "自主智能体",
       "subtitle": "扫描任务板，认领任务",
@@ -963,8 +963,8 @@
     },
     {
       "id": "s12",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "s12_worktree_task_isolation.py",
       "title": "工作树 + 任务隔离",
       "subtitle": "按目录隔离",
@@ -1062,8 +1062,8 @@
     },
     {
       "id": "s13",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-13-mcp",
       "title": "MCP",
       "subtitle": "MCP",
@@ -1140,8 +1140,8 @@
     },
     {
       "id": "s14",
-          "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
-    "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
       "filename": "hoppinzq-module-agent-14-react",
       "title": "ReAct",
       "subtitle": "ReAct",
@@ -1202,7 +1202,710 @@
         }
       ],
       "layer": "planning",
-      "source": "#!/usr/bin/env python3\r\n\"\"\"\r\ns05_skill_loading.py - Skills\r\n\r\nTwo-layer skill injection that avoids bloating the system prompt:\r\n\r\n    Layer 1 (cheap): skill names in system prompt (~100 tokens/skill)\r\n    Layer 2 (on demand): full skill body in tool_result\r\n\r\n    skills/\r\n      pdf/\r\n        SKILL.md          <-- frontmatter (name, description) + body\r\n      code-review/\r\n        SKILL.md\r\n\r\n    System prompt:\r\n    +--------------------------------------+\r\n    | You are a coding agent.              |\r\n    | Skills available:                    |\r\n    |   - pdf: Process PDF files...        |  <-- Layer 1: metadata only\r\n    |   - code-review: Review code...      |\r\n    +--------------------------------------+\r\n\r\n    When model calls load_skill(\"pdf\"):\r\n    +--------------------------------------+\r\n    | tool_result:                         |\r\n    | <skill>                              |\r\n    |   Full PDF processing instructions   |  <-- Layer 2: full body\r\n    |   Step 1: ...                        |\r\n    |   Step 2: ...                        |\r\n    | </skill>                             |\r\n    +--------------------------------------+\r\n\r\nKey insight: \"Don't put everything in the system prompt. Load on demand.\"\r\n\"\"\"\r\n\r\nimport os\r\nimport re\r\nimport subprocess\r\nfrom pathlib import Path\r\n\r\nfrom anthropic import Anthropic\r\nfrom dotenv import load_dotenv\r\n\r\nload_dotenv(override=True)\r\n\r\nif os.getenv(\"ANTHROPIC_BASE_URL\"):\r\n    os.environ.pop(\"ANTHROPIC_AUTH_TOKEN\", None)\r\n\r\nWORKDIR = Path.cwd()\r\nclient = Anthropic(base_url=os.getenv(\"ANTHROPIC_BASE_URL\"))\r\nMODEL = os.environ[\"MODEL_ID\"]\r\nSKILLS_DIR = WORKDIR / \"skills\"\r\n\r\n\r\n# -- SkillLoader: scan skills/<name>/SKILL.md with YAML frontmatter --\r\nclass SkillLoader:\r\n    def __init__(self, skills_dir: Path):\r\n        self.skills_dir = skills_dir\r\n        self.skills = {}\r\n        self._load_all()\r\n\r\n    def _load_all(self):\r\n        if not self.skills_dir.exists():\r\n            return\r\n        for f in sorted(self.skills_dir.rglob(\"SKILL.md\")):\r\n            text = f.read_text()\r\n            meta, body = self._parse_frontmatter(text)\r\n            name = meta.get(\"name\", f.parent.name)\r\n            self.skills[name] = {\"meta\": meta, \"body\": body, \"path\": str(f)}\r\n\r\n    def _parse_frontmatter(self, text: str) -> tuple:\r\n        \"\"\"Parse YAML frontmatter between --- delimiters.\"\"\"\r\n        match = re.match(r\"^---\\n(.*?)\\n---\\n(.*)\", text, re.DOTALL)\r\n        if not match:\r\n            return {}, text\r\n        meta = {}\r\n        for line in match.group(1).strip().splitlines():\r\n            if \":\" in line:\r\n                key, val = line.split(\":\", 1)\r\n                meta[key.strip()] = val.strip()\r\n        return meta, match.group(2).strip()\r\n\r\n    def get_descriptions(self) -> str:\r\n        \"\"\"Layer 1: short descriptions for the system prompt.\"\"\"\r\n        if not self.skills:\r\n            return \"(no skills available)\"\r\n        lines = []\r\n        for name, skill in self.skills.items():\r\n            desc = skill[\"meta\"].get(\"description\", \"No description\")\r\n            tags = skill[\"meta\"].get(\"tags\", \"\")\r\n            line = f\"  - {name}: {desc}\"\r\n            if tags:\r\n                line += f\" [{tags}]\"\r\n            lines.append(line)\r\n        return \"\\n\".join(lines)\r\n\r\n    def get_content(self, name: str) -> str:\r\n        \"\"\"Layer 2: full skill body returned in tool_result.\"\"\"\r\n        skill = self.skills.get(name)\r\n        if not skill:\r\n            return f\"Error: Unknown skill '{name}'. Available: {', '.join(self.skills.keys())}\"\r\n        return f\"<skill name=\\\"{name}\\\">\\n{skill['body']}\\n</skill>\"\r\n\r\n\r\nSKILL_LOADER = SkillLoader(SKILLS_DIR)\r\n\r\n# Layer 1: skill metadata injected into system prompt\r\nSYSTEM = f\"\"\"You are a coding agent at {WORKDIR}.\r\nUse load_skill to access specialized knowledge before tackling unfamiliar topics.\r\n\r\nSkills available:\r\n{SKILL_LOADER.get_descriptions()}\"\"\"\r\n\r\n\r\n# -- Tool implementations --\r\ndef safe_path(p: str) -> Path:\r\n    path = (WORKDIR / p).resolve()\r\n    if not path.is_relative_to(WORKDIR):\r\n        raise ValueError(f\"Path escapes workspace: {p}\")\r\n    return path\r\n\r\ndef run_bash(command: str) -> str:\r\n    dangerous = [\"rm -rf /\", \"sudo\", \"shutdown\", \"reboot\", \"> /dev/\"]\r\n    if any(d in command for d in dangerous):\r\n        return \"Error: Dangerous command blocked\"\r\n    try:\r\n        r = subprocess.run(command, shell=True, cwd=WORKDIR,\r\n                           capture_output=True, text=True, timeout=120)\r\n        out = (r.stdout + r.stderr).strip()\r\n        return out[:50000] if out else \"(no output)\"\r\n    except subprocess.TimeoutExpired:\r\n        return \"Error: Timeout (120s)\"\r\n\r\ndef run_read(path: str, limit: int = None) -> str:\r\n    try:\r\n        lines = safe_path(path).read_text().splitlines()\r\n        if limit and limit < len(lines):\r\n            lines = lines[:limit] + [f\"... ({len(lines) - limit} more)\"]\r\n        return \"\\n\".join(lines)[:50000]\r\n    except Exception as e:\r\n        return f\"Error: {e}\"\r\n\r\ndef run_write(path: str, content: str) -> str:\r\n    try:\r\n        fp = safe_path(path)\r\n        fp.parent.mkdir(parents=True, exist_ok=True)\r\n        fp.write_text(content)\r\n        return f\"Wrote {len(content)} bytes\"\r\n    except Exception as e:\r\n        return f\"Error: {e}\"\r\n\r\ndef run_edit(path: str, old_text: str, new_text: str) -> str:\r\n    try:\r\n        fp = safe_path(path)\r\n        content = fp.read_text()\r\n        if old_text not in content:\r\n            return f\"Error: Text not found in {path}\"\r\n        fp.write_text(content.replace(old_text, new_text, 1))\r\n        return f\"Edited {path}\"\r\n    except Exception as e:\r\n        return f\"Error: {e}\"\r\n\r\n\r\nTOOL_HANDLERS = {\r\n    \"bash\":       lambda **kw: run_bash(kw[\"command\"]),\r\n    \"read_file\":  lambda **kw: run_read(kw[\"path\"], kw.get(\"limit\")),\r\n    \"write_file\": lambda **kw: run_write(kw[\"path\"], kw[\"content\"]),\r\n    \"edit_file\":  lambda **kw: run_edit(kw[\"path\"], kw[\"old_text\"], kw[\"new_text\"]),\r\n    \"load_skill\": lambda **kw: SKILL_LOADER.get_content(kw[\"name\"]),\r\n}\r\n\r\nTOOLS = [\r\n    {\"name\": \"bash\", \"description\": \"Run a shell command.\",\r\n     \"input_schema\": {\"type\": \"object\", \"properties\": {\"command\": {\"type\": \"string\"}}, \"required\": [\"command\"]}},\r\n    {\"name\": \"read_file\", \"description\": \"Read file contents.\",\r\n     \"input_schema\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\"}, \"limit\": {\"type\": \"integer\"}}, \"required\": [\"path\"]}},\r\n    {\"name\": \"write_file\", \"description\": \"Write content to file.\",\r\n     \"input_schema\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\"}, \"content\": {\"type\": \"string\"}}, \"required\": [\"path\", \"content\"]}},\r\n    {\"name\": \"edit_file\", \"description\": \"Replace exact text in file.\",\r\n     \"input_schema\": {\"type\": \"object\", \"properties\": {\"path\": {\"type\": \"string\"}, \"old_text\": {\"type\": \"string\"}, \"new_text\": {\"type\": \"string\"}}, \"required\": [\"path\", \"old_text\", \"new_text\"]}},\r\n    {\"name\": \"load_skill\", \"description\": \"Load specialized knowledge by name.\",\r\n     \"input_schema\": {\"type\": \"object\", \"properties\": {\"name\": {\"type\": \"string\", \"description\": \"Skill name to load\"}}, \"required\": [\"name\"]}},\r\n]\r\n\r\n\r\ndef agent_loop(messages: list):\r\n    while True:\r\n        response = client.messages.create(\r\n            model=MODEL, system=SYSTEM, messages=messages,\r\n            tools=TOOLS, max_tokens=8000,\r\n        )\r\n        messages.append({\"role\": \"assistant\", \"content\": response.content})\r\n        if response.stop_reason != \"tool_use\":\r\n            return\r\n        results = []\r\n        for block in response.content:\r\n            if block.type == \"tool_use\":\r\n                handler = TOOL_HANDLERS.get(block.name)\r\n                try:\r\n                    output = handler(**block.input) if handler else f\"Unknown tool: {block.name}\"\r\n                except Exception as e:\r\n                    output = f\"Error: {e}\"\r\n                print(f\"> {block.name}: {str(output)[:200]}\")\r\n                results.append({\"type\": \"tool_result\", \"tool_use_id\": block.id, \"content\": str(output)})\r\n        messages.append({\"role\": \"user\", \"content\": results})\r\n\r\n\r\nif __name__ == \"__main__\":\r\n    history = []\r\n    while True:\r\n        try:\r\n            query = input(\"\\033[36ms05 >> \\033[0m\")\r\n        except (EOFError, KeyboardInterrupt):\r\n            break\r\n        if query.strip().lower() in (\"q\", \"exit\", \"\"):\r\n            break\r\n        history.append({\"role\": \"user\", \"content\": query})\r\n        agent_loop(history)\r\n        response_content = history[-1][\"content\"]\r\n        if isinstance(response_content, list):\r\n            for block in response_content:\r\n                if hasattr(block, \"text\"):\r\n                    print(block.text)\r\n        print()\r\n"
+      "source": ""
+    },
+    {
+      "id": "s15",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentSysPrompt.java",
+      "title": "动态系统提示",
+      "subtitle": "按上下文装配",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search"
+      ],
+      "newTools": [],
+      "coreAddition": "PromptAssembler + PromptSection",
+      "keyInsight": "system prompt 不再硬编码；identity/tools/workspace/memory 段按 AgentContext 动态开关与缓存",
+      "classes": [
+        {
+          "name": "AgentSysPrompt",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "AgentContext",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "PromptAssembler",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "PromptSection",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "buildContext",
+          "signature": "public AgentContext buildContext(String userInput)",
+          "startLine": 0
+        },
+        {
+          "name": "get",
+          "signature": "public String get(AgentContext ctx)",
+          "startLine": 0
+        }
+      ],
+      "layer": "tools",
+      "source": ""
+    },
+    {
+      "id": "s16",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentCron.java",
+      "title": "定时调度",
+      "subtitle": "cron 表达式驱动",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron"
+      ],
+      "newTools": [
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron"
+      ],
+      "coreAddition": "CronScheduler + 双线程队列",
+      "keyInsight": "两条 daemon 线程解耦触发与执行；每轮 LLM 调用前 poll cron 队列",
+      "classes": [
+        {
+          "name": "AgentCron",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "CronScheduler",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "CronExpression",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "CronJob",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "CronStore",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "tick",
+          "signature": "public void tick()",
+          "startLine": 0
+        },
+        {
+          "name": "consumeQueue",
+          "signature": "public String consumeQueue()",
+          "startLine": 0
+        },
+        {
+          "name": "schedule",
+          "signature": "public String schedule(String cron, String prompt, boolean recurring, boolean durable)",
+          "startLine": 0
+        }
+      ],
+      "layer": "concurrency",
+      "source": ""
+    },
+    {
+      "id": "s17",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentTeams.java",
+      "title": "Agent 团队",
+      "subtitle": "lead / teammate 协作",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron",
+        "spawn_teammate",
+        "send_message",
+        "check_inbox"
+      ],
+      "newTools": [
+        "spawn_teammate",
+        "send_message",
+        "check_inbox"
+      ],
+      "coreAddition": "TeammateRunner + MessageBus",
+      "keyInsight": "lead spawn teammate，每个 teammate 在守护线程跑独立 agent 循环，文件邮箱异步通信",
+      "classes": [
+        {
+          "name": "AgentTeams",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "MessageBus",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "TeammateRunner",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "TeammateSpawner",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "MailboxMessage",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "spawnTeammate",
+          "signature": "public static String spawnTeammate(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "sendMessage",
+          "signature": "public static String sendMessage(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "checkInbox",
+          "signature": "public static String checkInbox(String input)",
+          "startLine": 0
+        }
+      ],
+      "layer": "collaboration",
+      "source": ""
+    },
+    {
+      "id": "s18",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentProtocols.java",
+      "title": "团队协议",
+      "subtitle": "request/response 状态机",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron",
+        "spawn_teammate",
+        "send_message",
+        "check_inbox",
+        "request_shutdown",
+        "request_plan",
+        "review_plan"
+      ],
+      "newTools": [
+        "request_shutdown",
+        "request_plan",
+        "review_plan"
+      ],
+      "coreAddition": "ProtocolDispatcher + ProtocolRegistry",
+      "keyInsight": "shutdown / plan_approval 两种正式协议，让 lead 能优雅关停 teammate 并审批方案",
+      "classes": [
+        {
+          "name": "AgentProtocols",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "ProtocolDispatcher",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "ProtocolRegistry",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "ProtocolState",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "DispatchOutcome",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "requestShutdown",
+          "signature": "public static String requestShutdown(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "requestPlan",
+          "signature": "public static String requestPlan(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "reviewPlan",
+          "signature": "public static String reviewPlan(String input)",
+          "startLine": 0
+        }
+      ],
+      "layer": "collaboration",
+      "source": ""
+    },
+    {
+      "id": "s19",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentAutonomous.java",
+      "title": "自主 Agent",
+      "subtitle": "扫描任务板，自动认领",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron",
+        "spawn_teammate",
+        "send_message",
+        "check_inbox",
+        "request_shutdown",
+        "request_plan",
+        "review_plan",
+        "create_task",
+        "list_tasks",
+        "get_task",
+        "claim_task",
+        "complete_task"
+      ],
+      "newTools": [
+        "create_task",
+        "list_tasks",
+        "get_task",
+        "claim_task",
+        "complete_task"
+      ],
+      "coreAddition": "IdlePoller + AutoClaimer",
+      "keyInsight": "teammate 跑 WORK→IDLE 两阶段循环，从 TaskBoard 自主认领任务，无需人工分配",
+      "classes": [
+        {
+          "name": "AgentAutonomous",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "IdlePoller",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "AutoClaimer",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "TaskManager",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "createTask",
+          "signature": "public static String createTask(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "claimTask",
+          "signature": "public static String claimTask(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "completeTask",
+          "signature": "public static String completeTask(String input)",
+          "startLine": 0
+        }
+      ],
+      "layer": "collaboration",
+      "source": ""
+    },
+    {
+      "id": "s20",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentWorktree.java",
+      "title": "Worktree 隔离",
+      "subtitle": "git 工作区并发",
+      "loc": 0,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron",
+        "spawn_teammate",
+        "send_message",
+        "check_inbox",
+        "request_shutdown",
+        "request_plan",
+        "review_plan",
+        "create_task",
+        "list_tasks",
+        "get_task",
+        "claim_task",
+        "complete_task",
+        "create_worktree",
+        "remove_worktree",
+        "keep_worktree"
+      ],
+      "newTools": [
+        "create_worktree",
+        "remove_worktree",
+        "keep_worktree"
+      ],
+      "coreAddition": "WorktreeManager + WorktreeContext",
+      "keyInsight": "每个 task 绑定 git worktree，文件/bash 操作通过 ThreadLocal 自动路由，多 agent 互不干扰",
+      "classes": [
+        {
+          "name": "AgentWorktree",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "WorktreeManager",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "WorktreeContext",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "GitRunner",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "createWorktree",
+          "signature": "public static String createWorktree(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "removeWorktree",
+          "signature": "public static String removeWorktree(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "keepWorktree",
+          "signature": "public static String keepWorktree(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "effectiveRoot",
+          "signature": "public static Path effectiveRoot()",
+          "startLine": 0
+        }
+      ],
+      "layer": "concurrency",
+      "source": ""
+    },
+    {
+      "id": "s21",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentComprehensive.java",
+      "title": "综合集成",
+      "subtitle": "一个循环塞进所有机制",
+      "loc": 450,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron",
+        "spawn_teammate",
+        "send_message",
+        "check_inbox",
+        "request_shutdown",
+        "request_plan",
+        "review_plan",
+        "create_task",
+        "list_tasks",
+        "get_task",
+        "claim_task",
+        "complete_task",
+        "create_worktree",
+        "remove_worktree",
+        "keep_worktree",
+        "connect_mcp",
+        "mcp__docs__search",
+        "mcp__docs__get_version",
+        "mcp__deploy__status",
+        "mcp__deploy__run"
+      ],
+      "newTools": [
+        "connect_mcp",
+        "mcp__docs__search",
+        "mcp__docs__get_version",
+        "mcp__deploy__status",
+        "mcp__deploy__run"
+      ],
+      "coreAddition": "27 个工具 + 全部基础设施",
+      "keyInsight": "机制可以很多，循环只有一个：压缩→组装提示→cron→重试→钩子→权限→工具→落账，全部串成一条管道",
+      "classes": [
+        {
+          "name": "AgentComprehensive",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "PromptAssembler",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "RetryWrapper",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "ProtocolDispatcher",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "MockMcpClient",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "connectMcp",
+          "signature": "public static String connectMcp(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "runAgentTurn",
+          "signature": "private String runAgentTurn(String userInput)",
+          "startLine": 0
+        }
+      ],
+      "layer": "collaboration",
+      "source": ""
+    },
+    {
+      "id": "s22",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "MessageContent.java",
+      "title": "多模态输入",
+      "subtitle": "图像 / PDF 进入消息流",
+      "loc": 280,
+      "tools": [
+        "bash",
+        "read_file",
+        "screenshot"
+      ],
+      "newTools": [
+        "screenshot"
+      ],
+      "coreAddition": "MessageContent 多类型 + 图片识别工具",
+      "keyInsight": "MessageParam 从纯文本升级为 text/image/file 多块结构；read_file 自动检测二进制",
+      "classes": [
+        {
+          "name": "MessageContent",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "readFile",
+          "signature": "public static String readFile(ReadFileInput input)",
+          "startLine": 0
+        },
+        {
+          "name": "screenshot",
+          "signature": "public static String executeScreenshot()",
+          "startLine": 0
+        }
+      ],
+      "layer": "production",
+      "source": ""
+    },
+    {
+      "id": "s23",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "SandboxRunner.java",
+      "title": "安全沙箱",
+      "subtitle": "4 层防御执行 bash",
+      "loc": 320,
+      "tools": [
+        "bash"
+      ],
+      "newTools": [],
+      "coreAddition": "SandboxRunner + 4 层隔离",
+      "keyInsight": "静态分析 → 目录监禁 → OS 沙箱(bwrap) → 容器隔离，与 s09 权限 + s10 钩子形成完整安全链",
+      "classes": [
+        {
+          "name": "SandboxRunner",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "StaticAnalyzer",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "DirectoryJail",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "OsSandbox",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "ContainerIsolation",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "executeBash",
+          "signature": "public static String executeBash(String input)",
+          "startLine": 0
+        },
+        {
+          "name": "run",
+          "signature": "public String run(String command)",
+          "startLine": 0
+        },
+        {
+          "name": "check",
+          "signature": "public static Result check(String command)",
+          "startLine": 0
+        },
+        {
+          "name": "validate",
+          "signature": "public String validate(String command)",
+          "startLine": 0
+        }
+      ],
+      "layer": "production",
+      "source": ""
+    },
+    {
+      "id": "cli",
+      "githubUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "downloadUrl": "https://github.com/HOPPINZQ/hoppinai-agent",
+      "filename": "AgentCLI.java",
+      "title": "CLI 可视化 Agent",
+      "subtitle": "ANSI 面板让 Agent 思考过程一目了然",
+      "loc": 850,
+      "tools": [
+        "bash",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "content_search",
+        "sub_agent",
+        "todo",
+        "load_skill",
+        "compact",
+        "task_create",
+        "task_update",
+        "task_list",
+        "task_get",
+        "background_run",
+        "check_background"
+      ],
+      "newTools": [],
+      "coreAddition": "CliRenderer + ANSI 面板渲染",
+      "keyInsight": "去掉 Spring Boot/MySQL，纯命令行运行，box-drawing 面板展示思考/工具调用/结果/耗时",
+      "classes": [
+        {
+          "name": "CliAgent",
+          "startLine": 0,
+          "endLine": 0
+        },
+        {
+          "name": "CliRenderer",
+          "startLine": 0,
+          "endLine": 0
+        }
+      ],
+      "functions": [
+        {
+          "name": "run",
+          "signature": "public void run()",
+          "startLine": 0
+        },
+        {
+          "name": "banner",
+          "signature": "public static void banner()",
+          "startLine": 0
+        }
+      ],
+      "layer": "tools",
+      "source": ""
     }
   ],
   "diffs": [
@@ -1387,6 +2090,181 @@
         "worktree_events"
       ],
       "locDelta": 195
+    },
+    {
+      "from": "s14",
+      "to": "s15",
+      "newClasses": [
+        "AgentContext",
+        "PromptAssembler",
+        "PromptSection"
+      ],
+      "newFunctions": [
+        "buildContext",
+        "get"
+      ],
+      "newTools": [],
+      "locDelta": 0
+    },
+    {
+      "from": "s15",
+      "to": "s16",
+      "newClasses": [
+        "CronScheduler",
+        "CronExpression",
+        "CronJob",
+        "CronStore"
+      ],
+      "newFunctions": [
+        "tick",
+        "consumeQueue",
+        "schedule"
+      ],
+      "newTools": [
+        "schedule_cron",
+        "list_crons",
+        "cancel_cron"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s16",
+      "to": "s17",
+      "newClasses": [
+        "MessageBus",
+        "TeammateRunner",
+        "TeammateSpawner",
+        "MailboxMessage"
+      ],
+      "newFunctions": [
+        "spawnTeammate",
+        "sendMessage",
+        "checkInbox"
+      ],
+      "newTools": [
+        "spawn_teammate",
+        "send_message",
+        "check_inbox"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s17",
+      "to": "s18",
+      "newClasses": [
+        "ProtocolDispatcher",
+        "ProtocolRegistry",
+        "ProtocolState",
+        "DispatchOutcome"
+      ],
+      "newFunctions": [
+        "requestShutdown",
+        "requestPlan",
+        "reviewPlan"
+      ],
+      "newTools": [
+        "request_shutdown",
+        "request_plan",
+        "review_plan"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s18",
+      "to": "s19",
+      "newClasses": [
+        "IdlePoller",
+        "AutoClaimer",
+        "TaskManager"
+      ],
+      "newFunctions": [
+        "createTask",
+        "claimTask",
+        "completeTask"
+      ],
+      "newTools": [
+        "create_task",
+        "list_tasks",
+        "get_task",
+        "claim_task",
+        "complete_task"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s19",
+      "to": "s20",
+      "newClasses": [
+        "WorktreeManager",
+        "WorktreeContext",
+        "GitRunner"
+      ],
+      "newFunctions": [
+        "createWorktree",
+        "removeWorktree",
+        "keepWorktree",
+        "effectiveRoot"
+      ],
+      "newTools": [
+        "create_worktree",
+        "remove_worktree",
+        "keep_worktree"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s20",
+      "to": "s21",
+      "newClasses": [
+        "AgentComprehensive",
+        "PromptAssembler",
+        "RetryWrapper",
+        "ProtocolDispatcher",
+        "MockMcpClient"
+      ],
+      "newFunctions": [
+        "connectMcp",
+        "runAgentTurn"
+      ],
+      "newTools": [
+        "connect_mcp",
+        "mcp__docs__search",
+        "mcp__docs__get_version",
+        "mcp__deploy__status",
+        "mcp__deploy__run"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s21",
+      "to": "s22",
+      "newClasses": [
+        "MessageContent",
+        "ContentTypeAdapter"
+      ],
+      "newFunctions": [
+        "toVisionRequest",
+        "screenshot"
+      ],
+      "newTools": [
+        "screenshot"
+      ],
+      "locDelta": 0
+    },
+    {
+      "from": "s22",
+      "to": "s23",
+      "newClasses": [
+        "SandboxRunner",
+        "DenyPatterns",
+        "ResourceLimits"
+      ],
+      "newFunctions": [
+        "runSandboxed",
+        "staticAnalysis"
+      ],
+      "newTools": [],
+      "locDelta": 0
     }
   ]
 }

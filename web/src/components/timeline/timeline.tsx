@@ -9,27 +9,27 @@ import { cn } from "@/lib/utils";
 import versionsData from "@/data/generated/versions.json";
 
 const LAYER_DOT_BG: Record<string, string> = {
-  tools: "bg-blue-500",
-  planning: "bg-emerald-500",
-  memory: "bg-purple-500",
-  concurrency: "bg-amber-500",
-  collaboration: "bg-red-500",
+  tools: "bg-[#889df0]",
+  planning: "bg-[#82d5bb]",
+  memory: "bg-[#b77dee]",
+  concurrency: "bg-[#e59266]",
+  collaboration: "bg-[#fc736d]",
 };
 
 const LAYER_LINE_BG: Record<string, string> = {
-  tools: "bg-blue-500/30",
-  planning: "bg-emerald-500/30",
-  memory: "bg-purple-500/30",
-  concurrency: "bg-amber-500/30",
-  collaboration: "bg-red-500/30",
+  tools: "bg-[#889df0]/30",
+  planning: "bg-[#82d5bb]/30",
+  memory: "bg-[#b77dee]/30",
+  concurrency: "bg-[#e59266]/30",
+  collaboration: "bg-[#fc736d]/30",
 };
 
 const LAYER_BAR_BG: Record<string, string> = {
-  tools: "bg-blue-500",
-  planning: "bg-emerald-500",
-  memory: "bg-purple-500",
-  concurrency: "bg-amber-500",
-  collaboration: "bg-red-500",
+  tools: "bg-[#889df0]",
+  planning: "bg-[#82d5bb]",
+  memory: "bg-[#b77dee]",
+  concurrency: "bg-[#e59266]",
+  collaboration: "bg-[#fc736d]",
 };
 
 function getVersionData(id: string) {
@@ -85,7 +85,7 @@ export function Timeline() {
                   className={cn(
                     "z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-4 ring-[var(--color-bg)] sm:h-10 sm:w-10",
                     isUnimplemented
-                      ? "bg-zinc-300 dark:bg-zinc-600"
+                      ? "bg-[#d4c9b4]"
                       : LAYER_DOT_BG[meta.layer]
                   )}
                 >
@@ -120,7 +120,7 @@ export function Timeline() {
                   <div className="flex flex-wrap items-start gap-2">
                     <LayerBadge layer={meta.layer}>{versionId}</LayerBadge>
                     {isUnimplemented && (
-                      <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-medium text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
+                      <span className="rounded-full bg-[#f6efe0] px-2 py-0.5 text-[10px] font-medium text-[#8a7b66]">
                         WIP
                       </span>
                     )}
@@ -147,7 +147,7 @@ export function Timeline() {
                   </div>
 
                   {/* LOC bar */}
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#f6efe0]">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all",
@@ -168,7 +168,7 @@ export function Timeline() {
                   {!isUnimplemented && (
                     <Link
                       href={`/${locale}/${versionId}`}
-                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-100"
+                      className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-[#5a4a30] hover:underline"
                     >
                       {t("learn_more")}
                       <span aria-hidden="true">&rarr;</span>

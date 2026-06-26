@@ -62,7 +62,7 @@ export function AgentLoopSimulator({ version }: AgentLoopSimulatorProps) {
       </p>
 
       <div className="overflow-hidden rounded-xl border border-[var(--color-border)]">
-        <div className="border-b border-[var(--color-border)] bg-zinc-50 px-4 py-3 dark:bg-zinc-900">
+        <div className="border-b border-[var(--color-border)] bg-[#fbf7eb] px-4 py-3">
           <SimulatorControls
             isPlaying={sim.isPlaying}
             isComplete={sim.isComplete}

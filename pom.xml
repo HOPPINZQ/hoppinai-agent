@@ -7,17 +7,31 @@
     <artifactId>hoppinzq-agent</artifactId>
     <packaging>pom</packaging>
     <modules>
-        <module>hoppinzq-module-agent-01</module>
-        <module>hoppinzq-module-agent-02</module>
-        <module>hoppinzq-module-agent-03</module>
-        <module>hoppinzq-module-agent-04</module>
-        <module>hoppinzq-module-agent-05</module>
-        <module>hoppinzq-module-agent-06</module>
-        <module>hoppinzq-module-agent-07</module>
-        <module>hoppinzq-module-agent-08</module>
+        <module>hoppinzq-module-agent-01-baseloop</module>
+        <module>hoppinzq-module-agent-02-tooluse</module>
+        <module>hoppinzq-module-agent-03-todo</module>
+        <module>hoppinzq-module-agent-04-subagent</module>
+        <module>hoppinzq-module-agent-05-skill</module>
+        <module>hoppinzq-module-agent-06-compact</module>
+        <module>hoppinzq-module-agent-07-task</module>
+        <module>hoppinzq-module-agent-08-background</module>
+        <module>hoppinzq-module-agent-09-permission</module>
+        <module>hoppinzq-module-agent-10-hooks</module>
+        <module>hoppinzq-module-agent-11-memory</module>
+        <module>hoppinzq-module-agent-12-errorrecovery</module>
         <module>hoppinzq-module-agent-13-mcp</module>
         <module>hoppinzq-module-agent-14-react</module>
+        <module>hoppinzq-module-agent-15-sysprompt</module>
+        <module>hoppinzq-module-agent-16-cron</module>
+        <module>hoppinzq-module-agent-17-teams</module>
+        <module>hoppinzq-module-agent-18-protocols</module>
+        <module>hoppinzq-module-agent-19-autonomous</module>
+        <module>hoppinzq-module-agent-20-worktree</module>
+        <module>hoppinzq-module-agent-21-comprehensive</module>
+        <module>hoppinzq-module-agent-22-multimodal</module>
+        <module>hoppinzq-module-agent-23-sandbox</module>
         <module>hoppinzq-module-agent-web</module>
+        <module>hoppinzq-module-agent-cli</module>
     </modules>
     <groupId>com.hoppinzq</groupId>
     <version>1.0-SNAPSHOT</version>
@@ -26,7 +40,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <anthropic.sdk.version>2.17.0</anthropic.sdk.version>
+        <anthropic.sdk.version>2.30.0</anthropic.sdk.version>
         <lombok.version>1.18.30</lombok.version>
         <jackson.version>2.15.2</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>

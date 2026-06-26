@@ -12,7 +12,7 @@ public class AIConstants {
     //anthropic 地址 或者代理地址 必填
     public static final String BASE_URL = "https://api.deepseek.com/anthropic";
     //API KEY 必填
-    public static final String API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxx";
+    public static final String API_KEY = "sk-xxxxxx";
     //模型名称 必填
     public static final String MODEL = "deepseek-chat";
 

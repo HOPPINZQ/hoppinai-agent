@@ -1,493 +1,267 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useSteppedVisualization } from "@/hooks/useSteppedVisualization";
+import { AnimatePresence, motion } from "framer-motion";
+import { Cable, CheckCircle2, PlugZap, Search, Server, Wrench } from "lucide-react";
 import { StepControls } from "@/components/visualizations/shared/step-controls";
-
-interface MCPTool {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  server: string;
-  color: string;
-}
-
-const MCP_TOOLS: MCPTool[] = [
-  {
-    name: "get_weather",
-    description: "获取指定城市的实时天气信息",
-    inputSchema: {
-      type: "object",
-      properties: {
-        city: { type: "string", description: "城市名称" },
-        unit: { type: "string", enum: ["celsius", "fahrenheit"], description: "温度单位" }
-      },
-      required: ["city"]
-    },
-    server: "Weather Server",
-    color: "blue"
-  },
-  {
-    name: "search_files",
-    description: "在文件系统中搜索匹配的文件",
-    inputSchema: {
-      type: "object",
-      properties: {
-        pattern: { type: "string", description: "文件名模式" },
-        path: { type: "string", description: "搜索路径" }
-      },
-      required: ["pattern"]
-    },
-    server: "Filesystem MCP",
-    color: "purple"
-  },
-  {
-    name: "execute_query",
-    description: "执行数据库查询操作",
-    inputSchema: {
-      type: "object",
-      properties: {
-        sql: { type: "string", description: "SQL查询语句" },
-        params: { type: "array", items: { type: "string" }, description: "查询参数" }
-      },
-      required: ["sql"]
-    },
-    server: "Database MCP",
-    color: "green"
-  },
-  {
-    name: "git_commit",
-    description: "创建Git提交记录",
-    inputSchema: {
-      type: "object",
-      properties: {
-        message: { type: "string", description: "提交信息" },
-        files: { type: "array", items: { type: "string" }, description: "要提交的文件" }
-      },
-      required: ["message"]
-    },
-    server: "Git MCP",
-    color: "orange"
-  }
-];
-
-const SCHEMA_PREVIEW = `{
-  "name": "get_weather",
-  "description": "获取指定城市的实时天气信息",
-  "inputSchema": {
-    "type": "object",
-    "properties": {
-      "city": { "type": "string" },
-      "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
-    },
-    "required": ["city"]
-  }
-}`;
-
-const AGENT_RESPONSE = `{
-  "tool": "get_weather",
-  "arguments": {
-    "city": "北京",
-    "unit": "celsius"
-  }
-}`;
-
-const TOOL_RESULT = `{
-  "status": "success",
-  "temperature": 22,
-  "condition": "晴朗",
-  "humidity": 45,
-  "wind": "东北风 3级"
-}`;
-
-const TOKEN_STATES = [0, 0, 1500, 1500, 1500, 1700];
-const MAX_TOKEN_DISPLAY = 2000;
+import { useSteppedVisualization } from "@/hooks/useSteppedVisualization";
+import { cn } from "@/lib/utils";
 
 const STEPS = [
   {
-    title: "第一步：建立连接",
-    description: "客户端通过标准协议（SSE、WebSocket或stdio）与MCP Server建立通信通道，完成协议握手和版本协商。"
+    title: "需要一种新工具",
+    desc: "智能体先带着内置工具启动，然后发现这个任务需要外部能力。",
+    active: "need",
   },
   {
-    title: "第二步：工具发现",
-    description: "客户端发送 tools/list 请求，Server返回可用工具清单，包含名称、描述和JSON Schema格式的参数定义。"
+    title: "插入一个服务",
+    desc: "MCP 最容易理解的方式就是把一个命名的工具箱插到智能体工作台上。",
+    active: "server",
   },
   {
-    title: "第三步：Schema注入",
-    description: "将工具的JSON Schema格式化为Agent能理解的描述文本，嵌入到系统提示词中，告知Agent工具的功能和调用格式。"
+    title: "阅读工具标签",
+    desc: "服务会发布 schema，所以智能体可以看到每个工具期望什么。",
+    active: "discover",
   },
   {
-    title: "第四步：结构化调用",
-    description: "Agent根据用户问题判断需要调用工具，生成符合Schema的结构化响应，包含工具名称和参数对象。"
+    title: "为工具命名空间化",
+    desc: "每个外部工具获得一个带命名空间的标签，避免和内置工具冲突。",
+    active: "belt",
   },
   {
-    title: "第五步：执行与处理",
-    description: "客户端通过MCP协议发送 tools/call 请求，Server执行工具并返回结果，完成工具调用闭环。"
+    title: "像任何工具一样使用",
+    desc: "一旦上了工具带，MCP 工具遵循相同的调用-结果节奏。",
+    active: "call",
   },
   {
-    title: "完整闭环",
-    description: "MCP协议让Agent能够动态扩展能力，与外部系统无缝交互。从连接、发现、注入、调用到执行，形成完整工具调用流程。"
-  }
+    title: "结果返回",
+    desc: "返回的数据对下一轮模型来说只是又一个工具结果。",
+    active: "result",
+  },
+] as const;
+
+const BUILT_INS = ["read_file", "edit_file", "bash"];
+const SERVER_TOOLS = [
+  { raw: "search", namespaced: "mcp__docs__search" },
+  { raw: "fetch", namespaced: "mcp__docs__fetch" },
+  { raw: "list_sections", namespaced: "mcp__docs__list_sections" },
 ];
 
-export default function MCProtocol({ title }: { title?: string }) {
-  const {
-    currentStep,
-    totalSteps,
-    next,
-    prev,
-    reset,
-    isPlaying,
-    toggleAutoPlay,
-  } = useSteppedVisualization({ totalSteps: STEPS.length, autoPlayInterval: 2500 });
+function ToolChip({
+  label,
+  active,
+  external,
+}: {
+  label: string;
+  active?: boolean;
+  external?: boolean;
+}) {
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ duration: 0.2 }}
+      className={cn(
+        "min-w-0 max-w-full break-all rounded-md border px-2 py-1.5 font-mono text-[11px] leading-snug",
+        active
+          ? "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+          : external
+            ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+            : "border-zinc-200 bg-white text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+      )}
+    >
+      {label}
+    </motion.div>
+  );
+}
 
-  const showConnection = currentStep >= 1;
-  const showToolsList = currentStep >= 2;
-  const showSchemaInjection = currentStep >= 3;
-  const showCompleteFlow = currentStep === 5;
+function Shelf({
+  title,
+  icon,
+  active,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3 transition-colors",
+        active
+          ? "border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30"
+          : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900"
+      )}
+    >
+      <div className="mb-3 flex min-w-0 items-center gap-2 text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+        <span
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-md",
+            active
+              ? "bg-emerald-500 text-white"
+              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300"
+          )}
+        >
+          {icon}
+        </span>
+        <span className="min-w-0 break-words">{title}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
 
-  const highlightedTool = currentStep === 2 ? 0 : currentStep >= 3 ? 0 : -1;
-  const showFullSchema = currentStep >= 3;
-  const showAgentResponse = currentStep >= 4;
-  const showToolResult = currentStep === 5;
-
-  const tokenCount = TOKEN_STATES[currentStep];
+export default function McpToolsVisualization({ title }: { title?: string }) {
+  const vis = useSteppedVisualization({ totalSteps: STEPS.length, autoPlayInterval: 2500 });
+  const step = vis.currentStep;
+  const current = STEPS[step];
+  const connected = step >= 1;
+  const discovered = step >= 2;
+  const namespaced = step >= 3;
+  const called = step >= 4;
+  const returned = step >= 5;
 
   return (
-    <section className="space-y-4">
+    <section className="min-h-[500px] space-y-4">
       <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-        {title || "MCP 完整运行流程"}
+        {title || "MCP 工具桥"}
       </h2>
 
-      <div
-        className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900"
-        style={{ minHeight: 520 }}
-      >
-        <div className="flex gap-6">
-          {/* Main content area */}
-          <div className="flex-1 space-y-4">
-            {/* MCP Client Block */}
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-                  MCP Client (AI Agent)
-                </span>
-                <span className="rounded bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  Host
+      <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="grid gap-3 lg:grid-cols-[1fr_1.2fr_1fr]">
+          <Shelf
+            title="内置工具带"
+            icon={<Wrench size={15} />}
+            active={current.active === "need"}
+          >
+            <div className="space-y-2">
+              {BUILT_INS.map((tool) => (
+                <ToolChip key={tool} label={tool} />
+              ))}
+              <div className="rounded-md border border-dashed border-zinc-300 px-3 py-5 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                限于本地能力
+              </div>
+            </div>
+          </Shelf>
+
+          <div className="space-y-3">
+            <Shelf
+              title="外部工具箱"
+              icon={<Server size={15} />}
+              active={current.active === "server" || current.active === "discover"}
+            >
+              <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-800">
+                <div className="flex items-center gap-2 font-mono text-zinc-700 dark:text-zinc-200">
+                  <Cable size={14} />
+                  docs-server
+                </div>
+                <span
+                  className={cn(
+                    "rounded px-2 py-0.5 text-[10px] font-semibold",
+                    connected
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      : "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-300"
+                  )}
+                >
+                  {connected ? "已连接" : "离线"}
                 </span>
               </div>
-              <div className="rounded-lg border border-emerald-300 bg-zinc-900 p-4 dark:border-emerald-700">
-                <div className="mb-2 font-mono text-[10px] text-zinc-500">
-                  # Agent 系统提示词
-                </div>
-                <div className="space-y-1.5">
-                  {showSchemaInjection ? (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <AnimatePresence>
+                  {discovered ? (
+                    SERVER_TOOLS.map((tool) => (
+                      <ToolChip key={tool.raw} label={tool.raw} external />
+                    ))
+                  ) : (
                     <motion.div
+                      key="no-schema"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="rounded border-2 border-blue-500/50 bg-blue-900/30 p-3"
+                      exit={{ opacity: 0 }}
+                      className="col-span-full rounded-md border border-dashed border-zinc-300 px-3 py-5 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
                     >
-                      <div className="mb-2 text-xs font-semibold text-blue-300">
-                        可用工具 (Tools)
-                      </div>
-                      <div className="space-y-1">
-                        {MCP_TOOLS.slice(0, 2).map((tool, i) => {
-                          const isHighlighted = i === highlightedTool;
-                          return (
-                            <motion.div
-                              key={tool.name}
-                              animate={{
-                                boxShadow: isHighlighted
-                                  ? "0 0 12px 2px rgba(59, 130, 246, 0.5)"
-                                  : "0 0 0 0px rgba(59, 130, 246, 0)",
-                              }}
-                              transition={{ duration: 0.4 }}
-                              className={`rounded px-3 py-1.5 font-mono text-xs transition-colors ${
-                                isHighlighted
-                                  ? "bg-blue-900/60 text-blue-300"
-                                  : "bg-zinc-800 text-zinc-400"
-                              }`}
-                            >
-                              <span className="font-semibold text-zinc-200">
-                                {tool.name}
-                              </span>
-                              {" - "}
-                              {tool.description}
-                            </motion.div>
-                          );
-                        })}
-                      </div>
+                      连接后才显示 schema
                     </motion.div>
-                  ) : (
-                    <div className="rounded bg-zinc-800 px-3 py-2 text-xs text-zinc-500">
-                      等待工具注册...
-                    </div>
                   )}
-                </div>
+                </AnimatePresence>
               </div>
-            </div>
+            </Shelf>
 
-            {/* Connection indicator */}
-            <AnimatePresence>
-              {showConnection && currentStep <= 2 && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-950/30"
-                >
-                  <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                    已连接到 {MCP_TOOLS.length} 个 MCP 服务器
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Connecting arrow */}
-            <AnimatePresence>
-              {(showToolsList || showSchemaInjection) && (
-                <motion.div
-                  initial={{ opacity: 0, scaleY: 0 }}
-                  animate={{ opacity: 1, scaleY: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex justify-center"
-                >
-                  <div className="flex flex-col items-center">
-                    <div className="h-6 w-px bg-blue-400 dark:bg-blue-500" />
-                    <div className="h-0 w-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-blue-400 dark:border-t-blue-500" />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* MCP Server Response Blocks */}
-            <div className="space-y-3">
-              {/* Tools List Response */}
-              <AnimatePresence>
-                {showToolsList && currentStep <= 3 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: currentStep === 3 ? 0.5 : 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="rounded-lg border-2 border-purple-300 bg-white p-4 dark:border-purple-700 dark:bg-zinc-800">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-purple-500" />
-                          <span className="text-xs font-bold text-purple-700 dark:text-purple-300">
-                            tools/list 响应
-                          </span>
-                        </div>
-                        <span className="rounded bg-purple-100 px-1.5 py-0.5 font-mono text-[10px] text-purple-600 dark:bg-purple-900/40 dark:text-purple-300">
-                          MCP Server
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        {MCP_TOOLS.slice(0, 3).map((tool, i) => (
-                          <motion.div
-                            key={i}
-                            initial={{ opacity: 0, x: -8 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: i * 0.08 }}
-                            className="rounded bg-zinc-100 px-3 py-1.5 dark:bg-zinc-700"
-                          >
-                            <div className="font-mono text-xs font-semibold text-zinc-700 dark:text-zinc-200">
-                              {tool.name}
-                            </div>
-                            <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
-                              {tool.description}
-                            </div>
-                          </motion.div>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* JSON Schema Injection */}
-              <AnimatePresence>
-                {showFullSchema && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="rounded-lg border-2 border-blue-300 bg-white p-4 dark:border-blue-700 dark:bg-zinc-800">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-blue-500" />
-                          <span className="text-xs font-bold text-blue-700 dark:text-blue-300">
-                            工具 Schema 注入
-                          </span>
-                        </div>
-                        <span className="rounded bg-blue-100 px-1.5 py-0.5 font-mono text-[10px] text-blue-600 dark:bg-blue-900/40 dark:text-blue-300">
-                          System Prompt
-                        </span>
-                      </div>
-                      <pre className="font-mono text-[10px] text-zinc-600 dark:text-zinc-300">
-                        {SCHEMA_PREVIEW}
-                      </pre>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Agent Response */}
-              <AnimatePresence>
-                {showAgentResponse && currentStep <= 4 && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="rounded-lg border-2 border-amber-300 bg-white p-4 dark:border-amber-700 dark:bg-zinc-800">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-amber-500" />
-                          <span className="text-xs font-bold text-amber-700 dark:text-amber-300">
-                            Agent 结构化响应
-                          </span>
-                        </div>
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-[10px] text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
-                          Agent → Client
-                        </span>
-                      </div>
-                      <pre className="font-mono text-[10px] text-zinc-600 dark:text-zinc-300">
-                        {AGENT_RESPONSE}
-                      </pre>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Tool Execution Result */}
-              <AnimatePresence>
-                {showToolResult && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.4 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="rounded-lg border-2 border-green-300 bg-white p-4 dark:border-green-700 dark:bg-zinc-800">
-                      <div className="mb-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-2 w-2 rounded-full bg-green-500" />
-                          <span className="text-xs font-bold text-green-700 dark:text-green-300">
-                            工具执行结果
-                          </span>
-                        </div>
-                        <span className="rounded bg-green-100 px-1.5 py-0.5 font-mono text-[10px] text-green-600 dark:bg-green-900/40 dark:text-green-300">
-                          MCP Server → Client
-                        </span>
-                      </div>
-                      <pre className="font-mono text-[10px] text-zinc-600 dark:text-zinc-300">
-                        {TOOL_RESULT}
-                      </pre>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Complete Flow Overview */}
-            <AnimatePresence>
-              {showCompleteFlow && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-800"
-                >
-                  <div className="mb-2 text-xs font-bold text-zinc-700 dark:text-zinc-300">
-                    🔄 MCP 工具调用闭环
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[10px]">
-                    <span className="rounded bg-emerald-100 px-2 py-1 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                      1. 连接建立
-                    </span>
-                    <span className="text-zinc-400">→</span>
-                    <span className="rounded bg-purple-100 px-2 py-1 font-semibold text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                      2. 工具发现
-                    </span>
-                    <span className="text-zinc-400">→</span>
-                    <span className="rounded bg-blue-100 px-2 py-1 font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                      3. Schema注入
-                    </span>
-                    <span className="text-zinc-400">→</span>
-                    <span className="rounded bg-amber-100 px-2 py-1 font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                      4. 结构化调用
-                    </span>
-                    <span className="text-zinc-400">→</span>
-                    <span className="rounded bg-green-100 px-2 py-1 font-semibold text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                      5. 执行处理
-                    </span>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <Shelf
+              title="智能体工作台"
+              icon={<PlugZap size={15} />}
+              active={current.active === "belt" || current.active === "call"}
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <AnimatePresence>
+                  {namespaced ? (
+                    SERVER_TOOLS.slice(0, 2).map((tool, index) => (
+                      <ToolChip
+                        key={tool.namespaced}
+                        label={tool.namespaced}
+                        active={called && index === 0}
+                      />
+                    ))
+                  ) : (
+                    <motion.div
+                      key="empty-belt"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="col-span-full rounded-md border border-dashed border-zinc-300 px-3 py-4 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:text-zinc-400"
+                    >
+                      工具带上还没有 MCP 工具
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </Shelf>
           </div>
 
-          {/* Info Panel */}
-
-          {/* Token Gauge */}
-          <div className="flex w-16 flex-col items-center">
-            <div className="mb-1 text-center font-mono text-[10px] text-zinc-400">
-              Tokens
-            </div>
-            <div
-              className="relative w-8 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800"
-              style={{ height: 300 }}
-            >
+          <Shelf
+            title="调用记录"
+            icon={called ? <Search size={15} /> : <CheckCircle2 size={15} />}
+            active={current.active === "call" || current.active === "result"}
+          >
+            <div className="space-y-2">
               <motion.div
-                animate={{
-                  height: `${(tokenCount / MAX_TOKEN_DISPLAY) * 100}%`,
-                }}
-                transition={{ duration: 0.5 }}
-                className={`absolute bottom-0 w-full rounded-full ${
-                  tokenCount > 1000
-                    ? "bg-amber-500"
-                    : tokenCount > 0
-                      ? "bg-blue-500"
-                      : "bg-emerald-500"
-                }`}
-              />
+                animate={called && !returned ? { y: [0, -2, 0] } : { y: 0 }}
+                transition={{ duration: 1, repeat: called && !returned ? Infinity : 0 }}
+                className="break-all rounded-md border border-zinc-200 bg-zinc-50 p-3 font-mono text-[11px] leading-snug text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+              >
+                {called ? "mcp__docs__search({ query })" : "等待工具调用"}
+              </motion.div>
+              <AnimatePresence>
+                {returned && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="break-words rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs leading-snug text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  >
+                    tool_result: 找到 3 条相关文档
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <motion.div
-              key={tokenCount}
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              className="mt-2 text-center font-mono text-xs font-semibold text-zinc-600 dark:text-zinc-300"
-            >
-              {tokenCount}
-            </motion.div>
-          </div>
+          </Shelf>
         </div>
 
-        {/* Step Controls */}
-        <div className="mt-6">
-          <StepControls
-            currentStep={currentStep}
-            totalSteps={totalSteps}
-            onPrev={prev}
-            onNext={next}
-            onReset={reset}
-            isPlaying={isPlaying}
-            onToggleAutoPlay={toggleAutoPlay}
-            stepTitle={STEPS[currentStep].title}
-            stepDescription={STEPS[currentStep].description}
-          />
-        </div>
+        <StepControls
+          className="mt-4"
+          currentStep={vis.currentStep}
+          totalSteps={vis.totalSteps}
+          onPrev={vis.prev}
+          onNext={vis.next}
+          onReset={vis.reset}
+          isPlaying={vis.isPlaying}
+          onToggleAutoPlay={vis.toggleAutoPlay}
+          stepTitle={current.title}
+          stepDescription={current.desc}
+        />
       </div>
     </section>
   );

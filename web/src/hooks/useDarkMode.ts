@@ -29,6 +29,7 @@ export interface SvgPalette {
   activeNodeText: string;
   endNodeFill: string;
   endNodeStroke: string;
+  endNodeText: string;
   edgeStroke: string;
   activeEdgeStroke: string;
   arrowFill: string;
@@ -37,39 +38,23 @@ export interface SvgPalette {
 }
 
 export function useSvgPalette(): SvgPalette {
-  const isDark = useDarkMode();
-
-  if (isDark) {
-    return {
-      nodeFill: "#27272a",
-      nodeStroke: "#3f3f46",
-      nodeText: "#d4d4d8",
-      activeNodeFill: "#3b82f6",
-      activeNodeStroke: "#2563eb",
-      activeNodeText: "#ffffff",
-      endNodeFill: "#a855f7",
-      endNodeStroke: "#9333ea",
-      edgeStroke: "#52525b",
-      activeEdgeStroke: "#3b82f6",
-      arrowFill: "#71717a",
-      labelFill: "#a1a1aa",
-      bgSubtle: "#18181b",
-    };
-  }
-
+  // Light parchment (animal-island-ui) is the only mode now.
+  // Cool slate greys and neon blue/purple are replaced with warm browns,
+  // parchment fills, and mint-teal / NookPhone-purple accents.
   return {
-    nodeFill: "#e2e8f0",
-    nodeStroke: "#cbd5e1",
-    nodeText: "#475569",
-    activeNodeFill: "#3b82f6",
-    activeNodeStroke: "#2563eb",
+    nodeFill: "#fbf7eb",
+    nodeStroke: "#d4c9b4",
+    nodeText: "#5a4a30",
+    activeNodeFill: "#19c8b9",
+    activeNodeStroke: "#11a89b",
     activeNodeText: "#ffffff",
-    endNodeFill: "#a855f7",
-    endNodeStroke: "#9333ea",
-    edgeStroke: "#cbd5e1",
-    activeEdgeStroke: "#3b82f6",
-    arrowFill: "#94a3b8",
-    labelFill: "#94a3b8",
-    bgSubtle: "#f8fafc",
+    endNodeFill: "#b77dee",
+    endNodeStroke: "#9070d0",
+    endNodeText: "#ffffff",
+    edgeStroke: "#c4b89e",
+    activeEdgeStroke: "#19c8b9",
+    arrowFill: "#9f927d",
+    labelFill: "#8a7b66",
+    bgSubtle: "#f6efe0",
   };
 }

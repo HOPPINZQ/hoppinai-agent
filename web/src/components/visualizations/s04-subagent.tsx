@@ -103,24 +103,24 @@ export default function SubagentIsolation({ title }: { title?: string }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-xl font-semibold text-[#794f27]">
         {title || "Subagent Context Isolation"}
       </h2>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-700 dark:bg-zinc-900"
+      <div className="rounded-lg border border-[#e8dcc8] bg-[#fbf7eb] p-6"
         style={{ minHeight: 500 }}
       >
         {/* Main layout: two containers side by side */}
         <div className="relative flex gap-4" style={{ minHeight: 340 }}>
           {/* Parent Process Container */}
-          <div className="flex-1 rounded-xl border-2 border-blue-300 bg-blue-50/50 p-4 dark:border-blue-700 dark:bg-blue-950/20">
+          <div className="flex-1 rounded-xl border-2 border-[#889df0]/40 bg-[#e6eafb]/50 p-4">
             <div className="mb-3 flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-blue-500" />
-              <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+              <div className="h-3 w-3 rounded-full bg-[#889df0]" />
+              <span className="text-sm font-bold text-[#889df0]">
                 父进程
               </span>
             </div>
-            <div className="mb-2 font-mono text-xs text-zinc-400">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               messages[]
             </div>
             <div className="space-y-2">
@@ -144,7 +144,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}
-                className="mt-3 rounded border border-blue-200 bg-white/60 px-2 py-1 text-center text-xs text-blue-600 dark:border-blue-700 dark:bg-blue-950/30 dark:text-blue-300"
+                className="mt-3 rounded border border-[#889df0]/40 bg-[#fbf7eb]/60 px-2 py-1 text-center text-xs text-[#889df0]"
               >
                 3 生成的测试用例 + 1 总结 = 干净的上下文
               </motion.div>
@@ -153,52 +153,52 @@ export default function SubagentIsolation({ title }: { title?: string }) {
 
           {/* Isolation Wall */}
           <div className="flex flex-col items-center justify-center gap-2">
-            <div className="h-full w-px border-l-2 border-dashed border-zinc-300 dark:border-zinc-600" />
+            <div className="h-full w-px border-l-2 border-dashed border-[#d4c9b4]" />
             <motion.div
               animate={{
                 opacity: currentStep >= 1 && currentStep <= 4 ? 1 : 0.4,
               }}
-              className="rounded bg-zinc-200 px-2 py-1 text-center font-mono text-[10px] text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400"
+              className="rounded bg-[#e8dcc8] px-2 py-1 text-center font-mono text-[10px] text-[#8a7b66]"
               style={{ writingMode: "horizontal-tb", textOrientation: "mixed" }}
             >
               上下文隔离
             </motion.div>
-            <div className="h-full w-px border-l-2 border-dashed border-zinc-300 dark:border-zinc-600" />
+            <div className="h-full w-px border-l-2 border-dashed border-[#d4c9b4]" />
           </div>
 
           {/* Child Process Container */}
           <div
             className={`flex-1 rounded-xl border-2 p-4 transition-colors duration-300 ${
               showChildEmpty
-                ? "border-dashed border-zinc-300 bg-zinc-50/50 dark:border-zinc-600 dark:bg-zinc-800/30"
+                ? "border-dashed border-[#d4c9b4] bg-[#fbf7eb]/50"
                 : childDiscarded
-                  ? "border-zinc-300 bg-zinc-100/50 dark:border-zinc-600 dark:bg-zinc-800/40"
-                  : "border-purple-300 bg-purple-50/50 dark:border-purple-700 dark:bg-purple-950/20"
+                  ? "border-[#d4c9b4] bg-[#f6efe0]/50"
+                  : "border-[#b77dee]/40 bg-[#efe2fb]/50"
             }`}
           >
             <div className="mb-3 flex items-center gap-2">
               <div
                 className={`h-3 w-3 rounded-full ${
                   showChildEmpty
-                    ? "bg-zinc-300 dark:bg-zinc-600"
+                    ? "bg-[#d4c9b4]"
                     : childDiscarded
-                      ? "bg-zinc-400 dark:bg-zinc-500"
-                      : "bg-purple-500"
+                      ? "bg-[#9f927d]"
+                      : "bg-[#b77dee]"
                 }`}
               />
               <span
                 className={`text-sm font-bold ${
                   showChildEmpty
-                    ? "text-zinc-400 dark:text-zinc-500"
+                    ? "text-[#725d42]"
                     : childDiscarded
-                      ? "text-zinc-400 dark:text-zinc-500"
-                      : "text-purple-700 dark:text-purple-300"
+                      ? "text-[#725d42]"
+                      : "text-[#b77dee]"
                 }`}
               >
                 子进程
               </span>
             </div>
-            <div className="mb-2 font-mono text-xs text-zinc-400">
+            <div className="mb-2 font-mono text-xs text-[#725d42]">
               messages[] (fresh)
             </div>
 
@@ -206,9 +206,9 @@ export default function SubagentIsolation({ title }: { title?: string }) {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex h-24 items-center justify-center rounded-lg border border-dashed border-zinc-200 dark:border-zinc-700"
+                className="flex h-24 items-center justify-center rounded-lg border border-dashed border-[#e8dcc8]"
               >
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-[#725d42]">
                   还没有内容
                 </span>
               </motion.div>
@@ -235,7 +235,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mt-3 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-center text-xs text-amber-700 dark:border-amber-600 dark:bg-amber-900/20 dark:text-amber-300"
+                className="mt-3 rounded border border-[#e59266]/40 bg-[#fde6d8] px-2 py-1 text-center text-xs text-[#e59266]"
               >
                 压缩上下文为一段摘要...
               </motion.div>
@@ -245,7 +245,7 @@ export default function SubagentIsolation({ title }: { title?: string }) {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mt-3 rounded border border-red-200 bg-red-50 px-2 py-1 text-center text-xs text-red-500 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400"
+                className="mt-3 rounded border border-[#fc736d]/30 bg-[#fde2e0] px-2 py-1 text-center text-xs text-[#fc736d]"
               >
                 丢弃 子进程的上下文
               </motion.div>
