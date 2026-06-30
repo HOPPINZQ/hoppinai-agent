@@ -17,7 +17,7 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class ReadFileInput{
+public class ReadFileInput {
 
     @JsonProperty("path")
     private String path;

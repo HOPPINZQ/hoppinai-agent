@@ -6,6 +6,7 @@ import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -15,10 +16,10 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
  * 使用工具
- * 
+ * <p>
  * 这是一个基于Java的AI智能体框架，使用Anthropic API实现工具调用能力。
  * 该项目展示了如何构建一个能够使用多种工具（文件操作、命令执行等）的AI智能体。
- * 
+ *
  * <p><b>示例提示词：</b></p>
  * <ul>
  *   <li>"请帮我创建一个名为test.txt的文件，内容为'Hello, World!'"</li>
@@ -39,6 +40,8 @@ public class Agent02 {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);

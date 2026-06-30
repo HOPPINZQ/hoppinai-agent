@@ -17,7 +17,7 @@ public class AIConstants {
     //模型名称 必填
     public static final String MODEL = "deepseek-v4-flash";
 
-    public static final long TIMEOUT = 5*60;
+    public static final long TIMEOUT = 5 * 60;
     public static final int MAX_RETRIES = 5;
 
     //最大token数量

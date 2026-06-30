@@ -6,19 +6,22 @@ import java.io.File;
 
 /**
  * 一些常量
+ *
  * @author hoppinzq
  */
 public class AIConstants {
     //anthropic 地址 或者代理地址 必填
     public static final String BASE_URL = "https://api.deepseek.com/anthropic";
     //API KEY 必填
-    public static final String API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxx";
+    public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
     //模型名称 必填
-    public static final String MODEL = "deepseek-chat";
+    public static final String MODEL = "deepseek-v4-flash";
+
+    public static final long TIMEOUT = 5 * 60;
+    public static final int MAX_RETRIES = 5;
 
     //最大token数量
     public static final int MAX_TOKENS = 12500;
-    public static final double TEMPERATURE = 0.7D;
 
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     public static final String JSON_FAIL = "{\"error\": \"json序列化失败\"}";
@@ -30,7 +33,7 @@ public class AIConstants {
     // 你可以使用指令`where rg.exe`查看你的rg路径
     public static final String RG_PATH = "C:\\ProgramData\\chocolatey\\bin\\rg.exe";
 
-    public static final String MODULE_NAME = "hoppinzq-module-agent-02";
+    public static final String MODULE_NAME = "hoppinzq-module-agent-02-tooluse";
     // 工作目录
     public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
 }

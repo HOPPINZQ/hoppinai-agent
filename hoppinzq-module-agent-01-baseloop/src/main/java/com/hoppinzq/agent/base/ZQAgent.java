@@ -5,13 +5,18 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import lombok.Data;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MAX_TOKENS;
+import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
  * @author hoppinzq
@@ -26,14 +31,35 @@ public class ZQAgent {
     private String systemPrompt;
     private String taskResult;
     private boolean taskCompleted = false;
-    /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
+    /**
+     * 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。
+     */
     private SessionManager sessionManager;
+    /**
+     * 可选的命令处理器；设置后可处理 /stats、/exit 等特殊命令。
+     */
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    /**
+     * 设置会话管理器，同时初始化命令处理器。
+     */
+    public void setSessionManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+    }
+
+    /**
+     * 设置命令处理器（可选，覆盖默认实现）。
+     */
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public void run() {
@@ -47,11 +73,16 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
             if (userInput.isEmpty()) {
+                continue;
+            }
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
                 continue;
             }
             MessageParam userMessage = MessageParam.builder()
@@ -69,6 +100,7 @@ public class ZQAgent {
                 continue;
             }
             appendMessage(message.toParam());
+            recordUsageIfNeeded(message);
             // 每次 create 后都打印 assistant 的文本输出，避免纯文本回复（无工具调用）被静默吞掉
             printText(message);
 
@@ -85,6 +117,7 @@ public class ZQAgent {
                     break;
                 }
                 appendMessage(message.toParam());
+                recordUsageIfNeeded(message);
                 printText(message);
             }
             // 非 TOOL_USE 退出：检查是否被截断
@@ -117,7 +150,9 @@ public class ZQAgent {
                 .orElse(false);
     }
 
-    /** 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。 */
+    /**
+     * 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。
+     */
     private void warnIfTruncated(Message message) {
         boolean maxTokens = message.stopReason()
                 .map(StopReason.MAX_TOKENS::equals)
@@ -125,6 +160,15 @@ public class ZQAgent {
         if (maxTokens) {
             System.out.printf("\u001b[91m[警告]\u001b[0m 本轮回复被 max_tokens=%d 截断，工具调用可能不完整。建议调大 MAX_TOKENS。%n",
                     MAX_TOKENS);
+        }
+    }
+
+    /**
+     * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
+     */
+    private void recordUsageIfNeeded(Message message) {
+        if (sessionManager != null && message.usage() != null) {
+            sessionManager.recordUsage(message.usage());
         }
     }
 

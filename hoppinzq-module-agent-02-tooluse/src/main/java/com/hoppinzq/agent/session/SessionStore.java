@@ -39,7 +39,9 @@ public class SessionStore {
         this.mapper = mapper;
     }
 
-    /** 确保会话目录存在。 */
+    /**
+     * 确保会话目录存在。
+     */
     private void ensureDir() {
         try {
             Files.createDirectories(dir);
@@ -48,7 +50,9 @@ public class SessionStore {
         }
     }
 
-    /** 校验 sessionId 安全性，并返回对应的会话文件路径。 */
+    /**
+     * 校验 sessionId 安全性，并返回对应的会话文件路径。
+     */
     public Path pathOf(String sessionId) {
         if (sessionId == null || !sessionId.matches("[A-Za-z0-9_\\-:.]+")) {
             throw new IllegalArgumentException("非法 sessionId: " + sessionId);
@@ -56,7 +60,9 @@ public class SessionStore {
         return dir.resolve(sessionId + SUFFIX);
     }
 
-    /** 保存（覆盖）指定会话的消息列表。 */
+    /**
+     * 保存（覆盖）指定会话的消息列表。
+     */
     public void save(String sessionId, List<SessionMessage> messages) {
         ensureDir();
         Path target = pathOf(sessionId);
@@ -74,7 +80,9 @@ public class SessionStore {
         }
     }
 
-    /** 加载指定会话；不存在则返回空列表。 */
+    /**
+     * 加载指定会话；不存在则返回空列表。
+     */
     public List<SessionMessage> load(String sessionId) {
         Path file = pathOf(sessionId);
         if (!Files.exists(file)) {
@@ -82,19 +90,24 @@ public class SessionStore {
         }
         try {
             List<SessionMessage> list = mapper.readValue(file.toFile(),
-                    new TypeReference<List<SessionMessage>>() {});
+                    new TypeReference<List<SessionMessage>>() {
+                    });
             return list == null ? new ArrayList<>() : list;
         } catch (IOException e) {
             throw new RuntimeException("加载会话失败: " + sessionId, e);
         }
     }
 
-    /** 是否存在该会话。 */
+    /**
+     * 是否存在该会话。
+     */
     public boolean exists(String sessionId) {
         return Files.exists(pathOf(sessionId));
     }
 
-    /** 列出所有已存在的 sessionId（不含后缀）。 */
+    /**
+     * 列出所有已存在的 sessionId（不含后缀）。
+     */
     public List<String> listIds() {
         if (!Files.exists(dir)) {
             return List.of();

@@ -9,25 +9,31 @@ import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import lombok.Data;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Scanner;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
  * 智能体基类
+ *
  * @author hoppinzq
  */
 @Data
 public class ZQAgent {
-    private String systemPrompt;
+    protected final AnthropicClient client;
+    protected final List<MessageParam> messageParams = new ArrayList<>();
     private final Scanner scanner;
     private final String model;
-    protected final AnthropicClient client;
     private final List<ToolDefinition> tools;
-    protected final List<MessageParam> messageParams = new ArrayList<>();
+    private String systemPrompt;
     private String taskResult;
     private boolean taskCompleted = false;
-    /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
+    /**
+     * 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。
+     */
     private SessionManager sessionManager;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
@@ -118,7 +124,9 @@ public class ZQAgent {
                 .orElse(false);
     }
 
-    /** 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。 */
+    /**
+     * 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。
+     */
     private void warnIfTruncated(Message message) {
         boolean maxTokens = message.stopReason()
                 .map(StopReason.MAX_TOKENS::equals)
@@ -207,7 +215,7 @@ public class ZQAgent {
         }
     }
 
-    protected Message chatMessage(List<MessageParam> messageParams){
+    protected Message chatMessage(List<MessageParam> messageParams) {
         // 准备工具配置
         List<ToolUnion> anthropicTools = new ArrayList<>();
         for (ToolDefinition tool : tools) {
@@ -224,15 +232,13 @@ public class ZQAgent {
                 .messages(messageParams)
                 .tools(anthropicTools);
 
-        if(systemPrompt != null && !systemPrompt.isEmpty()){
+        if (systemPrompt != null && !systemPrompt.isEmpty()) {
             messageBuilder.system(systemPrompt);
         }
 
         messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
 
         MessageCreateParams params = messageBuilder.build();
-        System.out.println(params);
         return client.messages().create(params);
     }
 }

@@ -33,6 +33,7 @@ public class Tools {
 
     /**
      * 读取指定文件内容，支持./../相对路径
+     *
      * @param input
      * @return
      */
@@ -67,6 +68,7 @@ public class Tools {
 
     /**
      * 写入内容到指定文件，支持./../相对路径
+     *
      * @param input
      * @return
      */
@@ -106,12 +108,12 @@ public class Tools {
      * 该函数接收一个JSON格式的输入字符串，解析出要执行的命令和命令类型，
      * 根据指定的类型（cmd/powershell/bash）使用不同的方式执行命令，
      * 并捕获命令的标准输出和错误输出。
-     *
+     * <p>
      * 支持的命令类型：
      * - cmd: Windows CMD 命令提示符
      * - powershell: Windows PowerShell
      * - bash: Linux/Mac Bash shell（或 Windows Git Bash）
-     *
+     * <p>
      * 如果不指定类型，则根据操作系统自动选择：
      * - Windows: 默认使用 cmd
      * - Linux/Mac: 默认使用 bash
@@ -212,9 +214,9 @@ public class Tools {
      * 2. 验证输入参数有效性（路径非空且新旧字符串不同）
      * 3. 读取目标文件内容，处理文件不存在的情况
      * 4. 执行替换或追加操作：
-     *    - 当oldStr为空时直接追加newStr
-     *    - 当oldStr存在且唯一时执行替换
-     *    - 当oldStr不存在或出现多次时报错
+     * - 当oldStr为空时直接追加newStr
+     * - 当oldStr存在且唯一时执行替换
+     * - 当oldStr不存在或出现多次时报错
      * 5. 将修改后的内容写回文件
      *
      * @param input JSON格式的输入字符串，包含：
@@ -222,8 +224,8 @@ public class Tools {
      *              - oldStr: 要被替换的字符串（可选）
      *              - newStr: 要写入的新字符串（必填）
      * @return 操作结果字符串：
-     *         - "OK" 表示成功
-     *         - 错误信息字符串（如参数无效、文件读取错误等）
+     * - "OK" 表示成功
+     * - 错误信息字符串（如参数无效、文件读取错误等）
      */
     public static String editFile(String input) {
         try {
@@ -242,7 +244,7 @@ public class Tools {
                         editFileInput.getPath(), editFileInput.getOldStr(), editFileInput.getNewStr());
             }
 
-            Path filePath = Paths.get(ROOT+File.separator+editFileInput.getPath());
+            Path filePath = Paths.get(ROOT + File.separator + editFileInput.getPath());
             String oldContent;
 
             try {
@@ -317,9 +319,9 @@ public class Tools {
      * 可跳过指定前缀的目录
      *
      * @param input JSON格式的输入参数，包含要遍历的目录路径（path字段）
-     *                如果path为空或null，则默认使用当前目录(".")
+     *              如果path为空或null，则默认使用当前目录(".")
      * @return JSON格式的字符串，包含所有找到的文件和目录的相对路径列表
-     *         如果发生错误，返回错误信息字符串
+     * 如果发生错误，返回错误信息字符串
      */
     public static String listFiles(String input) {
         try {
@@ -388,7 +390,7 @@ public class Tools {
                                 } else if (dotIndex == 0) {
                                     ext = relativePathStr.substring(1);
                                 }
-                                
+
                                 if (fileType == null || fileType.isEmpty() || fileType.equalsIgnoreCase(ext)) {
                                     objectNode.put("type", "file");
                                     objectNode.put("fileName", fileOrDirName);
@@ -430,9 +432,9 @@ public class Tools {
      *              - fileType: 可选，文件类型过滤
      *              - caseSensitive: 可选，是否区分大小写（默认为false）
      * @return 搜索结果字符串：
-     *         - 成功时返回匹配的代码行（最多显示前50条）
-     *         - 失败时返回错误信息
-     *         - 无匹配时返回"没有找到匹配的内容"
+     * - 成功时返回匹配的代码行（最多显示前50条）
+     * - 失败时返回错误信息
+     * - 无匹配时返回"没有找到匹配的内容"
      */
     public static String searchContent(String input) {
         try {
@@ -536,7 +538,7 @@ public class Tools {
      * 并将每行内连续多个空格压缩为单个空格，这样可以匹配由于缩进格式不同（制表符vs空格）
      * 或换行符不同（\r\n vs \n）导致的视觉上相同但技术上不同的字符串。
      *
-     * @param str 主字符串，如果为null则返回0
+     * @param str    主字符串，如果为null则返回0
      * @param substr 要查找的子字符串，如果为null或空字符串则返回0
      * @return 子字符串在主字符串中出现的次数
      */
@@ -584,7 +586,7 @@ public class Tools {
      * 创建新文件并写入内容，如果父目录不存在则自动创建
      *
      * @param filePath 要创建的文件路径
-     * @param content 要写入文件的内容
+     * @param content  要写入文件的内容
      * @return 返回操作结果字符串，包含成功创建的文件路径
      * @throws IOException 当文件创建或写入过程中发生I/O错误时抛出
      */

@@ -1,11 +1,7 @@
 package com.hoppinzq.agent.session;
 
 import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.TextBlockParam;
-import com.anthropic.models.messages.ToolResultBlockParam;
-import com.anthropic.models.messages.ToolUseBlockParam;
+import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -80,7 +76,9 @@ public final class MessageConverter {
         return SessionBlock.builder().type("text").text("[unsupported block]").build();
     }
 
-    /** 提取 ToolUseBlockParam 的 input 为 JSON 字符串。 */
+    /**
+     * 提取 ToolUseBlockParam 的 input 为 JSON 字符串。
+     */
     private String inputToJsonString(ToolUseBlockParam tu) {
         try {
             // SDK 的 input() 返回 Input 对象，其底层为 additionalProperties Map<String, JsonValue>
@@ -159,7 +157,9 @@ public final class MessageConverter {
         return b.build();
     }
 
-    /** 将 JSON 字符串解析为 {@code Map<String, JsonValue>}。 */
+    /**
+     * 将 JSON 字符串解析为 {@code Map<String, JsonValue>}。
+     */
     private Map<String, JsonValue> parseInputMap(String json) {
         if (json == null || json.isBlank()) {
             return Map.of();

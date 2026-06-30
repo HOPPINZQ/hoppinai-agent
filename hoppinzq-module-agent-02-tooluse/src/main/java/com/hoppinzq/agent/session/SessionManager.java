@@ -50,7 +50,9 @@ public class SessionManager {
 
     // ============================== 生命周期 ==============================
 
-    /** 创建一个新会话，生成形如 {@code yyyyMMdd-HHmmss-XXXX} 的 ID。 */
+    /**
+     * 创建一个新会话，生成形如 {@code yyyyMMdd-HHmmss-XXXX} 的 ID。
+     */
     public String startNew() {
         this.sessionId = generateId();
         this.messages.clear();
@@ -71,7 +73,9 @@ public class SessionManager {
         return !this.messages.isEmpty();
     }
 
-    /** 列出所有已存在的会话 ID。 */
+    /**
+     * 列出所有已存在的会话 ID。
+     */
     public List<String> listSessions() {
         return store.listIds();
     }
@@ -96,7 +100,9 @@ public class SessionManager {
         persist();
     }
 
-    /** 当前消息数量。 */
+    /**
+     * 当前消息数量。
+     */
     public int historySize() {
         return messages.size();
     }

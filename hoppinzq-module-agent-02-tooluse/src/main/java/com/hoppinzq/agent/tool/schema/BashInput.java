@@ -48,11 +48,11 @@ public class BashInput {
     private String type;
 
     @Override
-   public String toString() {
-      try {
-         return OBJECT_MAPPER.writeValueAsString(this);
-      } catch (JsonProcessingException e) {
-         return JSON_FAIL;
-      }
-   }
+    public String toString() {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            return JSON_FAIL;
+        }
+    }
 }
