@@ -127,6 +127,7 @@ public class ZQAgent {
                 continue;
             }
             appendMessage(message.toParam());
+            recordUsageIfNeeded(message);
             printText(message);
 
             while (isToolUse(message)) {
@@ -139,6 +140,7 @@ public class ZQAgent {
                     break;
                 }
                 appendMessage(message.toParam());
+                recordUsageIfNeeded(message);
                 printText(message);
             }
             warnIfTruncated(message);
@@ -235,6 +237,15 @@ public class ZQAgent {
                 .role(MessageParam.Role.USER)
                 .content(MessageParam.Content.ofBlockParams(toolResults))
                 .build();
+    }
+
+    /**
+     * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
+     */
+    private void recordUsageIfNeeded(Message message) {
+        if (sessionManager != null && message.usage() != null) {
+            sessionManager.recordUsage(message.usage());
+        }
     }
 
     /**

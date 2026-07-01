@@ -125,6 +125,7 @@ public class ZQAgent {
                 continue;
             }
             messageParams.add(message.toParam());
+            recordUsageIfNeeded(message);
             printText(message);
 
             while (isToolUse(message)) {
@@ -137,6 +138,7 @@ public class ZQAgent {
                     break;
                 }
                 messageParams.add(message.toParam());
+                recordUsageIfNeeded(message);
                 printText(message);
             }
             warnIfTruncated(message);
@@ -222,6 +224,14 @@ public class ZQAgent {
                 .role(MessageParam.Role.USER)
                 .content(MessageParam.Content.ofBlockParams(toolResults))
                 .build();
+    }
+
+    /**
+     * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
+     * 注意：agent-18 当前没有 SessionManager，此方法为预留接口。
+     */
+    private void recordUsageIfNeeded(Message message) {
+        // 暂无 SessionManager，预留接口
     }
 
     /**

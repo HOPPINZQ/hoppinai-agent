@@ -70,6 +70,7 @@ public class ZQAgent {
                 continue;
             }
             messageParams.add(message.toParam());
+            recordUsageIfNeeded(message);
             printText(message);
 
             while (isToolUse(message)) {
@@ -82,6 +83,7 @@ public class ZQAgent {
                     break;
                 }
                 messageParams.add(message.toParam());
+                recordUsageIfNeeded(message);
                 printText(message);
             }
             warnIfTruncated(message);
@@ -163,6 +165,14 @@ public class ZQAgent {
 
     /** 子类（如 Agent04）可重写此钩子，在工具执行后做额外处理（如待办提醒）。 */
     protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    }
+
+    /**
+     * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
+     * 注意：agent-04 当前没有 SessionManager，此方法为预留接口。
+     */
+    private void recordUsageIfNeeded(Message message) {
+        // 暂无 SessionManager，预留接口
     }
 
     private String invokeTool(ToolDefinition tool, JsonValue input) {

@@ -88,6 +88,7 @@ public class ZQAgent {
                 continue;
             }
             appendMessage(message.toParam());
+            recordUsageIfNeeded(message);
             // 每次 create 后都打印 assistant 的文本输出，避免纯文本回复（无工具调用）被静默吞掉
             printText(message);
 
@@ -104,6 +105,7 @@ public class ZQAgent {
                     break;
                 }
                 appendMessage(message.toParam());
+                recordUsageIfNeeded(message);
                 printText(message);
             }
             // 非 TOOL_USE 退出：检查是否被截断
@@ -196,6 +198,15 @@ public class ZQAgent {
                 .role(MessageParam.Role.USER)
                 .content(MessageParam.Content.ofBlockParams(toolResults))
                 .build();
+    }
+
+    /**
+     * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
+     */
+    private void recordUsageIfNeeded(Message message) {
+        if (sessionManager != null && message.usage() != null) {
+            sessionManager.recordUsage(message.usage());
+        }
     }
 
     /**
