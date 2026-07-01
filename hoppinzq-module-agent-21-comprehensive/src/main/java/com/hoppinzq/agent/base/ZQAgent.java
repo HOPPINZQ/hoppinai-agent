@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.bus.MailboxMessage;
 import com.hoppinzq.agent.tool.bus.MessageBus;
@@ -51,6 +52,7 @@ public class ZQAgent {
     private List<ToolDefinition> teammateTools;
     private String taskResult;
     private boolean taskCompleted = false;
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
@@ -58,6 +60,10 @@ public class ZQAgent {
         this.scanner = new Scanner(System.in);
         this.tools = tools;
         this.teammateClient = client;
+    }
+
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public void startCron() {
@@ -91,6 +97,12 @@ public class ZQAgent {
                 if (userInput.isEmpty()) {
                     continue;
                 }
+            }
+
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
+                continue;
             }
 
             MessageParam userMessage = MessageParam.builder()

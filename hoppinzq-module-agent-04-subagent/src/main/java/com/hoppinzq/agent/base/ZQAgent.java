@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import lombok.Data;
 
@@ -26,12 +27,17 @@ public class ZQAgent {
     protected final List<MessageParam> messageParams = new ArrayList<>();
     private String taskResult;
     private boolean taskCompleted = false;
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public void run() {
@@ -42,6 +48,13 @@ public class ZQAgent {
             if (userInput.isEmpty()) {
                 continue;
             }
+
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
+                continue;
+            }
+
             MessageParam userMessage = MessageParam.builder()
                     .role(MessageParam.Role.USER)
                     .content(userInput)

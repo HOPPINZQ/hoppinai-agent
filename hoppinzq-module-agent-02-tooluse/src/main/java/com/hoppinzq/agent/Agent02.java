@@ -31,8 +31,6 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  * </ul>
  *
  * @author hoppinzq
- * @version 1.0
- * @since 2024
  */
 public class Agent02 {
 

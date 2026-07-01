@@ -5,6 +5,7 @@ import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 
@@ -81,6 +82,7 @@ public class Agent04 extends ZQAgent {
         tools.add(SubAgentDefinition);
         Agent04 mainAgent = new Agent04(client, MODEL, tools,todoManager);
         mainAgent.setSystemPrompt(buildSystemPrompt());
+        mainAgent.setCommandHandler(new AgentCommandHandler(null));
         mainAgent.run();
     }
 

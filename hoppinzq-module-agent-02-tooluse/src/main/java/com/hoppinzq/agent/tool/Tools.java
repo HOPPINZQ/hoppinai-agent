@@ -45,11 +45,8 @@ public class Tools {
             if (LOG_ENABLE) {
                 log.info("读取文件: {}", readFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            if (LOG_ENABLE) {
-                log.info("当前工作目录: {}", currentPath);
-            }
-            Path fullPath = currentPath.resolve(readFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(readFileInput.getPath());
             byte[] bytes = Files.readAllBytes(fullPath);
             String content = new String(bytes);
 
@@ -80,8 +77,8 @@ public class Tools {
             if (LOG_ENABLE) {
                 log.info("写入文件: {}", writeFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            Path fullPath = currentPath.resolve(writeFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(writeFileInput.getPath());
 
             // Ensure parent directories exist
             if (fullPath.getParent() != null) {
@@ -244,7 +241,7 @@ public class Tools {
                         editFileInput.getPath(), editFileInput.getOldStr(), editFileInput.getNewStr());
             }
 
-            Path filePath = Paths.get(ROOT + File.separator + editFileInput.getPath());
+            Path filePath = resolvePath(editFileInput.getPath());
             String oldContent;
 
             try {
@@ -315,6 +312,65 @@ public class Tools {
     }
 
     /**
+     * 智能路径解析：支持绝对路径和相对路径
+     * <p>
+     * - 绝对路径：直接使用（当 ROOT="*" 时无限制；否则需在 ROOT 范围内）
+     * - 相对路径：从 ROOT 解析
+     *
+     * @param inputPath 用户输入的路径
+     * @return 解析后的完整路径
+     * @throws IllegalArgumentException 当路径超出 ROOT 限制时抛出
+     */
+    private static Path resolvePath(String inputPath) {
+        if (inputPath == null || inputPath.isEmpty()) {
+            throw new IllegalArgumentException("路径不能为空");
+        }
+
+        Path input = Paths.get(inputPath);
+
+        // 绝对路径处理
+        if (input.isAbsolute()) {
+            // UNRESTRICTED_PATH_MODE=true 表示无限制模式
+            if (UNRESTRICTED_PATH_MODE) {
+                if (LOG_ENABLE) {
+                    log.info("UNRESTRICTED_PATH_MODE=true，允许任意绝对路径: {}", inputPath);
+                }
+                return input.normalize();
+            }
+
+            // 普通模式：检查绝对路径是否在 ROOT 范围内
+            Path rootPath = Paths.get(ROOT).toAbsolutePath();
+            Path resolved = input.normalize();
+
+            // 检查 resolved 是否以 rootPath 开头（安全沙箱）
+            if (!resolved.startsWith(rootPath)) {
+                throw new IllegalArgumentException(
+                    "路径必须在项目目录内。ROOT=" + ROOT + "，尝试访问: " + inputPath);
+            }
+
+            if (LOG_ENABLE) {
+                log.info("绝对路径（已验证在 ROOT 范围内）: {} -> {}", inputPath, resolved);
+            }
+            return resolved;
+        }
+
+        // 相对路径：从 ROOT 解析
+        Path rootPath = Paths.get(ROOT).toAbsolutePath();
+        Path resolved = rootPath.resolve(inputPath).normalize();
+
+        // 再次检查（防止 ../ 跳出，除非在非限制模式）
+        if (!UNRESTRICTED_PATH_MODE && !resolved.startsWith(rootPath)) {
+            throw new IllegalArgumentException(
+                "相对路径解析后超出项目目录。ROOT=" + ROOT + "，输入: " + inputPath);
+        }
+
+        if (LOG_ENABLE) {
+            log.info("相对路径解析: {} -> {}", inputPath, resolved);
+        }
+        return resolved;
+    }
+
+    /**
      * 列出指定目录下的所有文件和子目录（递归遍历）
      * 可跳过指定前缀的目录
      *
@@ -328,22 +384,30 @@ public class Tools {
             ObjectMapper mapper = new ObjectMapper();
             ListFilesInput listFilesInput = mapper.readValue(input, ListFilesInput.class);
 
-            String dir = ROOT;
+            String inputPath = listFilesInput.getPath() != null && !listFilesInput.getPath().isEmpty()
+                    ? listFilesInput.getPath()
+                    : ".";
             String fileType;
-            if (listFilesInput.getPath() != null && !listFilesInput.getPath().isEmpty()) {
-                dir = ROOT + File.separator + listFilesInput.getPath();
-            }
             if (listFilesInput.getFileType() != null) {
                 fileType = listFilesInput.getFileType();
             } else {
                 fileType = null;
             }
+
+            // 递归参数：默认 false
+            boolean recursive = listFilesInput.getRecursive() != null ? listFilesInput.getRecursive() : false;
+
+            // 最大结果数：默认 100，设为 null 或 0 表示无限制
+            Integer maxResults = listFilesInput.getMaxResults();
+            boolean hasLimit = maxResults != null && maxResults > 0;
+
             if (AIConstants.LOG_ENABLE) {
-                log.info("列出文件: {}", dir);
+                log.info("列出文件: {}, 递归: {}, 最大结果: {}", inputPath, recursive, maxResults);
             }
 
+            Path startPath = resolvePath(inputPath);
+
             ArrayNode arrayNode = OBJECT_MAPPER.createArrayNode();
-            Path startPath = Paths.get(dir).toAbsolutePath();
 
             // 定义要排除的目录和文件
             Set<String> excludedDirs = Set.of(".idea", ".git", "target", "node_modules",
@@ -356,8 +420,15 @@ public class Tools {
 
             FileExclusionHelper exclusionHelper = new FileExclusionHelper(excludedDirs, excludedFilePatterns);
 
-            try (Stream<Path> stream = Files.walk(startPath)) {
+            // 根据 recursive 参数选择遍历方式
+            Stream<Path> stream = recursive ? Files.walk(startPath) : Files.list(startPath);
+
+            try (stream) {
                 stream.forEach(path -> {
+                    // 检查是否达到结果上限
+                    if (hasLimit && arrayNode.size() >= maxResults) {
+                        return;
+                    }
                     try {
                         Path relativePath = startPath.relativize(path);
                         Path absolutePath = relativePath.toAbsolutePath();
@@ -409,7 +480,7 @@ public class Tools {
             String result = OBJECT_MAPPER.writeValueAsString(arrayNode);
 
             if (AIConstants.LOG_ENABLE) {
-                log.info("找到{}个文件，目录 {}", arrayNode.size(), dir);
+                log.info("找到{}个文件，目录 {}", arrayNode.size(), startPath);
             }
 
             return result;
@@ -610,5 +681,15 @@ public class Tools {
         }
 
         return "成功创建文件 " + filePath;
+    }
+
+    /**
+     * 测试 main 方法
+     */
+    public static void main(String[] args) {
+        // 测试 list_files 工具
+        String testInput = "{\"path\": \"D:/ai/pi\", \"recursive\": false, \"maxResults\": 10}";
+        String result = listFiles(testInput);
+        System.out.println(result);
     }
 }

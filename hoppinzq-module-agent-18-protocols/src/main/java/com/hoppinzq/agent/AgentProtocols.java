@@ -3,6 +3,7 @@ package com.hoppinzq.agent;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
 import com.hoppinzq.agent.tool.bus.MessageBus;
@@ -83,6 +84,7 @@ public class AgentProtocols {
         agent.setMessageBus(bus);
         // 让 Tools 里的 protocol 工具能访问 agent 的 registry
         Tools.setLeadRegistry(agent.getProtocolRegistry());
+        agent.setCommandHandler(new AgentCommandHandler(null));
 
         agent.run();
     }

@@ -3,6 +3,7 @@ package com.hoppinzq.agent;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
 import com.hoppinzq.agent.tool.bus.MessageBus;
@@ -136,6 +137,7 @@ public class AgentComprehensive {
         agent.setCronScheduler(cron);
         agent.setMessageBus(bus);
         agent.setProtocolRegistry(registry);
+        agent.setCommandHandler(new AgentCommandHandler(null));
         // 权限闸门：本入口预构造 PermissionChecker 供参考；若要启用，把它的 check 嵌入 ZQAgent
         // 的工具执行前（参考 hoppinzq-module-agent-permission 的本地 ZQAgent 副本）。
         // agent.setPermissionChecker(new PermissionChecker(agent.getScanner()));

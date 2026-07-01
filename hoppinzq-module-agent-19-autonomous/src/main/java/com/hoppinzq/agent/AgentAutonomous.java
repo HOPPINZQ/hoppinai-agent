@@ -3,6 +3,7 @@ package com.hoppinzq.agent;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
 import com.hoppinzq.agent.tool.bus.MessageBus;
@@ -93,6 +94,7 @@ public class AgentAutonomous {
         agent.setCronScheduler(cron);
         agent.setMessageBus(bus);
         agent.setProtocolRegistry(registry);
+        agent.setCommandHandler(new AgentCommandHandler(null));
         agent.run();
     }
 

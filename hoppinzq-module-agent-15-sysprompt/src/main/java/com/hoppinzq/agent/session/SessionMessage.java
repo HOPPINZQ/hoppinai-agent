@@ -22,10 +22,16 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class SessionMessage {
-    /** 角色：user / assistant */
+    /**
+     * 角色：user / assistant
+     */
     private String role;
-    /** 字符串内容；非空表示纯字符串消息 */
+    /**
+     * 字符串内容；非空表示纯字符串消息
+     */
     private String text;
-    /** 结构化内容；非空表示块消息 */
+    /**
+     * 结构化内容；非空表示块消息
+     */
     private List<SessionBlock> blocks;
 }

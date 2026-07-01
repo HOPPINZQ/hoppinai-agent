@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.cron.CronScheduler;
 import lombok.Data;
@@ -36,6 +37,7 @@ public class ZQAgent {
     private CronScheduler cronScheduler;
     private String taskResult;
     private boolean taskCompleted = false;
+    private AgentCommandHandler commandHandler;
 
     // ========================= teams 相关字段 =========================
     /** lead 的消息总线实例（其实 MessageBus 全是静态方法，这里只是为了依赖注入表达） */
@@ -52,6 +54,10 @@ public class ZQAgent {
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public void startCron() {
@@ -85,6 +91,12 @@ public class ZQAgent {
                 if (userInput.isEmpty()) {
                     continue;
                 }
+            }
+
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
+                continue;
             }
 
             MessageParam userMessage = MessageParam.builder()

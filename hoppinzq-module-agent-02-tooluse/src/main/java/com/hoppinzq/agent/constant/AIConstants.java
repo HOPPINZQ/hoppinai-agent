@@ -29,6 +29,10 @@ public class AIConstants {
     //是否开启打印日志，MCP stdio不允许打印日志，如果你拿去改造为MCP，请注意！
     public static final Boolean LOG_ENABLE = false;
 
+    //路径限制模式：true=允许任意绝对路径（关闭安全沙箱），false=只允许 ROOT 范围内的路径
+    //建议本地开发环境设为 true，生产环境设为 false
+    public static final Boolean UNRESTRICTED_PATH_MODE = true;
+
     // ripgrep路径，如果你配置了系统环境变量，将其修改为rg。一般这种集成到应用里的，可以不配置到系统环境变量，直接全路径即可
     // 你可以使用指令`where rg.exe`查看你的rg路径
     public static final String RG_PATH = "C:\\ProgramData\\chocolatey\\bin\\rg.exe";

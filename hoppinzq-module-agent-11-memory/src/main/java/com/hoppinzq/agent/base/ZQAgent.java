@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.memory.MemoryExtractor;
@@ -44,6 +45,7 @@ public class ZQAgent {
     private boolean taskCompleted = false;
     /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
     private SessionManager sessionManager;
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
@@ -63,11 +65,16 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
             if (userInput.isEmpty()) {
+                continue;
+            }
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
                 continue;
             }
             MessageParam userMessage = MessageParam.builder()
@@ -246,5 +253,14 @@ public class ZQAgent {
 
         MessageCreateParams params = messageBuilder.build();
         return client.messages().create(params);
+    }
+
+    public void setSessionManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+    }
+
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 }

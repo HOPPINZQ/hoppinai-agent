@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.cron.CronScheduler;
@@ -39,12 +40,22 @@ public class ZQAgent {
     private boolean taskCompleted = false;
     /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
     private SessionManager sessionManager;
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    public void setSessionManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+    }
+
+    public void setCommandHandler(AgentCommandHandler commandHandler) {
+        this.commandHandler = commandHandler;
     }
 
     public void startCron() {
@@ -88,6 +99,12 @@ public class ZQAgent {
                 if (userInput.isEmpty()) {
                     continue;
                 }
+            }
+
+            // 命令处理（在创建 userMessage 之前）
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
+                continue;
             }
 
             MessageParam userMessage = MessageParam.builder()
@@ -266,6 +283,12 @@ public class ZQAgent {
 
         if(systemPrompt != null && !systemPrompt.isEmpty()){
             messageBuilder.system(systemPrompt);
+        }
+
+        // 添加命令提示
+        if (sessionManager != null) {
+            String cmdHint = "\n\n特殊命令（不发送给模型）：/stats - 查看会话统计，/usage - 查看token使用明细，/exit - 退出程序";
+            messageBuilder.system(systemPrompt == null ? cmdHint : systemPrompt + cmdHint);
         }
 
         messageBuilder.maxTokens(MAX_TOKENS);

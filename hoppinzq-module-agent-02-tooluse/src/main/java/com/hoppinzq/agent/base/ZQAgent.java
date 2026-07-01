@@ -5,6 +5,7 @@ import com.anthropic.core.JsonValue;
 import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import lombok.Data;
@@ -35,12 +36,27 @@ public class ZQAgent {
      * 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。
      */
     private SessionManager sessionManager;
+    /**
+     * 可选的命令处理器；设置后可处理 /stats、/usage、/exit 等特殊命令。
+     * -- SETTER --
+     *  设置命令处理器（可选，覆盖默认实现）。
+
+     */
+    private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    /**
+     * 设置会话管理器，同时初始化命令处理器。
+     */
+    public void setSessionManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
     }
 
     public void run() {
@@ -54,11 +70,16 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
             if (userInput.isEmpty()) {
+                continue;
+            }
+            // 特殊命令：不发送给 LLM
+            if (commandHandler != null && commandHandler.isCommand(userInput)) {
+                commandHandler.handleCommand(userInput);
                 continue;
             }
             MessageParam userMessage = MessageParam.builder()

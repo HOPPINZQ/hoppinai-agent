@@ -61,14 +61,14 @@ public class SessionStore {
     }
 
     /**
-     * 保存（覆盖）指定会话的消息列表。
+     * 保存（覆盖）指定会话的数据（消息 + token 统计）。
      */
-    public void save(String sessionId, List<SessionMessage> messages) {
+    public void save(String sessionId, SessionData data) {
         ensureDir();
         Path target = pathOf(sessionId);
         Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
         try {
-            mapper.writeValue(tmp.toFile(), messages);
+            mapper.writeValue(tmp.toFile(), data);
             try {
                 Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ame) {
@@ -81,18 +81,42 @@ public class SessionStore {
     }
 
     /**
-     * 加载指定会话；不存在则返回空列表。
+     * 加载指定会话；不存在则返回空数据。
+     * <p>兼容旧版本纯列表格式：若文件根节点是数组而非对象，自动迁移。
      */
-    public List<SessionMessage> load(String sessionId) {
+    public SessionData load(String sessionId) {
         Path file = pathOf(sessionId);
         if (!Files.exists(file)) {
-            return new ArrayList<>();
+            return SessionData.builder().messages(new ArrayList<>()).build();
         }
         try {
+            // 先尝试读取为 SessionData 对象
+            try {
+                SessionData data = mapper.readValue(file.toFile(), SessionData.class);
+                if (data != null) {
+                    if (data.getMessages() == null) {
+                        data.setMessages(new ArrayList<>());
+                    }
+                    if (data.getUsage() == null) {
+                        data.setUsage(new ArrayList<>());
+                    }
+                    return data;
+                }
+            } catch (IOException e) {
+                // 可能是旧格式的纯列表，尝试迁移
+            }
+
+            // 兼容旧版本：尝试读取为纯列表
             List<SessionMessage> list = mapper.readValue(file.toFile(),
-                    new TypeReference<List<SessionMessage>>() {
-                    });
-            return list == null ? new ArrayList<>() : list;
+                    new TypeReference<List<SessionMessage>>() {});
+            if (list != null) {
+                // 迁移到新格式
+                return SessionData.builder()
+                        .messages(list)
+                        .usage(new ArrayList<>())
+                        .build();
+            }
+            return SessionData.builder().messages(new ArrayList<>()).build();
         } catch (IOException e) {
             throw new RuntimeException("加载会话失败: " + sessionId, e);
         }
