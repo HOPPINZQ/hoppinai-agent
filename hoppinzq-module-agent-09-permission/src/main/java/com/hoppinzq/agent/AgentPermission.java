@@ -39,6 +39,8 @@ public class AgentPermission {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
 
         // 5 个工具：去掉 content_search 简化示例

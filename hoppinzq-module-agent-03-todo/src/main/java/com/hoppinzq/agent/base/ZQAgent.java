@@ -32,6 +32,9 @@ public class ZQAgent {
     private SessionManager sessionManager;
     /**
      * 可选的命令处理器；设置后可处理 /stats、/usage、/exit 等特殊命令。
+     * -- SETTER --
+     *  设置命令处理器（可选，覆盖默认实现）。
+
      */
     private AgentCommandHandler commandHandler;
 
@@ -48,13 +51,6 @@ public class ZQAgent {
     public void setSessionManager(SessionManager sessionManager) {
         this.sessionManager = sessionManager;
         this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
-    }
-
-    /**
-     * 设置命令处理器（可选，覆盖默认实现）。
-     */
-    public void setCommandHandler(AgentCommandHandler commandHandler) {
-        this.commandHandler = commandHandler;
     }
 
     public void run() {

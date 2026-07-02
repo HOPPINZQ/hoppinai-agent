@@ -9,6 +9,7 @@ import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -32,6 +33,8 @@ public class Agent03 extends ZQAgent {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
 
         todoManager = new TodoManager();

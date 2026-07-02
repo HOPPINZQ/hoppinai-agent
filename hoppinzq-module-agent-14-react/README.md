@@ -165,7 +165,7 @@ if (REACT_ENABLE) {
 // API 配置
 public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic";
 public static final String API_KEY = "your-api-key-here";
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 
 // ReAct 模式开关
 public static final Boolean REACT_ENABLE = true;   // true=ReAct模式, false=标准tool_use模式

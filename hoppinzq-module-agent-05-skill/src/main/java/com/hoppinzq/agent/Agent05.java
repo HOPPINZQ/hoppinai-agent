@@ -10,6 +10,7 @@ import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
+import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -79,6 +80,8 @@ public class Agent05 extends ZQAgent {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
 
         // 创建技能加载器

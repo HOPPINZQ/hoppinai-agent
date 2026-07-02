@@ -383,7 +383,6 @@ public class WebZQAgent {
             messageBuilder.tools(anthropicTools);
         }
         messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
 
         return messageBuilder.build();
     }

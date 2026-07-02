@@ -131,13 +131,15 @@ public class ToolDefinition {
             Tools::editFile
     );
 
-    public static ToolDefinition ListFilesDefinition = new ToolDefinition(
+public static ToolDefinition ListFilesDefinition = new ToolDefinition(
             "list_files",
-            "列出指定路径下的文件和目录，支持按文件类型筛选。若未指定路径，则默认列出当前目录的内容。",
+            "列出指定路径下的文件和目录，支持按文件类型筛选、递归遍历和结果数量限制。若未指定路径，则默认列出当前目录的内容。正常情况下，请勿使用递归遍历。推荐使用bash去列出文件，这会节约token",
             createInputSchema(
                     Map.of(
                             "path", createProperty("string", "可选的相对路径，用于列出文件。若未提供，则默认为当前目录。"),
-                            "fileType", createProperty("string", "可选的文件扩展名，用于限制搜索范围（例如：'md'、'java'、'txt'）。")
+                            "fileType", createProperty("string", "可选的文件扩展名，用于限制搜索范围（例如：'md'、'java'、'txt'）。"),
+                            "recursive", createProperty("boolean", "是否递归遍历子目录。默认为 false，仅列出直接子项。正常情况下，请不要使用递归遍历。"),
+                            "maxResults", createProperty("integer", "返回的最大条目数。默认为 100。设为 0 或 null 表示无限制。")
                     ),
                     List.of()
             ),

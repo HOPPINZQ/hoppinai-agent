@@ -171,7 +171,6 @@ public class ZQAgent {
         }
 
         messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
 
         MessageCreateParams params = messageBuilder.build();
         System.out.println(params);

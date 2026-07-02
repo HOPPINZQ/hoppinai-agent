@@ -144,7 +144,7 @@ s13 ◄─── s14 ◄── agent-web ─────────────
     //API KEY 必填
     public static final String API_KEY = "sk-xxxxxxxxx";
     //模型名称 必填
-    public static final String MODEL = "deepseek-chat";
+    public static final String MODEL = "deepseek-v4-flash";
     ```
 
 ### 编译
@@ -177,7 +177,7 @@ public static final String BASE_URL = "https://api.deepseek.com/anthropic";
 // API KEY 必填
 public static final String API_KEY = "sk-xxxxxxxxx";
 // 模型名称 必填
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 ## 项目结构

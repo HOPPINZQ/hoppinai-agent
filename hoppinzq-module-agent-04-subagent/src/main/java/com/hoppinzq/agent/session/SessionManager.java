@@ -1,12 +1,15 @@
 package com.hoppinzq.agent.session;
 
+import com.anthropic.models.messages.ContentBlockParam;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.Usage;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -74,12 +77,67 @@ public class SessionManager {
     public boolean resume(String sessionId) {
         this.sessionId = sessionId;
         this.sessionData = store.load(sessionId);
+
+        // 验证会话数据完整性：检查是否有未完成的 tool_use
+        if (!this.sessionData.getMessages().isEmpty()) {
+            boolean hasIncompleteToolUse = validateMessageIntegrity();
+            if (hasIncompleteToolUse) {
+                System.out.printf("\u001b[93m警告: 会话 %s 数据不完整，包含未完成的 tool_use，已清理\u001b[0m%n", sessionId);
+                // 清理会话数据
+                this.sessionData = SessionData.builder()
+                        .messages(new ArrayList<>())
+                        .usage(new ArrayList<>())
+                        .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                        .build();
+                // 清空磁盘上的会话文件
+                try {
+                    store.save(sessionId, this.sessionData);
+                } catch (Exception e) {
+                    // 忽略保存失败
+                }
+                return false;
+            }
+        }
+
         boolean hasMessages = !this.sessionData.getMessages().isEmpty();
         // 若有历史 usage 数据，打印统计摘要
         if (hasMessages && !sessionData.getUsage().isEmpty()) {
             printSummary();
         }
         return hasMessages;
+    }
+
+    /**
+     * 验证消息序列的完整性，检查是否有未完成的 tool_use。
+     *
+     * @return 如果发现未完成的 tool_use 返回 true，否则返回 false
+     */
+    private boolean validateMessageIntegrity() {
+        Set<String> completedToolUses = new HashSet<>();
+        Set<String> pendingToolUses = new HashSet<>();
+
+        for (SessionMessage sm : sessionData.getMessages()) {
+            if (sm.getBlocks() == null) {
+                continue;
+            }
+            for (SessionBlock block : sm.getBlocks()) {
+                if ("tool_use".equals(block.getType())) {
+                    String toolUseId = block.getToolUseId();
+                    if (toolUseId != null) {
+                        pendingToolUses.add(toolUseId);
+                    }
+                } else if ("tool_result".equals(block.getType())) {
+                    String toolUseId = block.getToolUseId();
+                    if (toolUseId != null) {
+                        pendingToolUses.remove(toolUseId);
+                        completedToolUses.add(toolUseId);
+                    }
+                }
+            }
+        }
+
+        // 如果还有未完成的 tool_use，说明数据不完整
+        return !pendingToolUses.isEmpty();
     }
 
     /**

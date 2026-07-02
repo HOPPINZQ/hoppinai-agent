@@ -63,6 +63,9 @@ public class SessionStore {
     /**
      * 保存（覆盖）指定会话的数据（消息 + token 统计）。
      */
+/**
+     * 保存（覆盖）指定会话的数据（消息 + token 统计）。
+     */
     public void save(String sessionId, SessionData data) {
         ensureDir();
         Path target = pathOf(sessionId);
@@ -73,6 +76,17 @@ public class SessionStore {
                 Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ame) {
                 // 跨文件系统时退化为普通覆盖
+                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("保存会话失败: " + sessionId, e);
+        }
+    }
+            }
+            try {
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException ame) {
+                // 跨文件系统时退化为普通移动
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {

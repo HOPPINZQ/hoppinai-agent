@@ -50,13 +50,6 @@ public class ZQAgent {
         this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
     }
 
-    /**
-     * 设置命令处理器（可选，覆盖默认实现）。
-     */
-    public void setCommandHandler(AgentCommandHandler commandHandler) {
-        this.commandHandler = commandHandler;
-    }
-
     public void run() {
         if (sessionManager != null) {
             int n = sessionManager.historySize();
@@ -274,7 +267,6 @@ public class ZQAgent {
         }
 
          messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
 
         MessageCreateParams params = messageBuilder.build();
         return client.messages().create(params);

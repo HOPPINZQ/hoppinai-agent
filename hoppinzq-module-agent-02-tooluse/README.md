@@ -13,27 +13,21 @@ Module 01 只有一个 bash 工具，所有操作都走 Shell。`cat` 截断不�
 ## 核心特性
 
 - **多工具支持**：bash 命令执行 + 5 个文件操作专用工具
+- **会话持久化与恢复**：`SessionManager` 把每条 user/assistant/tool_use/tool_result 消息自动落盘到 `.sessions/<sessionId>.json`；启动时交互式列出历史会话或开新会话，历史会话可完整恢复 `messageParams`
+- **纯文本回复可见**：每次 `create` 后都调用 `printText()` 打印 assistant 的文本块，避免纯文本回复（无工具调用）被静默吞掉
+- **截断告警**：命中 `MAX_TOKENS` 时调用 `warnIfTruncated()` 打印警告，避免工具调用被静默截断导致死循环
 - **路径沙箱**：所有文件操作基于当前工作目录，防止路径逃逸
 - **参数校验**：通过 JSON Schema 进行严格的类型检查
 - **类型安全**：`ToolDefinition` + 泛型 Schema 类实现强类型工具调用
 - **灵活调度**：`List<ToolDefinition>` 列表式注册，一次遍历匹配工具名
+- **错误处理**：工具未找到、执行异常等场景都会被标记为 `isError=true` 回灌给模型
+- **交互式会话选择**：支持 `java Agent02 <sessionId>` 直接恢复指定会话，或交互式选择历史会话
 
 ## 实现原理
 
 ### 架构设计
 
-```
-+--------+      +-------+      +------------------+
-|  User  | ---> |  LLM  | ---> | Tool Dispatch    |
-| prompt |      |       |      | {                |
-+--------+      +---+---+      |   bash: Bash     |
-                    ^           |   read_file: Read |
-                    |           |   write_file: Wr  |
-                    +-----------+   edit_file: Edit |
-                    tool_result |   list_files: List |
-                                |   content_search: |
-                                +------------------+
-```
+![架构图](./img/tool-dispatch.svg)
 
 Agent02 使用**组合模式**，创建 `ZQAgent` 实例并注入工具列表：
 
@@ -53,6 +47,7 @@ public class Agent02 {
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
+        agent.setSessionManager(bootstrapSession(args));  // 启动时恢复历史会话或开新会话
         agent.run();
     }
 }
@@ -62,11 +57,14 @@ public class Agent02 {
 
 | 组件 | 职责 |
 |------|------|
-| `Agent02` | 入口类，配置客户端、6 个工具和系统提示词 |
-| `ZQAgent` | 智能体基类，实现工具调用循环（`run()` / `chatMessage()` / `invokeTool()`） |
+| `Agent02` | 入口类，配置客户端、6 个工具、系统提示词，并通过 `bootstrapSession(args)` 装配会话 |
+| `ZQAgent` | 智能体基类，实现工具调用循环（`run()` / `chatMessage()` / `invokeTool()`）、会话同步（`appendMessage()`）、文本打印（`printText()`）和截断告警（`warnIfTruncated()`） |
+| `session/SessionManager` | 会话管理器，启动时恢复历史、运行时持久化每条消息、记录 token 使用 |
+| `session/SessionStore` | `.sessions/<id>.json` 文件读写 |
+| `session/MessageConverter` | `MessageParam` ↔ 可序列化 `SessionMessage` 互转 |
 | `ToolDefinition` | 工具定义类，支持 `Function<String,String>` 和 `TypedToolFunction<T>` 两种注册方式 |
 | `Tools` | 工具实现类，包含 6 个工具的处理方法 |
-| `AIConstants` | 常量配置（API地址、密钥、模型等） |
+| `AIConstants` | 常量配置（API地址、密钥、模型、MAX_TOKENS 等） |
 
 ### 工具定义模式
 
@@ -169,7 +167,7 @@ public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthrop
 public static final String API_KEY = "your-api-key-here";
 
 // 模型名称
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 ### 编译运行
@@ -184,6 +182,16 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent02"
 
 ### 交互示例
 
+#### 会话恢复
+```bash
+# 直接恢复指定会话
+mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent02" -Dexec.args="20250115-143022"
+
+# 或无参数启动，交互式选择历史会话
+mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent02"
+```
+
+#### 工具调用示例
 ```
 你: 请创建一个名为hello.txt的文件，内容为"Hello, World!"
 AI: 我将为您创建这个文件。
@@ -205,14 +213,29 @@ AI: 文件内容是：Hello, World!
 工具: content_search({"pattern":"TODO","path":"./src","fileType":"java"})
 ```
 
+#### 会话统计命令
+```
+/stats  # 查看当前会话的 token 统计
+/usage  # 查看 token 使用明细
+/exit   # 退出程序
+```
+
 ## 项目结构
 
 ```
 hoppinzq-module-agent-02/
 ├── src/main/java/com/hoppinzq/agent/
-│   ├── Agent02.java               # 入口类（组合模式，创建ZQAgent实例）
+│   ├── Agent02.java               # 入口类（组合模式，创建ZQAgent实例 + bootstrapSession）
 │   ├── base/
-│   │   └── ZQAgent.java           # 智能体基类（工具调用循环）
+│   │   └── ZQAgent.java           # 智能体基类（工具调用循环 + 会话同步 + printText + warnIfTruncated）
+│   ├── session/                   # 会话持久化与恢复
+│   │   ├── SessionManager.java    # 会话管理器（恢复历史 / 运行时持久化 / token统计）
+│   │   ├── SessionStore.java      # .sessions/<id>.json 文件读写
+│   │   ├── MessageConverter.java  # MessageParam ↔ SessionMessage 互转
+│   │   ├── SessionMessage.java    # 可序列化的消息块
+│   │   ├── SessionBlock.java      # 单个内容块的序列化表示
+│   │   ├── SessionData.java       # 会话完整数据（消息列表 + 元信息）
+│   │   └── TokenUsage.java        # Token 使用统计
 │   ├── tool/
 │   │   ├── ToolDefinition.java    # 工具定义（6个静态字段 + TypedToolFunction接口）
 │   │   ├── Tools.java             # 工具实现（executeBash, readFile, writeFile等）
@@ -224,7 +247,8 @@ hoppinzq-module-agent-02/
 │   │       ├── ListFilesInput.java# list_files输入参数（path + fileType）
 │   │       └── ContentSearchInput.java # content_search输入参数
 │   └── constant/
-│       └── AIConstants.java       # 常量配置（API/模型/路径）
+│       └── AIConstants.java       # 常量配置（API/模型/路径/MAX_TOKENS）
+├── .sessions/                     # 运行时生成，存放每个会话的 JSON 快照
 ├── README.md                       # 本文件
 └── s2.md                           # 多工具调度原理解析
 ```
@@ -238,15 +262,20 @@ hoppinzq-module-agent-02/
 | OkHttp | HTTP 客户端（Anthropic SDK 底层） |
 | Jackson | JSON 序列化/反序列化 |
 | Lombok | 减少样板代码 |
+| SLF4J | 日志框架 |
 | ripgrep (rg) | content_search 底层搜索引擎 |
 
 ## 设计亮点
 
 1. **加工具不改循环**：dispatch 从硬编码 bash 调用升级为 `List<ToolDefinition>` 列表遍历 —— 循环体与 Module 01 完全一致
-2. **路径沙箱**：所有文件操作通过 `Paths.get("").toAbsolutePath().resolve(path).normalize()` 解析，防止路径逃逸
-3. **TypedToolFunction 泛型接口**：Module 02 新增类型安全的工具注册方式，参数直接以对象传入，无需手动 JSON 反序列化
-4. **edit_file 无必填参数**：`required` 列表为空，LLM 根据上下文自行决定填写哪些字段 —— 更灵活的编辑体验
-5. **组合模式延续**：与 Agent01 保持一致的设计模式，创建 ZQAgent 实例而非继承
+2. **会话自动持久化**：每次 `appendMessage()` 都通过 `SessionManager.onMessageAppended()` 自动落盘，无需手动保存；重启后可完整恢复对话历史
+3. **交互式会话选择**：启动时自动列出历史会话，用户可输入序号恢复或直接回车开新会话；也支持 `java Agent02 <sessionId>` 直接恢复指定会话
+4. **纯文本回复可见**：每次 `create` 后调用 `printText()` 打印文本块，避免无工具调用的纯文本回复被静默吞掉
+5. **截断告警**：非 TOOL_USE 退出循环时调用 `warnIfTruncated()`，命中 `MAX_TOKENS` 打印警告，避免工具调用被静默截断导致死循环
+6. **路径沙箱**：所有文件操作通过 `Paths.get("").toAbsolutePath().resolve(path).normalize()` 解析，防止路径逃逸
+7. **TypedToolFunction 泛型接口**：Module 02 新增类型安全的工具注册方式，参数直接以对象传入，无需手动 JSON 反序列化
+8. **edit_file 无必填参数**：`required` 列表为空，LLM 根据上下文自行决定填写哪些字段 —— 更灵活的编辑体验
+9. **组合模式延续**：与 Agent01 保持一致的设计模式，创建 ZQAgent 实例而非继承
 
 ## 扩展开发
 
@@ -281,7 +310,9 @@ tools.add(MyToolDefinition);
 1. **API密钥安全**：不要将 API 密钥提交到版本控制系统
 2. **命令执行风险**：Bash 工具可执行任意命令，生产环境需添加安全限制
 3. **rg 依赖**：content_search 依赖 ripgrep，需确保系统已安装 rg
-4. **日志控制**：`AIConstants.LOG_ENABLE = false` 关闭日志
+4. **日志控制**：`AIConstants.LOG_ENABLE = false` 关闭日志；MCP stdio 模式下严禁使用 `System.out`
+5. **会话存储**：`.sessions/` 目录存放会话快照，可定期清理旧会话释放空间
+6. **编码处理**：Windows 命令输出使用 GBK 编码读取
 
 ## 许可证
 

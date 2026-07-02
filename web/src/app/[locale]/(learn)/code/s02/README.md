@@ -169,7 +169,7 @@ public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthrop
 public static final String API_KEY = "your-api-key-here";
 
 // 模型名称
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 ### 编译运行

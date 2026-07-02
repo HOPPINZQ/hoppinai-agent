@@ -12,33 +12,32 @@ Agent03 在 Agent02 的基础上引入了**待办事项管理 (TodoManager)** �
 - **TodoManager 待办管理**: 版本追踪 + 状态验证 + synchronized 线程安全
 - **自动提醒机制**: 3 轮未更新待办列表时, 通过 `onToolExecution()` 自动注入 `<reminder>`
 - **单任务聚焦**: 同一时间只允许一个 `in_progress` 任务, 强制顺序执行
+- **会话持久化与恢复**: `SessionManager` 把每条消息自动落盘到 `.sessions/<sessionId>.json`；启动时交互式列出历史会话或开新会话
+- **纯文本回复可见**: 每次 `create` 后调用 `printText()` 打印 assistant 的文本块, 避免纯文本回复被静默吞掉
+- **截断告警**: 命中 `MAX_TOKENS` 时调用 `warnIfTruncated()` 打印警告, 避免工具调用被静默截断导致死循环
+- **错误处理**: 工具未找到、执行异常等场景都会被标记为 `isError=true` 回灌给模型
+- **交互式会话选择**: 支持 `java Agent03 <sessionId>` 直接恢复指定会话, 或交互式选择历史会话
 - **7 个工具**: 6 个文件操作工具 + 1 个 todo 管理工具
 
 ## 实现原理
 
 ### 架构设计
 
-```
-用户输入 → Agent03 (extends ZQAgent)
-                ↓
-         Claude API (chatMessage)
-                ↓
-         工具调用 (invokeTool)
-         ├── bash / read_file / write_file / edit_file / list_files / content_search
-         └── todo → TodoManager.updateTodos()
-                         ↓
-                    update(List<TodoItem>)
-                    ├── 验证: content 非空, status 合法, max 20, in_progress ≤ 1
-                    ├── todos.clear() + todos.addAll()
-                    ├── version++
-                    └── render() → "[>] 创建 utils.py <- 正在编写工具类"
-                ↓
-         onToolExecution() 钩子
-         ├── version 变更? → roundsSinceTodo = 0
-         └── roundsSinceTodo >= 3? → 注入 <reminder>
-```
+![架构图](./img/todo-overview.svg)
 
 ### 核心组件
+
+| 组件 | 职责 |
+|------|------|
+| `Agent03` | 主智能体类, 继承 ZQAgent, 通过 `bootstrapSession(args)` 装配会话, 重写 `onToolExecution()` 实现自动提醒 |
+| `ZQAgent` | 基础智能体, 实现工具调用循环、会话同步、文本打印和截断告警 |
+| `session/SessionManager` | 会话管理器, 启动时恢复历史、运行时持久化每条消息、记录 token 使用 |
+| `session/SessionStore` | `.sessions/<id>.json` 文件读写 |
+| `session/MessageConverter` | `MessageParam` ↔ 可序列化 `SessionMessage` 互转 |
+| `tool/manager/TodoManager` | 待办管理器, 版本追踪、状态验证、synchronized 线程安全 |
+| `tool/ToolDefinition` | 工具定义 (含 TodoDefinition) |
+| `tool/schema/TodoInput` | Todo 输入 Schema |
+| `tool/schema/TodoItem` | Todo 项 Schema |
 
 #### 1. Agent03 (继承 ZQAgent)
 
@@ -191,7 +190,7 @@ API 配置位于 `AIConstants.java`:
 ```java
 public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic";
 public static final String API_KEY = "your-api-key-here";
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 ### 编译运行
@@ -206,6 +205,16 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent03"
 
 ### 交互示例
 
+#### 会话恢复
+```bash
+# 直接恢复指定会话
+mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent03" -Dexec.args="20250115-143022"
+
+# 或无参数启动, 交互式选择历史会话
+mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent03"
+```
+
+#### Todo 工具调用示例
 ```
 用户: 帮我创建一个 Python 项目，包含 utils.py 和 tests 目录
 
@@ -231,14 +240,29 @@ AI: [调用 todo 工具] 更新任务状态
     (1/3 已完成)
 ```
 
+#### 会话统计命令
+```
+/stats  # 查看当前会话的 token 统计
+/usage  # 查看 token 使用明细
+/exit   # 退出程序
+```
+
 ## 项目结构
 
 ```
 hoppinzq-module-agent-03/
 ├── src/main/java/com/hoppinzq/agent/
-│   ├── Agent03.java                    # 主智能体类 (extends ZQAgent)
+│   ├── Agent03.java                    # 主智能体类 (extends ZQAgent + bootstrapSession)
 │   ├── base/
-│   │   └── ZQAgent.java                # 基础智能体
+│   │   └── ZQAgent.java                # 基础智能体 (工具调用循环 + 会话同步 + printText + warnIfTruncated)
+│   ├── session/                        # 会话持久化与恢复
+│   │   ├── SessionManager.java         # 会话管理器 (恢复历史 / 运行时持久化 / token统计)
+│   │   ├── SessionStore.java           # .sessions/<id>.json 文件读写
+│   │   ├── MessageConverter.java       # MessageParam ↔ SessionMessage 互转
+│   │   ├── SessionMessage.java         # 可序列化的消息块
+│   │   ├── SessionBlock.java           # 单个内容块的序列化表示
+│   │   ├── SessionData.java            # 会话完整数据 (消息列表 + 元信息)
+│   │   └── TokenUsage.java             # Token 使用统计
 │   ├── tool/
 │   │   ├── ToolDefinition.java         # 工具定义 (含 TodoDefinition)
 │   │   ├── Tools.java                  # 工具实现
@@ -246,10 +270,16 @@ hoppinzq-module-agent-03/
 │   │   │   └── TodoManager.java        # 待办管理器
 │   │   └── schema/
 │   │       ├── BashInput.java          # Bash 输入 Schema
+│   │       ├── ReadFileInput.java      # read_file 输入 Schema
+│   │       ├── WriteFileInput.java     # write_file 输入 Schema
+│   │       ├── EditFileInput.java      # edit_file 输入 Schema
+│   │       ├── ListFilesInput.java     # list_files 输入 Schema
+│   │       ├── ContentSearchInput.java # content_search 输入 Schema
 │   │       ├── TodoInput.java          # Todo 输入 Schema
 │   │       └── TodoItem.java           # Todo 项 Schema
 │   └── constant/
-│       └── AIConstants.java            # 常量配置
+│       └── AIConstants.java            # 常量配置 (API/模型/路径/MAX_TOKENS)
+├── .sessions/                          # 运行时生成, 存放每个会话的 JSON 快照
 ├── pom.xml
 ├── README.md
 └── s3.md
@@ -265,6 +295,16 @@ hoppinzq-module-agent-03/
 | OkHttp | -- | HTTP 客户端 |
 | Jackson | -- | JSON 序列化/反序列化 |
 | Lombok | -- | @Getter/@Data 等注解 |
+| SLF4J | -- | 日志框架 |
+
+## 注意事项
+
+1. **API密钥安全**: 不要将 API 密钥提交到版本控制系统
+2. **命令执行风险**: Bash 工具可执行任意命令, 生产环境需添加安全限制
+3. **日志控制**: `AIConstants.LOG_ENABLE = false` 关闭日志；MCP stdio 模式下严禁使用 `System.out`
+4. **会话存储**: `.sessions/` 目录存放会话快照, 可定期清理旧会话释放空间
+5. **编码处理**: Windows 命令输出使用 GBK 编码读取
+6. **Todo 约束**: 最多 20 个待办事项, 同时只能有 1 个 `in_progress` 任务
 
 ## 设计亮点
 
@@ -273,6 +313,9 @@ hoppinzq-module-agent-03/
 3. **版本追踪**: 通过 `version` 字段精确检测 todo 是否被更新, 而非依赖工具调用顺序
 4. **双约束策略**: "最多 20 项" + "仅 1 个 in_progress" 双重约束, 防止计划膨胀和注意力分散
 5. **synchronized 线程安全**: TodoManager 所有读写方法均使用 synchronized, 保证并发安全
+6. **会话自动持久化**: 每次 `appendMessage()` 都通过 `SessionManager.onMessageAppended()` 自动落盘, 无需手动保存
+7. **交互式会话选择**: 启动时自动列出历史会话, 用户可输入序号恢复或直接回车开新会话
+8. **自动提醒机制**: 通过重写 `onToolExecution()` 钩子, 在 3 轮未更新 todo 时自动注入 `<reminder>`
 
 ## 扩展开发
 

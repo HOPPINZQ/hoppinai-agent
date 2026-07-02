@@ -43,6 +43,8 @@ public class AgentTeams {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
 
         MessageBus bus = new MessageBus(); // 无状态，仅作为依赖占位

@@ -15,17 +15,22 @@ public class AIConstants {
     //API KEY 必填
     public static final String API_KEY = "sk-xxxxxxxxxxxxxx";
     //模型名称 必填
-    public static final String MODEL = "deepseek-chat";
+    public static final String MODEL = "deepseek-v4-flash";
 
     //最大token数量
     public static final int MAX_TOKENS = 12500;
-    public static final double TEMPERATURE = 0.7D;
+    public static final long TIMEOUT = 5 * 60;
+    public static final int MAX_RETRIES = 5;
 
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     public static final String JSON_FAIL = "{\"error\": \"json序列化失败\"}";
 
     //是否开启打印日志，MCP stdio不允许打印日志，如果你拿去改造为MCP，请注意！
     public static final Boolean LOG_ENABLE = false;
+
+    //路径限制模式：true=允许任意绝对路径（关闭安全沙箱），false=只允许 ROOT 范围内的路径
+    //建议本地开发环境设为 true，生产环境设为 false
+    public static final Boolean UNRESTRICTED_PATH_MODE = true;
 
     public static final String MODULE_NAME = "hoppinzq-module-agent-01";
     // 工作目录

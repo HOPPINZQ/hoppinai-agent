@@ -17,23 +17,7 @@ Agent05 在 Agent04 的基础上引入了**技能加载（Skill Loading）**机�
 
 ### 两层注入架构
 
-```
-系统提示 (Layer 1 -- 始终存在, ~100 tokens/skill):
-+--------------------------------------+
-| 可用技能：                           |
-|   - code-review: 审查代码...         |
-|   - git: Git工作流...                |
-|   - test: 测试实践...                |
-+--------------------------------------+
-
-模型调用 load_skill("git") 时 (Layer 2 -- 按需, ~2000 tokens):
-+--------------------------------------+
-| tool_result:                         |
-| <skill name="git" description="..."> |
-|   完整的 Git 工作流说明...           |
-| </skill>                             |
-+--------------------------------------+
-```
+![架构图](./img/skill-overview.svg)
 
 ### Agent05 类结构
 
@@ -137,7 +121,7 @@ protected void onToolExecution(List<ContentBlockParam> toolResults) {
 ```java
 public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic";
 public static final String API_KEY = "your-api-key";
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 public static final String SKILL_PATH = "skills";
 ```
 

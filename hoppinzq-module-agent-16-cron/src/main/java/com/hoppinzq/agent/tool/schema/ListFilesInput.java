@@ -25,6 +25,14 @@ public class ListFilesInput {
     @JsonProperty("fileType")
     private String fileType;
 
+    @JsonProperty("recursive")
+    @Builder.Default
+    private Boolean recursive = false;
+
+    @JsonProperty("maxResults")
+    @Builder.Default
+    private Integer maxResults = 100;
+
     @Override
     public String toString() {
         try {

@@ -9,7 +9,6 @@ import com.hoppinzq.agent.tool.util.FileExclusionHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -681,15 +680,5 @@ public class Tools {
         }
 
         return "成功创建文件 " + filePath;
-    }
-
-    /**
-     * 测试 main 方法
-     */
-    public static void main(String[] args) {
-        // 测试 list_files 工具
-        String testInput = "{\"path\": \"D:/ai/pi\", \"recursive\": false, \"maxResults\": 10}";
-        String result = listFiles(testInput);
-        System.out.println(result);
     }
 }

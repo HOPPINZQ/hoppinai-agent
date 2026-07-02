@@ -212,7 +212,7 @@ streamChat(sessionId, userMessage)
 ```java
 public static final String BASE_URL = "https://api.deepseek.com/anthropic";
 public static final String API_KEY = "your-api-key-here";
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 public static final Boolean REACT_ENABLE = true;
 public static final int TOKEN_THRESHOLD = 20000;
 public static final int KEEP_RECENT = 10;

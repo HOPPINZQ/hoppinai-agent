@@ -545,7 +545,6 @@ public class CliAgent {
             messageBuilder.tools(anthropicTools);
         }
         messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
         return messageBuilder.build();
     }
 

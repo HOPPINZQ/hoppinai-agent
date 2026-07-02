@@ -143,7 +143,7 @@ s13 ◄─── s14 ◄── agent-web ─────────────
     // API KEY
     public static final String API_KEY = "sk-xxxxxxxxx";
     // model
-    public static final String MODEL = "deepseek-chat";
+    public static final String MODEL = "deepseek-v4-flash";
     ```
 
 ### Build
@@ -176,7 +176,7 @@ public static final String BASE_URL = "https://api.deepseek.com/anthropic";
 // API KEY
 public static final String API_KEY = "sk-xxxxxxxxx";
 // model
-public static final String MODEL = "deepseek-chat";
+public static final String MODEL = "deepseek-v4-flash";
 ```
 
 ## Project Structure

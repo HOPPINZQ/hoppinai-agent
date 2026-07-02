@@ -170,7 +170,6 @@ private String invokeTool(ToolDefinition tool, JsonValue input) throws Exception
         }
 
          messageBuilder.maxTokens(MAX_TOKENS);
-        messageBuilder.temperature(TEMPERATURE);
 
         MessageCreateParams params = messageBuilder.build();
         return client.messages().create(params);

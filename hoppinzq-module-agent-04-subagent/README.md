@@ -19,22 +19,7 @@ Agent04 在 Agent03（TodoManager + nag reminder）的基础上，新增了**子
 
 ### 架构设计
 
-```
-Parent Agent (Agent04)               SubAgent (静态工具类)
-+------------------+                  +------------------+
-| messages=[...]   |                  | messages=[]      | <-- fresh
-|                  |   dispatch       |                  |
-| tool: sub_agent  | -------------->  | while tool_use:  |
-|   prompt="..."   |                  |   call tools     |
-|                  |   summary        |   append results |
-|   result="..."   | <--------------  | return last text |
-+------------------+                  +------------------+
-        |
-  +-----+-----+
-  | TodoManager |  <-- 共享的待办事项管理
-  | [>] task B  |
-  +------------+
-```
+![架构图](./img/subagent-overview.svg)
 
 ### 核心组件
 

@@ -59,6 +59,8 @@ public class AgentComprehensive {
         AnthropicClient client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
+                .timeout(Duration.ofSeconds(TIMEOUT))
+                .maxRetries(MAX_RETRIES)
                 .build();
 
         // === 各子系统 ===
