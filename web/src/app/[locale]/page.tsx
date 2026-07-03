@@ -509,6 +509,69 @@ export default function HomePage() {
                     </p>
                   </BentoCard>
                 </Link>
+
+                <Link href={`/${locale}/s01`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s01
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        Token 统计
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      会话级 Token 统计
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      SessionManager 自动记录每次 LLM 调用的 token 消耗：输入/输出/缓存命中/缓存创建，
+                      支持会话总计查询（/stats）和调用明细查看（/usage），实时监控成本。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s01`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s02
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        文件查找
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      Glob 模式匹配工具
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      新增 Glob 工具：支持 **/*.java 递归通配、单/多扩展名过滤、目录匹配，
+                      性能优于 bash find，符合现代代码搜索习惯，路径沙箱保护。
+                    </p>
+                  </BentoCard>
+                </Link>
+
+                <Link href={`/${locale}/s01`} className="group block">
+                  <BentoCard className="h-full p-5" pattern="app-yellow">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="inline-flex items-center rounded-full bg-white/40 px-2 py-0.5 text-xs font-bold text-[#7a5a1a]">
+                        s01
+                      </span>
+                      <NewBadge>NEW</NewBadge>
+                      <span className="text-xs font-semibold text-[#7a5a1a]">
+                        交互增强
+                      </span>
+                    </div>
+                    <h3 className="mb-1.5 text-sm font-bold text-[#7a5a1a] group-hover:text-[#5a3a0a]">
+                      斜杠命令系统
+                    </h3>
+                    <p className="text-xs leading-relaxed text-[#8a6a2a]">
+                      AgentCommandHandler 处理特殊命令：/stats 查看统计、/usage 查看明细、/exit 退出，
+                      命令不发送给 LLM，直接在本地执行，提升交互效率。
+                    </p>
+                  </BentoCard>
+                </Link>
               </div>
             </ScrollReveal>
           </div>
