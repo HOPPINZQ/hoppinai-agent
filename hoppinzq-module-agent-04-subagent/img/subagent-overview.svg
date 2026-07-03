@@ -111,10 +111,10 @@
   <rect x="60" y="370" width="680" height="56" rx="8" fill="#f1f5f9"/>
 
   <rect x="80" y="384" width="16" height="12" rx="3" fill="#f0f4ff" stroke="#2563eb" stroke-width="1"/>
-  <text x="104" y="394" fill="#334155" font-size="10">s03 保留：循环、hook、todo、6 个基础工具 + 会话管理</text>
+  <text x="104" y="394" fill="#334155" font-size="10">module-03 保留：循环、hook、todo、6 个基础工具 + 会话管理</text>
 
   <rect x="80" y="404" width="16" height="12" rx="3" fill="#ede9fe" stroke="#7c3aed" stroke-width="1"/>
-  <text x="104" y="414" fill="#334155" font-size="10">s04 新增：sub_agent 工具 + SubAgent.runTask() — 独立 messages[]，只回传摘要 + Token 统计</text>
+  <text x="104" y="414" fill="#334155" font-size="10">module-04 新增：sub_agent 工具 + SubAgent.runTask() — 独立 messages[]，只回传摘要 + Token 统计</text>
 
   <!-- 数据流标注 -->
   <rect x="430" y="440" width="310" height="44" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>

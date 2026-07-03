@@ -23,8 +23,8 @@
   <rect x="0" y="40" width="800" height="8" fill="url(#header)"/>
   <text x="400" y="31" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Todo Manager — 循环不变，多一个工具自动分发</text>
 
-  <!-- ===== s02 保留（灰色） ===== -->
-  <text x="50" y="76" fill="#94a3b8" font-size="11" font-weight="600">s02 保留</text>
+  <!-- ===== module-02 保留（灰色） ===== -->
+  <text x="50" y="76" fill="#94a3b8" font-size="11" font-weight="600">module-02 保留</text>
 
   <!-- messages -->
   <rect x="40" y="90" width="100" height="44" rx="8" fill="#f0f4ff" stroke="#2563eb" stroke-width="1.5"/>
@@ -56,22 +56,22 @@
   <!-- → TOOL_HANDLERS -->
   <line x1="450" y1="112" x2="498" y2="112" stroke="#555" stroke-width="2" marker-end="url(#arrow)"/>
 
-  <!-- ===== s03 新增：todo ===== -->
+  <!-- ===== module-03 新增：todo ===== -->
   <!-- TOOL_HANDLERS 框（扩大，包含 todo） -->
   <rect x="500" y="74" width="120" height="140" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" stroke-dasharray="6,3"/>
   <text x="560" y="94" fill="#166534" font-size="10" font-weight="700" text-anchor="middle">TOOL_HANDLERS</text>
 
-  <!-- s02 保留的工具 -->
+  <!-- module-02 保留的工具 -->
   <rect x="512" y="102" width="96" height="22" rx="4" fill="#f0f4ff" stroke="#2563eb" stroke-width="1"/>
   <text x="560" y="117" fill="#1e3a5f" font-size="9" text-anchor="middle">bash · read · write</text>
 
   <rect x="512" y="130" width="96" height="22" rx="4" fill="#f0f4ff" stroke="#2563eb" stroke-width="1"/>
   <text x="560" y="145" fill="#1e3a5f" font-size="9" text-anchor="middle">edit · list · search</text>
 
-  <!-- s03 新增：todo -->
+  <!-- module-03 新增：todo -->
   <rect x="512" y="158" width="96" height="22" rx="4" fill="#dcfce7" stroke="#16a34a" stroke-width="1.5"/>
   <text x="560" y="173" fill="#166534" font-size="9" font-weight="700" text-anchor="middle">todo</text>
-  <text x="560" y="232" fill="#16a34a" font-size="11" font-weight="600" text-anchor="middle">s03 新增</text>
+  <text x="560" y="232" fill="#16a34a" font-size="11" font-weight="600" text-anchor="middle">module-03 新增</text>
 
   <text x="560" y="196" fill="#64748b" font-size="8" text-anchor="middle">→ TodoManager.update()</text>
 
@@ -87,7 +87,7 @@
   <!-- 图例 -->
   <rect x="100" y="384" width="600" height="28" rx="6" fill="#f1f5f9"/>
   <rect x="120" y="392" width="12" height="12" rx="2" fill="#f0f4ff" stroke="#2563eb" stroke-width="1"/>
-  <text x="140" y="402" fill="#334155" font-size="10">s02 保留（循环、6 个基础工具）</text>
+  <text x="140" y="402" fill="#334155" font-size="10">module-02 保留（循环、6 个基础工具）</text>
   <rect x="400" y="392" width="12" height="12" rx="2" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
-  <text x="420" y="402" fill="#334155" font-size="10">s03 新增（todo + nag reminder + onToolExecution 钩子）</text>
+  <text x="420" y="402" fill="#334155" font-size="10">module-03 新增（todo + nag reminder + onToolExecution 钩子）</text>
 </svg>

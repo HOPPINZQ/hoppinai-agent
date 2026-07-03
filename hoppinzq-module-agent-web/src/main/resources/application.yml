@@ -1,5 +1,9 @@
 server:
   port: 8099
+
+# CSQAQ API配置
+csqaq:
+  api-token: NXOEX1T7G7B864A0L4S2D2U8
 logging:
   level:
     com:

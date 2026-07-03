@@ -26,8 +26,8 @@
   <rect x="0" y="40" width="800" height="8" fill="url(#header)"/>
   <text x="400" y="31" fill="#fff" font-size="16" font-weight="700" text-anchor="middle">Skill Loading — 启动时注入目录，运行时按需加载内容</text>
 
-  <!-- ===== 历史章节保留 ===== -->
-  <text x="50" y="96" fill="#94a3b8" font-size="11" font-weight="600">历史章节保留</text>
+  <!-- ===== module-01到module-04 保留 ===== -->
+  <text x="50" y="96" fill="#94a3b8" font-size="11" font-weight="600">module-01到module-04 保留</text>
 
   <!-- messages[] -->
   <rect x="40" y="108" width="110" height="44" rx="8" fill="#f0f4ff" stroke="#2563eb" stroke-width="1.5"/>
@@ -80,7 +80,7 @@
 
   <!-- ===== s07 两级注入标注（右侧） ===== -->
 
-  <text x="710" y="220" fill="#16a34a" font-size="11" font-weight="700" text-anchor="middle">s05 新增</text>
+  <text x="710" y="220" fill="#16a34a" font-size="11" font-weight="700" text-anchor="middle">module-05 新增</text>
 
   <!-- ① 启动时注入 SYSTEM -->
   <rect x="640" y="86" width="140" height="56" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
@@ -104,7 +104,7 @@
   <!-- ===== 图例 ===== -->
   <rect x="60" y="308" width="680" height="44" rx="6" fill="#f1f5f9"/>
   <rect x="80" y="322" width="12" height="12" rx="2" fill="#f0f4ff" stroke="#2563eb" stroke-width="1"/>
-  <text x="100" y="332" fill="#334155" font-size="10">历史章节保留（循环、钩子、TODO、subagent — 完全不变）</text>
+  <text x="100" y="332" fill="#334155" font-size="10">module-01到module-04 保留（循环、钩子、TODO、subagent — 完全不变）</text>
   <rect x="80" y="338" width="12" height="12" rx="2" fill="#dcfce7" stroke="#16a34a" stroke-width="1"/>
-  <text x="100" y="348" fill="#334155" font-size="10">s05 新增（启动时目录注入 SYSTEM + load_skill 工具）</text>
+  <text x="100" y="348" fill="#334155" font-size="10">module-05 新增（启动时目录注入 SYSTEM + load_skill 工具）</text>
 </svg>
