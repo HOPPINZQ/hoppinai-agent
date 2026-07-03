@@ -8,6 +8,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
 import static com.hoppinzq.agent.constant.AIConstants.LOG_ENABLE;
+import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 
 /**
@@ -38,8 +39,7 @@ public class Tools {
      */
     public static String executeBash(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            BashInput bashInput = mapper.readValue(input, BashInput.class);
+            BashInput bashInput = OBJECT_MAPPER.readValue(input, BashInput.class);
 
             if (LOG_ENABLE) {
                 log.info("执行指令: {}, 类型: {}", bashInput.getCommand(), bashInput.getType());
@@ -73,11 +73,21 @@ public class Tools {
                 }
             }
 
+            // 根据命令类型和操作系统动态选择编码
+            String charsetName;
+            if ("bash".equalsIgnoreCase(type) ||
+                    (!System.getProperty("os.name").toLowerCase().contains("win") &&
+                            (type == null || type.isEmpty()))) {
+                charsetName = "UTF-8";
+            } else {
+                charsetName = "GBK";
+            }
+
             Process process = processBuilder.start();
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), "GBK"))) {
+                    new InputStreamReader(process.getInputStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
@@ -86,7 +96,7 @@ public class Tools {
 
             StringBuilder error = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), "GBK"))) {
+                    new InputStreamReader(process.getErrorStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     error.append(line).append("\n");

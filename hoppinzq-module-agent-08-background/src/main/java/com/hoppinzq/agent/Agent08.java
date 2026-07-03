@@ -88,7 +88,7 @@ public class Agent08 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);
@@ -198,7 +198,7 @@ public class Agent08 extends ZQAgent {
                 - read_file: 读取文件内容
                 - write_file: 写入文件内容
                 - edit_file: 编辑文件（替换字符串）
-                - list_files: 列出目录下的文件
+                - glob: 列出目录下的文件
                 
                 ## 代码搜索
                 - content_search: 使用ripgrep搜索代码内容，支持正则表达式

@@ -95,7 +95,7 @@ public class AgentTeams {
         return String.format("""
                 ## 角色
                 你是一个 lead agent（团队负责人），可以派 teammate 去并行干活。你拥有 12 个工具：
-                - 基础：bash / read_file / write_file / edit_file / list_files / content_search
+                - 基础：bash / read_file / write_file / edit_file / glob / content_search
                 - 定时：schedule_cron / list_crons / cancel_cron
                 - 团队：spawn_teammate / send_message / check_inbox
 

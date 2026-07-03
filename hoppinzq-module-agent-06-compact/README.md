@@ -8,12 +8,12 @@ Agent06 在 Agent05 的基础上引入了**上下文压缩（Context Compact）*
 
 - **三层压缩策略**：Layer 1（微压缩）→ Layer 2（自动压缩）→ Layer 3（手动压缩），由轻到重渐进式压缩
 - **微压缩（microCompact）**：每次 LLM 调用前自动执行，将旧工具结果替换为占位符 `[已执行: 工具名]`，保留最近 `KEEP_RECENT` 个完整结果
-- **自动压缩（autoCompact）**：token 估算超过 `TOKEN_THRESHOLD` 时自动触发，保存完整对话到 `.transcripts/` 目录，LLM 生成摘要替换原始消息
-- **手动压缩（compact 工具）**：用户主动调用，支持 `focus` 参数指定压缩重点
+- **自动压缩（autoCompact）**：token 估算超过 `TOKEN_THRESHOLD` 时自动触发，保存完整对话到 session 的 transcripts，LLM 生成摘要替换原始消息
+- **手动压缩（compact 工具）**：LLM 调用 compact 工具时触发，支持 `focus` 参数指定压缩重点。压缩后下次对话使用压缩后的上下文
 - **待办事项管理**：继承 Agent05 的 TodoManager，3 回合未更新自动催办
 - **技能加载系统**：继承 Agent05 的 SkillLoader 两层注入架构
 - **子智能体委托**：继承 Agent05 的 SubAgent 静态工具类
-- **10 个工具**：bash、read_file、write_file、edit_file、list_files、content_search、sub_agent、todo、load_skill、compact
+- **10 个工具 + 6 个命令**：bash、read_file、write_file、edit_file、glob、content_search、sub_agent、todo、load_skill、compact 工具；/stats、/usage、/skills、/tokens、/transcripts、/exit 命令
 
 ## 实现原理
 
@@ -24,7 +24,6 @@ Agent06 通过 `public static` 字段将依赖注入到 ToolDefinition 的静态
 ```java
 public class Agent06 extends ZQAgent {
     public static ContextCompactor compactor;
-    public static boolean manualCompactRequested = false;
     public static TodoManager todoManager;
     public static SkillLoader skillLoader;
 
@@ -49,7 +48,7 @@ chatMessage() 调用链:
 │                                                    │
 │  2. estimateTokens(compactedParams) > THRESHOLD?  │
 │     └─ YES → autoCompact()                        │
-│              ├─ 保存到 .transcripts/*.jsonl        │
+│              ├─ 保存到 session 的 transcripts       │
 │              ├─ LLM 生成摘要                       │
 │              └─ 摘要消息替换原始列表                │
 │              └─ 同步更新 this.messageParams        │
@@ -64,10 +63,7 @@ onToolExecution() 调用链:
 │  2. microCompact(messageParams)                    │
 │                                                    │
 │  3. estimateTokens(messageParams) > THRESHOLD?    │
-│     └─ YES → autoCompact() + 状态同步              │
-│                                                    │
-│  4. manualCompactRequested?                        │
-│     └─ YES → autoCompact() + 重置标志              │
+│     └─ YES → autoCompact() + replaceMessageParams │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -88,7 +84,7 @@ public class ContextCompactor {
 
     // Layer 2/3: 完整压缩 - 保存对话 + 生成摘要
     public List<MessageParam> autoCompact(List<MessageParam> messages) {
-        // 1. 保存完整对话到 .transcripts/transcript_<timestamp>.jsonl
+        // 1. 保存压缩记录到 session 的 transcripts
         // 2. 截取消息文本（限制80000字符）
         // 3. 调用 LLM 生成摘要（已完成工作、当前状态、关键决策）
         // 4. 返回 [压缩提示+摘要, 助手确认] 两条消息
@@ -151,13 +147,26 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent06"
 用户：继续读取更多文件...
 智能体：[token 超过阈值]
       [自动压缩已触发]
-      [对话记录已保存: .transcripts/transcript_xxx.jsonl]
+      [压缩记录已保存到会话]
       [生成摘要：已完成读取核心文件...]
       [继续工作]
 
 用户：使用 compact 工具手动压缩
-智能体：[手动压缩执行]
-      [对话记录已保存，摘要已生成]
+智能体：调用 compact 工具
+      [压缩完成] 上下文已清理，完整历史已保存到会话。
+
+用户：/transcripts
+系统：========== 压缩历史记录 ==========
+     [1] 2024-01-15T10:30:00  原因:auto  消息数:150  Tokens:50000
+     摘要: 已完成读取核心文件，当前正在进行代码分析...
+
+用户：/tokens
+系统：========== 当前 Token 统计 ==========
+     当前消息数: 85
+     估算 tokens: 45230
+     压缩阈值: 20000
+     使用率: 226.2%
+     状态: 已超过阈值，建议执行压缩
 ```
 
 ## 项目结构
@@ -204,7 +213,7 @@ hoppinzq-module-agent-06/
 - **双触发点保障**：`chatMessage()` 和 `onToolExecution()` 都有压缩检查，确保上下文不会膨胀
 - **状态同步机制**：压缩返回新列表后，通过 `clear()` + `addAll()` 同步 ZQAgent 的 `messageParams`
 - **容错设计**：压缩失败时返回原始消息列表，对话不中断；消息处理出错时跳过该消息继续
-- **可追溯性**：完整对话保存为 JSONL 文件，可随时查看历史
+- **可追溯性**：压缩记录保存在 session 的 transcripts 中，包含时间戳、消息数量、token 估算和摘要
 
 ## 扩展开发
 

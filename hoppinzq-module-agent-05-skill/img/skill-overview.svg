@@ -67,7 +67,7 @@
   <rect x="500" y="116" width="100" height="18" rx="3" fill="#fff" stroke="#2563eb" stroke-width="0.8"/>
   <text x="550" y="129" fill="#1e3a5f" font-size="8" text-anchor="middle">bash · read · write</text>
   <rect x="500" y="138" width="100" height="18" rx="3" fill="#fff" stroke="#2563eb" stroke-width="0.8"/>
-  <text x="550" y="151" fill="#1e3a5f" font-size="8" text-anchor="middle">edit · list_files · todo</text>
+  <text x="550" y="151" fill="#1e3a5f" font-size="8" text-anchor="middle">edit · glob · todo</text>
   <rect x="500" y="160" width="100" height="18" rx="3" fill="#fff" stroke="#2563eb" stroke-width="0.8"/>
   <text x="550" y="173" fill="#1e3a5f" font-size="8" text-anchor="middle">content_search · sub_agent</text>
 

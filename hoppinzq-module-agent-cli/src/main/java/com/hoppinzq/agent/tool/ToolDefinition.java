@@ -93,20 +93,17 @@ public class ToolDefinition {
             EditFileInput.class,
             Tools::editFile
     );
-public static ToolDefinition ListFilesDefinition = new ToolDefinition(
-            "list_files",
-            "列出指定路径下的文件和目录，支持按文件类型筛选、递归遍历和结果数量限制。若未指定路径，则默认列出当前目录的内容。正常情况下，请勿使用递归遍历。推荐使用bash去列出文件，这会节约token",
+public static ToolDefinition GlobDefinition = new ToolDefinition(
+            "glob",
+            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
             createInputSchema(
                     Map.of(
-                            "path", createProperty("string", "可选的相对路径，用于列出文件。若未提供，则默认为当前目录。"),
-                            "fileType", createProperty("string", "可选的文件扩展名，用于限制搜索范围（例如：'md'、'java'、'txt'）。"),
-                            "recursive", createProperty("boolean", "是否递归遍历子目录。默认为 false，仅列出直接子项。正常情况下，请不要使用递归遍历。"),
-                            "maxResults", createProperty("integer", "返回的最大条目数。默认为 100。设为 0 或 null 表示无限制。")
+                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
                     ),
-                    List.of()
+                    List.of("pattern")
             ),
-            ListFilesInput.class,
-            Tools::listFiles
+            GlobInput.class,
+            Tools::glob
     );
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",

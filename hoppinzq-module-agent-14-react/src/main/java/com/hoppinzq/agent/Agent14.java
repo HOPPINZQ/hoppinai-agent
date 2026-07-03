@@ -6,6 +6,7 @@ import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -35,7 +36,7 @@ public class Agent14 {
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
         tools.add(ReadFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
@@ -170,21 +171,21 @@ public class Agent14 {
 
             ---------- 以下写法都属于格式错误，严禁出现 ----------
 
-            [错] <Action: list_files>          ← 禁止用尖括号 <> 包裹
+            [错] <Action: glob>          ← 禁止用尖括号 <> 包裹
             [错] <Action Input: {}>            ← 禁止用尖括号 <> 包裹
             [错] <Thought: ...>                ← 禁止用尖括号 <> 包裹
-            [错] **Action**: list_files        ← 禁止用 markdown 加粗
-            [错] `Action: list_files`          ← 禁止用反引号包裹
-            [错] ```Action: list_files```      ← 禁止用代码块包裹
-            [错] Action：list_files            ← 禁止用中文冒号 ：
-            [错] Action:list_files             ← 冒号后必须有一个空格
+            [错] **Action**: glob        ← 禁止用 markdown 加粗
+            [错] `Action: glob`          ← 禁止用反引号包裹
+            [错] ```Action: glob```      ← 禁止用代码块包裹
+            [错] Action：glob            ← 禁止用中文冒号 ：
+            [错] Action:glob             ← 冒号后必须有一个空格
             [错] 一次回复出现多组 Thought/Action/Action Input
             [错] 自己编造 Observation 的值
 
             ---------- 唯一正确写法 ----------
 
-            Thought: 用户想要查看当前目录的文件列表，应使用 list_files 工具
-            Action: list_files
+            Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
+            Action: glob
             Action Input: {}
 
             ========== 工作流程 ==========
@@ -201,8 +202,8 @@ public class Agent14 {
             用户: 请列出当前目录的文件
 
             AI:
-            Thought: 用户想要查看当前目录的文件列表，应使用 list_files 工具
-            Action: list_files
+            Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
+            Action: glob
             Action Input: {}
 
             （系统执行后返回）Observation: ["file1.txt", "file2.java"]

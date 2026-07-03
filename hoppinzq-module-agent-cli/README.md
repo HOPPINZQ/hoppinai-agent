@@ -20,4 +20,4 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.AgentCLI"
 
 ## 工具集合（16 个）
 
-bash / read_file / write_file / edit_file / list_files / content_search / sub_agent / todo / load_skill / compact / task_create / task_update / task_list / task_get / background_run / check_background
+bash / read_file / write_file / edit_file / glob / content_search / sub_agent / todo / load_skill / compact / task_create / task_update / task_list / task_get / background_run / check_background

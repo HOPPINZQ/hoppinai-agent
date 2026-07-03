@@ -143,7 +143,7 @@ public class AgentHooks {
                 如果工具被钩子阻断，你会收到包含原因的 ToolResult，请如实告知用户。
 
                 ## 可用工具
-                - bash / read_file / write_file / edit_file / list_files
+                - bash / read_file / write_file / edit_file / glob
 
                 ## 环境
                 - 操作系统：%s

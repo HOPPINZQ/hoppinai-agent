@@ -4,12 +4,14 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.*;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.compact.ContextCompactor;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 
+import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -18,20 +20,27 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 /**
  * 上下文压缩智能体
  *
- * 三层压缩策略：
- * - Layer 1: micro_compact - 每次调用前将旧tool_result替换为占位符
- * - Layer 2: auto_compact - token超过阈值时自动压缩
- * - Layer 3: manual compact - 通过compact工具手动压缩
+ * 四层压缩策略（参考Python s08设计）：
+ * - L1: snip_compact      — 裁掉中间消息（消息数 > 50）
+ * - L2: micro_compact     — 旧tool_result替换为占位符（保留最近3条）
+ * - L3: tool_result_budget — 持久化大输出到磁盘（单次消息 > 30KB）
+ * - L4: auto_compact      — LLM完整摘要（token超阈值）
+ * - Emergency: reactive_compact — API返回prompt_too_long时触发
+ *
+ * 核心原则：cheap first, expensive last
+ * 执行顺序：budget → snip → micro → auto
  *
  * @author hoppinzq
  */
 public class Agent06 extends ZQAgent {
     public static ContextCompactor compactor;
-    public static boolean manualCompactRequested = false;
     public static TodoManager todoManager;
     private int roundsSinceTodo = 0;
     private long lastTodoVersion = 0;
     public static SkillLoader skillLoader;
+
+    /** 供 Tools.compact() 静态方法调用的压缩回调 */
+    public static Runnable compactCallback;
 
     public Agent06(AnthropicClient client, String model, List<ToolDefinition> tools, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
         super(client, model, tools);
@@ -39,47 +48,155 @@ public class Agent06 extends ZQAgent {
         Agent06.skillLoader = skillLoader;
         Agent06.todoManager = todoManager;
         this.lastTodoVersion = todoManager.getVersion();
+        // 注册回调，让 Tools.compact 可以触发实例的 manualCompact
+        Agent06.compactCallback = this::manualCompact;
     }
 
     /**
-     * 重写chatMessage方法，实现两层压缩策略
+     * 重写createCommandHandler方法，添加tokens命令和compact命令支持
+     */
+    @Override
+    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
+        // 创建一个Runnable来处理/tokens命令，显示当前token估算
+        Runnable tokensHandler = () -> {
+            showTokenStats();
+        };
+
+        // 创建一个Runnable来处理/compact命令，触发手动压缩
+        Runnable compactHandler = () -> {
+            manualCompact();
+        };
+
+        return new AgentCommandHandler(sessionManager, skillLoader, tokensHandler, compactHandler);
+    }
+
+    /**
+     * 显示当前 token 使用统计
+     */
+    private void showTokenStats() {
+        int currentTokens = compactor.estimateTokens(this.messageParams);
+        int currentMessages = this.messageParams.size();
+        int threshold = TOKEN_THRESHOLD;
+
+        System.out.println("\u001b[90m========== 当前 Token 统计 ==========\u001b[0m");
+        System.out.println("当前消息数: " + currentMessages);
+        System.out.println("估算 tokens: " + currentTokens);
+        System.out.println("压缩阈值: " + threshold);
+        System.out.println("使用率: " + String.format("%.1f%%", (currentTokens * 100.0 / threshold)));
+
+        if (currentTokens >= threshold) {
+            System.out.println("\u001b[91m状态: 已超过阈值，建议执行压缩\u001b[0m");
+        } else if (currentTokens >= threshold * 0.8) {
+            System.out.println("\u001b[93m状态: 接近阈值（80%），建议关注\u001b[0m");
+        } else {
+            System.out.println("\u001b[92m状态: 正常\u001b[0m");
+        }
+        System.out.println();
+    }
+
+    /**
+     * 替换消息列表
+     */
+    private void replaceMessageParams(List<MessageParam> newParams) {
+        this.messageParams.clear();
+        this.messageParams.addAll(newParams);
+    }
+
+    /**
+     * 手动压缩方法：由 compact 工具或命令触发
      *
-     * 压缩流程：
-     * 1. Layer 1（微压缩）：每次LLM调用前自动执行，将旧工具结果替换为占位符
-     * 2. Layer 2（自动压缩）：当token估算超过阈值时，保存完整对话并生成摘要
+     * 功能说明：
+     * - 直接调用 LLM 生成摘要（参考 Python s08 的 compact_history）
+     * - 删除压缩前的上下文
+     * - 写入摘要到上下文
+     *
+     * 执行步骤：
+     * 1. 保存完整对话记录到磁盘（.transcripts 目录）
+     * 2. 调用 LLM 生成对话摘要（1 API 调用）
+     * 3. 用摘要消息替换原始消息列表
+     *
+     * 注意：三层压缩（budget → snip → micro）是在每次 LLM 调用前自动执行的预处理步骤，
+     * 不需要在手动压缩中重复执行。
+     */
+    private void manualCompact() {
+        try {
+            if (this.messageParams.isEmpty()) {
+                System.out.println("[压缩跳过] 当前上下文为空，无需压缩。");
+                return;
+            }
+
+            int messageCount = this.messageParams.size();
+            int estimatedTokens = ContextCompactor.estimateTokens(this.messageParams);
+
+            System.out.printf("[开始手动压缩] 消息数: %d, 估算tokens: %d%n", messageCount, estimatedTokens);
+
+            // 直接调用 LLM 生成摘要（参考 Python s08 的 compact_history）
+            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
+
+            // 替换消息列表
+            replaceMessageParams(compressed);
+
+            System.out.println("[压缩完成] 上下文已清理，完整历史已保存到会话。下次对话将使用压缩后的上下文。");
+
+        } catch (Exception e) {
+            System.err.println("[压缩失败] " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 重写chatMessage方法，实现四层压缩策略
+     *
+     * 压缩流程（参考Python s08设计）：
+     * 1. L3（budget）：持久化大输出到磁盘（0 API调用）
+     * 2. L1（snip）：裁掉中间消息（0 API调用）
+     * 3. L2（micro）：旧 tool_result 替换为占位符（0 API调用）
+     * 4. L4（auto）：当token估算超过阈值时，保存完整对话并生成摘要（1 API调用）
      *
      * 状态同步说明：
      * - ZQAgent将messageParams字段直接传递给此方法（引用传递）
-     * - 微压缩返回新列表，自动压缩返回新列表
-     * - 发生自动压缩时，需要同步更新ZQAgent的状态
+     * - 压缩返回新列表
+     * - 发生压缩时，需要同步更新ZQAgent的状态
+     *
+     * 核心原则：cheap first, expensive last
      *
      * @param messageParams 原始消息参数列表
      * @return LLM响应消息
      */
     @Override
     protected Message chatMessage(List<MessageParam> messageParams) {
-        // Layer 1: 微压缩 - 每次LLM调用前执行，静默压缩旧的工具结果
-        List<MessageParam> compactedParams = compactor.microCompact(new ArrayList<>(messageParams));
+        // 执行三层预处理（0 API调用，cheap first）
+        // 执行顺序：budget → snip → micro（与Python s08一致）
 
-        // Layer 2: 自动压缩 - 当token估算超过阈值时触发
-        if (ContextCompactor.estimateTokens(compactedParams) > TOKEN_THRESHOLD) {
-            System.out.println("[自动压缩已触发]");
-            compactedParams = compactor.autoCompact(compactedParams);
+        // 注意：messageParams 是引用传递，不能直接 clear() 后再使用
+        // 需要先保存原始消息，然后逐步处理
 
-            // 【状态同步】需要将压缩后的消息同步到ZQAgent的messageParams字段
-            // 说明：
-            // - ZQAgent维护messageParams作为状态
-            // - chatMessage接收的是messageParams字段的引用
-            // - 但microCompact和autoCompact都返回新列表，不会修改原列表
-            // - 因此需要手动将压缩后的列表同步回ZQAgent的状态
+        // L3: tool_result_budget — 持久化大输出
+        List<MessageParam> working = new ArrayList<>(messageParams);
+        working = compactor.toolResultBudget(working);
 
-            // 更新ZQAgent的消息状态，确保下次调用使用压缩后的上下文
-            this.messageParams.clear();
-            this.messageParams.addAll(compactedParams);
+        // L1: snip_compact — 裁掉中间消息
+        working = compactor.snipCompact(working);
+
+        // L2: micro_compact — 旧 tool_result 替换为占位符
+        working = compactor.microCompact(working);
+
+        // 将处理后的消息复制回 messageParams
+        messageParams.clear();
+        messageParams.addAll(working);
+
+        // L4: auto_compact — token仍超阈值时触发（1 API调用，expensive last）
+        if (ContextCompactor.estimateTokens(messageParams) > TOKEN_THRESHOLD) {
+            System.out.println("[自动 LLM 摘要压缩已触发]");
+            List<MessageParam> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+
+            // 【状态同步】替换 messageParams 并同步 session
+            replaceMessageParams(compactedParams);
+            return super.chatMessage(compactedParams);
         }
 
         // 使用（可能被压缩的）消息参数调用父类的chatMessage
-        return super.chatMessage(compactedParams);
+        return super.chatMessage(messageParams);
     }
 
     /**
@@ -87,9 +204,7 @@ public class Agent06 extends ZQAgent {
      *
      * 功能包括：
      * 1. 待办事项提醒：跟踪更新间隔，超过3回合未更新时提醒
-     * 2. Layer 1 微压缩：每次工具执行后静默压缩
-     * 3. Layer 2 自动压缩：token超阈值时触发完整压缩
-     * 4. Layer 3 手动压缩：响应用户的压缩请求
+     * 2. 执行完整的三层压缩（budget → snip → micro → auto）
      *
      * @param toolResults 工具执行结果列表
      */
@@ -114,25 +229,31 @@ public class Agent06 extends ZQAgent {
                     .build()));
         }
 
-        // ========== 三层压缩策略 ==========
-        // Layer 1: 每次工具执行后进行微压缩（静默、频繁）
-        compactor.microCompact(messageParams);
+        // ========== 四层压缩策略 ==========
+        // 执行顺序：budget → snip → micro → auto（与Python s08一致）
 
-        // Layer 2: 检查是否需要自动压缩（超阈值触发）
+        // 注意：messageParams 是引用传递，不能直接 clear() 后再使用
+        // 需要先保存原始消息，然后逐步处理
+
+        // L3: tool_result_budget — 持久化大输出
+        List<MessageParam> working = new ArrayList<>(messageParams);
+        working = compactor.toolResultBudget(working);
+
+        // L1: snip_compact — 裁掉中间消息
+        working = compactor.snipCompact(working);
+
+        // L2: micro_compact — 旧 tool_result 替换为占位符
+        working = compactor.microCompact(working);
+
+        // 将处理后的消息复制回 messageParams
+        messageParams.clear();
+        messageParams.addAll(working);
+
+        // L4: auto_compact — token仍超阈值时触发
         if (compactor.estimateTokens(messageParams) > TOKEN_THRESHOLD) {
-            System.out.println("[自动压缩已触发]");
-            List<MessageParam> compressed = compactor.autoCompact(messageParams);
-            messageParams.clear();
-            messageParams.addAll(compressed);
-        }
-
-        // Layer 3: 检查是否请求手动压缩（用户主动调用）
-        if (manualCompactRequested) {
-            System.out.println("[手动压缩]");
-            List<MessageParam> compressed = compactor.autoCompact(messageParams);
-            messageParams.clear();
-            messageParams.addAll(compressed);
-            manualCompactRequested = false;
+            System.out.println("[自动 LLM 摘要压缩已触发]");
+            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+            replaceMessageParams(compressed);
         }
     }
 
@@ -166,19 +287,26 @@ public class Agent06 extends ZQAgent {
         AnthropicClient client = AnthropicOkHttpClient.builder()
             .apiKey(API_KEY)
             .baseUrl(BASE_URL)
+            .timeout(Duration.ofSeconds(TIMEOUT))
+            .maxRetries(MAX_RETRIES)
             .build();
 
-        compactor = new ContextCompactor(client, MODEL);
         // 创建技能加载器
         skillLoader = new SkillLoader();
         todoManager = new TodoManager();
+
+        // 先创建 SessionManager
+        SessionManager sessionManager = bootstrapSession(args);
+
+        // 创建 ContextCompactor，传入 SessionManager
+        compactor = new ContextCompactor(client, MODEL, sessionManager);
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);
@@ -192,11 +320,14 @@ public class Agent06 extends ZQAgent {
         agent.setSystemPrompt(systemPrompt);
 
         System.out.println("=== 上下文压缩智能体 ===");
-        System.out.println("Token阈值: " + TOKEN_THRESHOLD);
-        System.out.println("保留最近工具结果数: " + KEEP_RECENT);
+        System.out.println("四层压缩策略（参考Python s08设计）：");
+        System.out.println("  L1 snip_compact: 最大消息数 = " + MAX_MESSAGES + ", 保留头部 = " + KEEP_HEAD);
+        System.out.println("  L2 micro_compact: 保留最近工具结果数 = " + KEEP_RECENT);
+        System.out.println("  L3 budget: 持久化阈值 = " + (PERSIST_THRESHOLD / 1024) + "KB, 单次消息最大 = " + (MAX_BYTES_PER_MESSAGE / 1024) + "KB");
+        System.out.println("  L4 auto_compact: token阈值 = " + CONTEXT_LIMIT);
         System.out.println();
 
-        agent.setSessionManager(bootstrapSession(args));
+        agent.setSessionManager(sessionManager, skillLoader);
         try {
             agent.run();
         } catch (Exception e) {

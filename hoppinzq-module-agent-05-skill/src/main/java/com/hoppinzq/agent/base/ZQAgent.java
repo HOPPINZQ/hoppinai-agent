@@ -9,6 +9,7 @@ import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 import lombok.Data;
 
 import java.util.*;
@@ -47,9 +48,9 @@ public class ZQAgent {
     /**
      * 设置会话管理器，同时初始化命令处理器。
      */
-    public void setSessionManager(SessionManager sessionManager) {
+    public void setSessionManager(SessionManager sessionManager, SkillLoader skillLoader) {
         this.sessionManager = sessionManager;
-        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager,skillLoader) : null;
     }
 
     public void run() {
@@ -63,7 +64,7 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/skills 查看技能，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();

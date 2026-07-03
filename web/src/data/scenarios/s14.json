@@ -20,14 +20,14 @@
     },
     {
       "type": "tool_call",
-      "content": "list_files(path='.', pattern='**/*.java')",
-      "toolName": "list_files",
+      "content": "glob(path='.', pattern='**/*.java')",
+      "toolName": "glob",
       "annotation": "第二阶段：行动 - 根据思考结果调用工具"
     },
     {
       "type": "tool_result",
       "content": "找到8个Java文件: Agent.java, Tool.java, Memory.java, Planner.java, Executor.java, Main.java, Utils.java, Config.java",
-      "toolName": "list_files",
+      "toolName": "glob",
       "annotation": "第三阶段：观察 - 获取工具执行结果"
     },
     {

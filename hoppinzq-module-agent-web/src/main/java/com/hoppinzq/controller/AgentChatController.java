@@ -77,7 +77,7 @@ public class AgentChatController {
         addTools.add(EditFileDefinition);
         addTools.add(WriteFileDefinition);
         addTools.add(ReadFileDefinition);
-        addTools.add(ListFilesDefinition);
+        addtools.add(GlobDefinition);
         addTools.add(ContentSearchDefinition);
 
         // 补充demo中的额外工具
@@ -124,21 +124,21 @@ public class AgentChatController {
 
                 ---------- 以下写法都属于格式错误，严禁出现 ----------
 
-                [错] <Action: list_files>          ← 禁止用尖括号 <> 包裹
+                [错] <Action: glob>          ← 禁止用尖括号 <> 包裹
                 [错] <Action Input: {}>            ← 禁止用尖括号 <> 包裹
                 [错] <Thought: ...>                ← 禁止用尖括号 <> 包裹
-                [错] **Action**: list_files        ← 禁止用 markdown 加粗
-                [错] `Action: list_files`          ← 禁止用反引号包裹
-                [错] ```Action: list_files```      ← 禁止用代码块包裹
-                [错] Action：list_files            ← 禁止用中文冒号 ：
-                [错] Action:list_files             ← 冒号后必须有一个空格
+                [错] **Action**: glob        ← 禁止用 markdown 加粗
+                [错] `Action: glob`          ← 禁止用反引号包裹
+                [错] ```Action: glob```      ← 禁止用代码块包裹
+                [错] Action：glob            ← 禁止用中文冒号 ：
+                [错] Action:glob             ← 冒号后必须有一个空格
                 [错] 一次回复出现多组 Thought/Action/Action Input
                 [错] 自己编造 Observation 的值
 
                 ---------- 唯一正确写法 ----------
 
-                Thought: 用户想要查看当前目录的文件列表，应使用 list_files 工具
-                Action: list_files
+                Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
+                Action: glob
                 Action Input: {}
 
                 ========== 工作流程 ==========
@@ -155,8 +155,8 @@ public class AgentChatController {
                 用户: 请列出当前目录的文件
 
                 AI:
-                Thought: 用户想要查看当前目录的文件列表，应使用 list_files 工具
-                Action: list_files
+                Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
+                Action: glob
                 Action Input: {}
 
                 （系统执行后返回）Observation: ["file1.txt", "file2.java"]
@@ -206,7 +206,7 @@ public class AgentChatController {
                 - read_file: 读取文件内容
                 - write_file: 写入文件内容
                 - edit_file: 编辑文件（替换字符串）
-                - list_files: 列出目录下的文件
+                - glob: 列出目录下的文件
                 
                 ## 代码搜索
                 - content_search: 使用ripgrep搜索代码内容，支持正则表达式

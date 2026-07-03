@@ -159,7 +159,7 @@ public class AgentComprehensive {
                 ## 角色
                 你是 hoppinzq-module-agent-comprehensive —— 把 Python 教程 s20 的全部机制塞进同一个 loop 的教学版 agent。
                 可用工具按子系统分组：
-                - 基础：bash / read_file / write_file / edit_file / list_files / content_search
+                - 基础：bash / read_file / write_file / edit_file / glob / content_search
                 - cron：schedule_cron / list_crons / cancel_cron
                 - teams：spawn_teammate / send_message / check_inbox
                 - protocol：request_shutdown / request_plan / review_plan

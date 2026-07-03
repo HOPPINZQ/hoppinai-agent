@@ -1,6 +1,10 @@
 package com.hoppinzq.agent.command;
 
 import com.hoppinzq.agent.session.SessionManager;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * Agent 特殊命令处理器。
@@ -9,6 +13,7 @@ import com.hoppinzq.agent.session.SessionManager;
  * <ul>
  *   <li>{@code /stats} —— 打印当前会话的 token 统计</li>
  *   <li>{@code /usage} —— 打印每次 LLM 调用的 token 明细</li>
+ *   <li>{@code /skills} —— 查询已加载的技能信息</li>
  *   <li>{@code /exit} —— 退出程序并打印统计</li>
  * </ul>
  *
@@ -17,9 +22,11 @@ import com.hoppinzq.agent.session.SessionManager;
 public class AgentCommandHandler {
 
     private final SessionManager sessionManager;
+    private final SkillLoader skillLoader;
 
-    public AgentCommandHandler(SessionManager sessionManager) {
+    public AgentCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
         this.sessionManager = sessionManager;
+        this.skillLoader = skillLoader;
     }
 
     /**
@@ -50,12 +57,15 @@ public class AgentCommandHandler {
             case "/usage":
                 handleUsage();
                 return true;
+            case "/skills":
+                handleSkills();
+                return true;
             case "/exit":
                 handleExit();
                 return true;
             default:
                 System.out.println("\u001b[90m[提示] 未知命令: " + input + "\u001b[0m");
-                System.out.println("\u001b[90m可用命令: /stats, /usage, /exit\u001b[0m");
+                System.out.println("\u001b[90m可用命令: /stats, /usage, /skills, /exit\u001b[0m");
                 return true;
         }
     }
@@ -105,5 +115,18 @@ public class AgentCommandHandler {
         }
         System.out.println("再见！");
         System.exit(0);
+    }
+
+    private void handleSkills() {
+        if (skillLoader == null) {
+            System.out.println("\u001b[90m[提示] 本会话未启用技能加载器，无技能信息\u001b[0m");
+            return;
+        }
+
+        List<String> availableSkills = skillLoader.getAvailableSkills();
+        System.out.println("=== 技能加载智能体 ===");
+        System.out.println("已加载技能数量: " + availableSkills.size());
+        System.out.println("可用技能: " + String.join(", ", availableSkills));
+        System.out.println();
     }
 }

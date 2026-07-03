@@ -100,7 +100,7 @@ public class AgentProtocols {
                 - plan_approval 协议：teammate 发 plan_approval_request → lead 用 review_plan 决定 approve/reject → teammate 收到 plan_approval_response
 
                 ## 你拥有的工具（15 个）
-                基础（6）：bash、read_file、write_file、edit_file、list_files、content_search
+                基础（6）：bash、read_file、write_file、edit_file、glob、content_search
                 定时（3）：schedule_cron、list_crons、cancel_cron
                 团队（3）：
                 - spawn_teammate(name, role, prompt)：启动一个 teammate 线程

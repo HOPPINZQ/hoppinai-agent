@@ -140,7 +140,7 @@ public class ToolDefinition {
     );
 
     public static ToolDefinition ListFilesDefinition = new ToolDefinition(
-            "list_files",
+            "glob",
             "列出指定路径下的文件和目录，支持按文件类型筛选。若未指定路径，则默认列出当前目录的内容。",
             createInputSchema(
                     Map.of(

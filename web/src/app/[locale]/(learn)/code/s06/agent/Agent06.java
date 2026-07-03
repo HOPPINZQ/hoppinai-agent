@@ -177,7 +177,7 @@ public class Agent06 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);

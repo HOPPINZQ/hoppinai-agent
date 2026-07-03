@@ -273,7 +273,7 @@ hoppinzq-module-agent-03/
 │   │       ├── ReadFileInput.java      # read_file 输入 Schema
 │   │       ├── WriteFileInput.java     # write_file 输入 Schema
 │   │       ├── EditFileInput.java      # edit_file 输入 Schema
-│   │       ├── ListFilesInput.java     # list_files 输入 Schema
+│   │       ├── GlobInput.java     # glob输入参数（pattern）
 │   │       ├── ContentSearchInput.java # content_search 输入 Schema
 │   │       ├── TodoInput.java          # Todo 输入 Schema
 │   │       └── TodoItem.java           # Todo 项 Schema

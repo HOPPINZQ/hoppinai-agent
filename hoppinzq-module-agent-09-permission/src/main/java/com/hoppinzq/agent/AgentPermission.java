@@ -126,7 +126,7 @@ public class AgentPermission {
                 如果工具被拒绝，你会收到 isError=true 的 ToolResult，请如实告知用户并建议替代方案。
 
                 ## 可用工具
-                - bash / read_file / write_file / edit_file / list_files
+                - bash / read_file / write_file / edit_file / glob
 
                 ## 环境
                 - 操作系统：%s

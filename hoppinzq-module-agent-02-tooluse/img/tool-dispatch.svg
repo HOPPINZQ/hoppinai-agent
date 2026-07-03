@@ -89,10 +89,10 @@
   <text x="420" y="362" fill="#166534" font-size="11" font-weight="600" text-anchor="middle">edit_file</text>
   <text x="420" y="374" fill="#64748b" font-size="9" text-anchor="middle">→ run_edit()</text>
 
-  <!-- list_files handler -->
+  <!-- glob handler -->
   <rect x="220" y="392" width="120" height="34" rx="6" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.2"/>
-  <text x="280" y="408" fill="#166534" font-size="11" font-weight="600" text-anchor="middle">list_files</text>
-  <text x="280" y="420" fill="#64748b" font-size="9" text-anchor="middle">→ run_list()</text>
+  <text x="280" y="408" fill="#166534" font-size="11" font-weight="600" text-anchor="middle">glob</text>
+  <text x="280" y="420" fill="#64748b" font-size="9" text-anchor="middle">→ run_glob()</text>
 
   <!-- content_search handler -->
   <rect x="360" y="392" width="120" height="34" rx="6" fill="#ecfdf5" stroke="#16a34a" stroke-width="1.2"/>

@@ -176,7 +176,7 @@ protected void onToolExecution(List<ContentBlockParam> toolResults) {
 | 文件操作 | read_file | 读取文件内容 |
 | 文件操作 | write_file | 写入文件内容 |
 | 文件操作 | edit_file | 编辑文件（字符串替换） |
-| 文件操作 | list_files | 列出目录文件 |
+| 文件操作 | glob | 列出目录文件 |
 | 代码搜索 | content_search | ripgrep 正则搜索 |
 | 命令执行 | bash | 阻塞式 Shell 命令（cmd/powershell/bash） |
 | 命令执行 | **background_run** | **后台执行命令，立即返回 task_id** |

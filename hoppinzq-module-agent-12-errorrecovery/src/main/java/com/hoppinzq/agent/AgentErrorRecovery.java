@@ -130,7 +130,7 @@ public class AgentErrorRecovery {
                 如果某轮回复被截断，请尝试在下一轮继续。
 
                 ## 可用工具
-                - bash / read_file / write_file / edit_file / list_files
+                - bash / read_file / write_file / edit_file / glob
 
                 ## 环境
                 - 操作系统：%s

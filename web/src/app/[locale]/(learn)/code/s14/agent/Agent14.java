@@ -33,7 +33,7 @@ public class Agent14 {
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
         tools.add(ReadFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
@@ -125,8 +125,8 @@ public class Agent14 {
             用户: 请列出当前目录的文件
             
             AI:
-            Thought: 用户想要查看当前目录的文件列表，我应该使用 list_files 工具
-            Action: list_files
+            Thought: 用户想要查看当前目录的文件列表，我应该使用 glob 工具
+            Action: glob
             Action Input: {}
             
             用户: (工具执行结果) Observation: ["file1.txt", "file2.java", ...]

@@ -41,7 +41,7 @@ public class Agent03 extends ZQAgent {
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
         tools.add(ReadFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         tools.add(TodoDefinition);
@@ -85,7 +85,7 @@ public class Agent03 extends ZQAgent {
                 - edit_file: 编辑文本文件
                 - write_file: 创建或覆盖文件
                 - read_file: 读取文件内容
-                - list_files: 列出目录内容
+                - glob: 列出目录内容
                 - content_search: 搜索代码内容
                 - todo: 管理待办事项列表
                 

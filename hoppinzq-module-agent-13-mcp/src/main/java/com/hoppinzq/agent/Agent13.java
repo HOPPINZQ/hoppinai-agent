@@ -63,7 +63,7 @@ public class Agent13 {
         tools.add(ReadFileDefinition);
         tools.add(WriteFileDefinition);
         tools.add(EditFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         tools.addAll(mcpLoader.loadTools());

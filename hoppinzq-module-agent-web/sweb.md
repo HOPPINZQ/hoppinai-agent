@@ -347,7 +347,7 @@ public class SkillLoader {
 | read_file | Function | path | 读取文件内容 |
 | write_file | Function | path, content | 写入文件 |
 | edit_file | Function | path, oldStr, newStr | 编辑文件（字符串替换） |
-| list_files | Function | path, fileType | 列出目录文件 |
+| glob | Function | path, fileType | 列出目录文件 |
 | content_search | Function | pattern, path, fileType, caseSensitive | ripgrep 搜索（50结果上限） |
 | sub_agent | Function | task | 子代理（3工具隔离执行） |
 | todo | Function | action, items | 待办事项管理（增删改查） |

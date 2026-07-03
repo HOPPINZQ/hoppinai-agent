@@ -24,7 +24,7 @@ Agent03 在 Agent02 的基础上引入了**待办事项管理 (TodoManager)** �
          Claude API (chatMessage)
                 ↓
          工具调用 (invokeTool)
-         ├── bash / read_file / write_file / edit_file / list_files / content_search
+         ├── bash / read_file / write_file / edit_file / glob / content_search
          └── todo → TodoManager.updateTodos()
                          ↓
                     update(List<TodoItem>)

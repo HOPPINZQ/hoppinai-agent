@@ -54,7 +54,7 @@ public class Agent04 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(TodoDefinition);
         tools.add(SubAgentDefinition);
@@ -120,7 +120,7 @@ public static ToolDefinition SubAgentDefinition = new ToolDefinition(
 | read_file | 有 | 有 |
 | write_file | 有 | 有 |
 | edit_file | 有 | 有 |
-| list_files | 有 | **无** |
+| glob | 有 | **无** |
 | content_search | 有 | **无** |
 | todo | 有 | **无** |
 | sub_agent | 有 | **无** |
@@ -178,7 +178,7 @@ hoppinzq-module-agent-04/
 │   │   │   ├── ReadFileInput.java
 │   │   │   ├── WriteFileInput.java
 │   │   │   ├── EditFileInput.java
-│   │   │   ├── ListFilesInput.java
+│   │   │   ├── GlobInput.java
 │   │   │   ├── ContentSearchInput.java
 │   │   │   └── SubAgentInput.java
 │   │   └── manager/

@@ -7,7 +7,7 @@ import java.io.File;
 /**
  * Teammate 线程的 worktree 上下文（ThreadLocal）。
  * <p>当 teammate 认领一个绑定了 worktree 的 task 时，会把 worktree 路径塞进当前线程，
- * 之后该线程内的 bash / read_file / write_file / edit_file / list_files 都会以 worktree 路径
+ * 之后该线程内的 bash / read_file / write_file / edit_file / glob 都会以 worktree 路径
  * 作为 cwd，互不干扰。
  *
  * @author hoppinzq

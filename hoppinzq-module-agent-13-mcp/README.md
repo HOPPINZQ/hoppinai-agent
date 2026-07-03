@@ -204,7 +204,7 @@ hoppinzq-module-agent-13-mcp/
 │   │       ├── BashInput.java               # Bash输入参数
 │   │       ├── ContentSearchInput.java      # 内容搜索输入参数
 │   │       ├── EditFileInput.java           # 编辑文件输入参数
-│   │       ├── ListFilesInput.java          # 列出文件输入参数
+│   │       ├── GlobInput.java          # 列出文件输入参数
 │   │       ├── ReadFileInput.java           # 读取文件输入参数
 │   │       └── WriteFileInput.java          # 写入文件输入参数
 │   └── constant/

@@ -27,7 +27,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  * - 子智能体从空的 messages[] 开始，执行自己的循环
  * - 子智能体只返回摘要文本给父智能体，不返回完整的上下文历史
  *
- * 示例：AI，创建4个智能体，每个智能体独立给出剪子包袱锤，然后主智能体做裁判。直到有一个胜者
+ * 示例：AI，创建3个智能体，每个智能体独立给出剪子包袱锤，然后主智能体做裁判。直到有一个胜者
  * @author hoppinzq
  */
 public class Agent04 extends ZQAgent {
@@ -83,14 +83,13 @@ public class Agent04 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(TodoDefinition);
         tools.add(SubAgentDefinition);
         Agent04 mainAgent = new Agent04(client, MODEL, tools,todoManager);
         mainAgent.setSystemPrompt(buildSystemPrompt());
         mainAgent.setSessionManager(bootstrapSession(args));
-        mainAgent.setCommandHandler(new AgentCommandHandler(null));
         mainAgent.run();
     }
 
@@ -174,7 +173,7 @@ public class Agent04 extends ZQAgent {
                - read_file: 读取文件内容
                - write_file: 写入文件内容（文件不存在则创建）
                - edit_file: 编辑文件（替换指定文本）
-               - list_files: 列出目录内容（支持文件类型筛选）
+               - glob: 列出目录内容（支持文件类型筛选）
             
             3. **搜索工具**
                - content_search: 使用ripgrep搜索代码或文本
@@ -222,7 +221,7 @@ public class Agent04 extends ZQAgent {
             ## 工具使用
             - edit_file工具要求oldStr必须完全匹配且唯一
             - write_file会自动创建不存在的文件
-            - list_files支持递归列出目录内容
+            - glob支持递归列出目录内容
             - content_search支持强大的正则表达式搜索
             
             ## 子智能体使用

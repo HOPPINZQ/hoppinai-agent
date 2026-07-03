@@ -66,7 +66,7 @@
 | list_crons() | 列出所有任务 |
 | cancel_cron(id) | 按 id 取消 |
 
-加上 module-02 的 6 个基础工具（bash / read_file / write_file / edit_file / list_files / content_search），共 9 个。
+加上 module-02 的 6 个基础工具（bash / read_file / write_file / edit_file / glob / content_search），共 9 个。
 
 ## 配置 & 运行
 

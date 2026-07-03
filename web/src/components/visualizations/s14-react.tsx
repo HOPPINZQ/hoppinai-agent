@@ -128,7 +128,7 @@ const MESSAGES_PER_STEP: (MessageBlock | null)[][] = [
   [],
   [{ role: "user", detail: "帮我分析项目代码质量并给出改进建议", colorClass: "bg-[#889df0]" }],
   [{ role: "thought", detail: "需要列出项目文件，然后逐个分析代码质量", colorClass: "bg-[#889df0]" }],
-  [{ role: "action", detail: "list_files(pattern='**/*.java')", colorClass: "bg-[#e59266]" }],
+  [{ role: "action", detail: "glob(pattern='**/*.java')", colorClass: "bg-[#e59266]" }],
   [{ role: "observation", detail: "找到8个Java文件，准备逐个分析", colorClass: "bg-[#82d5bb]" }],
   [{ role: "thought", detail: "继续分析核心文件Agent.java", colorClass: "bg-[#889df0]" }],
   [{ role: "action", detail: "analyze_code(file='Agent.java')", colorClass: "bg-[#e59266]" }],

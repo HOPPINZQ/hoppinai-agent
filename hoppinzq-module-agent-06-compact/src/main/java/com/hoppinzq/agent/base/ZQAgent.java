@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
+import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 import lombok.Data;
 
 import java.util.*;
@@ -25,15 +27,18 @@ public class ZQAgent {
     private final String model;
     protected final AnthropicClient client;
     private final List<ToolDefinition> tools;
-    protected final List<MessageParam> messageParams = new ArrayList<>();
+    protected List<MessageParam> messageParams = new ArrayList<>();
     private String taskResult;
     private boolean taskCompleted = false;
-    /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
-    private SessionManager sessionManager;
     /**
-     * 可选的命令处理器；设置后可处理 /stats、/usage、/exit 等特殊命令。
+     * 可选的命令处理器；设置后可处理 /stats、/usage、/skills、/exit 等特殊命令。
      */
     private AgentCommandHandler commandHandler;
+
+    /**
+     * 会话管理器
+     */
+    protected SessionManager sessionManager;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
         this.client = client;
@@ -44,10 +49,22 @@ public class ZQAgent {
 
     /**
      * 设置会话管理器，同时初始化命令处理器。
+     * 子类可以重写此方法以提供额外的命令处理器（如 compact 命令）。
      */
-    public void setSessionManager(SessionManager sessionManager) {
+    public void setSessionManager(SessionManager sessionManager, SkillLoader skillLoader) {
         this.sessionManager = sessionManager;
-        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+        this.commandHandler = sessionManager != null ? createCommandHandler(sessionManager, skillLoader) : null;
+    }
+
+    /**
+     * 创建命令处理器。子类可以重写此方法以提供自定义的命令处理器。
+     *
+     * @param sessionManager 会话管理器
+     * @param skillLoader 技能加载器
+     * @return 命令处理器，默认不包含 compact 命令支持
+     */
+    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
+        return new AgentCommandHandler(sessionManager, skillLoader, null);
     }
 
     public void run() {
@@ -61,7 +78,7 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/skills 查看技能，/tokens 查看上下文，/transcripts 查看压缩历史，/compact 手动压缩，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
@@ -93,7 +110,6 @@ public class ZQAgent {
             printText(message);
 
             // 官方推荐的 canonical agentic loop：以 stop_reason == TOOL_USE 为循环条件
-            // 见 https://platform.claude.com/docs/en/agents-and-tools/tool-use/how-tool-use-works
             while (isToolUse(message)) {
                 MessageParam toolResultMessage = executeToolCalls(message);
                 appendMessage(toolResultMessage);
@@ -234,13 +250,11 @@ public class ZQAgent {
             if (input.asObject().isEmpty()) {
                 throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数不是 JSON 对象");
             }
-            // 把 JsonValue 落到 Jackson JsonNode 后再组装，避免直接序列化 SDK 内部包装类型
             ObjectNode root = OBJECT_MAPPER.createObjectNode();
             root.set("input", input.convert(JsonNode.class));
             root.put("tool_name", tool.getName());
             return tool.getFunction().apply(root.toString());
         } else {
-            // 工具自定义了入参 POJO 类型：依赖其 toString() 返回 JSON
             return tool.getFunction().apply(Objects.requireNonNull(input.convert(tool.getType())).toString());
         }
     }
@@ -364,11 +378,140 @@ public class ZQAgent {
 
             if (!hasToolUse) {
                 // Return the text response as result if no tools used
+                warnIfTruncated(message);
                 return message.content().stream()
                         .filter(ContentBlock::isText)
                         .map(cb -> cb.text().get().text())
                         .reduce("", (a, b) -> a + b);
             }
+            MessageParam.Content content = MessageParam.Content.ofBlockParams(toolResults);
+            MessageParam toolResultMessage = MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(content)
+                    .build();
+            messageParams.add(toolResultMessage);
+        }
+    }
+
+    /**
+     * 执行任务并返回包含 token 使用情况的结果
+     *
+     * @param prompt 任务提示词
+     * @return 包含结果和 token 使用情况的 SubAgentSessionResult
+     */
+    public SubAgentSessionResult runTaskWithTokenUsage(String prompt) {
+        long totalInputTokens = 0;
+        long totalOutputTokens = 0;
+
+        MessageParam userMessage = MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(prompt)
+                .build();
+        messageParams.add(userMessage);
+
+        while (true) {
+            Message message;
+            try {
+                message = chatMessage(messageParams);
+            } catch (Exception e) {
+                return SubAgentSessionResult.error("Error: " + e.getMessage());
+            }
+            messageParams.add(message.toParam());
+
+            // 累积 token 使用情况
+            if (message.usage() != null) {
+                totalInputTokens += message.usage().inputTokens();
+                totalOutputTokens += message.usage().outputTokens();
+            }
+
+            List<ContentBlockParam> toolResults = new ArrayList<>();
+            boolean hasToolUse = false;
+
+            for (ContentBlock content : message.content()) {
+                if (content.isText()) {
+                    Optional<TextBlock> text = content.text();
+                    String result = text.map(TextBlock::text).orElse("");
+                    if (!result.isBlank()) {
+                        System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", result);
+                    }
+                } else if (content.isToolUse()) {
+                    hasToolUse = true;
+                    ToolUseBlock toolUse = content.asToolUse();
+                    System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+
+                    if ("task_completed".equals(toolUse.name())) {
+                        try {
+                            JsonValue input = toolUse._input();
+                            Optional<Map<String, JsonValue>> object = input.asObject();
+                            if (object.isPresent()) {
+                                JsonValue res = object.get().get("result");
+                                if (res != null && res.asString().isPresent()) {
+                                    return SubAgentSessionResult.success(
+                                            res.asString().get().toString(),
+                                            totalInputTokens,
+                                            totalOutputTokens);
+                                }
+                            }
+                            return SubAgentSessionResult.success("Task completed.", totalInputTokens, totalOutputTokens);
+                        } catch (Exception e) {
+                            return SubAgentSessionResult.error("Error parsing task_completed: " + e.getMessage());
+                        }
+                    }
+
+                    String toolResult = null;
+                    Exception toolError = null;
+                    boolean toolFound = false;
+
+                    for (ToolDefinition tool : tools) {
+                        if (tool.getName().equals(toolUse.name())) {
+                            try {
+                                JsonValue input = toolUse._input();
+                                toolResult = invokeTool(tool, input);
+                                System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", toolResult);
+                            } catch (Exception e) {
+                                toolError = e;
+                                System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
+                                e.printStackTrace();
+                            }
+                            toolFound = true;
+                            break;
+                        }
+                    }
+
+                    if (!toolFound) {
+                        toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
+                        System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", toolError.getMessage());
+                    }
+
+                    if (toolError != null) {
+                        toolResults.add(ContentBlockParam.ofToolResult(
+                                ToolResultBlockParam.builder()
+                                        .toolUseId(toolUse.id())
+                                        .content(toolError.getMessage())
+                                        .isError(true)
+                                        .build()
+                        ));
+                    } else {
+                        toolResults.add(ContentBlockParam.ofToolResult(
+                                ToolResultBlockParam.builder()
+                                        .toolUseId(toolUse.id())
+                                        .content(toolResult)
+                                        .isError(false)
+                                        .build()
+                        ));
+                    }
+                }
+            }
+
+            if (!hasToolUse) {
+                warnIfTruncated(message);
+                String result = message.content().stream()
+                        .filter(ContentBlock::isText)
+                        .map(cb -> cb.text().get().text())
+                        .reduce("", (a, b) -> a + b);
+                return SubAgentSessionResult.success(result, totalInputTokens, totalOutputTokens);
+            }
+
             MessageParam.Content content = MessageParam.Content.ofBlockParams(toolResults);
             MessageParam toolResultMessage = MessageParam.builder()
                     .role(MessageParam.Role.USER)

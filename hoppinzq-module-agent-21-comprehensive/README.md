@@ -6,7 +6,7 @@
 
 | 子系统 | 来源 | 工具数 |
 |---|---|---|
-| 基础工具（bash/read_file/write_file/edit_file/list_files/content_search） | module-02 | 6 |
+| 基础工具（bash/read_file/write_file/edit_file/glob/content_search） | module-02 | 6 |
 | cron 定时调度 | s14 | 3 |
 | teams + mailbox | s15 | 3 |
 | protocol（shutdown/plan） | s16 | 3 |
@@ -60,7 +60,7 @@
 
 | 分组 | 工具名 |
 |---|---|
-| 基础 | bash, read_file, write_file, edit_file, list_files, content_search |
+| 基础 | bash, read_file, write_file, edit_file, glob, content_search |
 | cron | schedule_cron, list_crons, cancel_cron |
 | teams | spawn_teammate, send_message, check_inbox |
 | protocol | request_shutdown, request_plan, review_plan |
@@ -86,7 +86,7 @@ mvn -pl hoppinzq-module-agent-comprehensive exec:java -Dexec.mainClass=com.hoppi
 
 | Prompt | 期望 |
 |---|---|
-| 建一份检查仓库的 todo，然后列出所有 Java 文件 | create_task + list_files 串联 |
+| 建一份检查仓库的 todo，然后列出所有 Java 文件 | create_task + glob 串联 |
 | connect docs MCP server 然后搜索 agent loop | connect_mcp("docs") → mcp__docs__search("agent loop") 返回 mock 结果 |
 | 创建两个任务，分别 create_worktree 绑定，spawn alice 和 bob 自主干活 | task + worktree + teammate 全链路 |
 | 3 分钟后提醒我开会（one-shot cron） | schedule_cron 一次性定时 |

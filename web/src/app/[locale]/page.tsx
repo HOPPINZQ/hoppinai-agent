@@ -568,7 +568,7 @@ export default function HomePage() {
                       新增文件搜索工具
                     </h3>
                     <p className="text-xs leading-relaxed text-[#6a5a40]">
-                      增加了 <code className="font-mono text-[11px] font-bold">list_files</code>{" "}
+                      增加了 <code className="font-mono text-[11px] font-bold">glob</code>{" "}
                       和 <code className="font-mono text-[11px] font-bold">content_search</code>{" "}
                       两个工具，基于 ripgrep 实现高效的文件列表与内容搜索。
                     </p>

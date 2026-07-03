@@ -94,7 +94,7 @@ public class Agent05 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);
@@ -102,15 +102,10 @@ public class Agent05 extends ZQAgent {
         tools.add(SkillsDefinition);
 
         // 创建智能体
-        Agent05 agent = new Agent05(client, MODEL, tools, skillLoader,todoManager);
+        Agent05 agent = new Agent05(client, MODEL, tools, skillLoader, todoManager);
 
         agent.setSystemPrompt(buildSystemPrompt());
-
-        System.out.println("=== 技能加载智能体 ===");
-        System.out.println("已加载技能数量: " + skillLoader.getAvailableSkills().size());
-        System.out.println("可用技能: " + String.join(", ", skillLoader.getAvailableSkills()));
-        System.out.println();
-        agent.setSessionManager(bootstrapSession(args));
+        agent.setSessionManager(bootstrapSession(args),skillLoader);
         agent.run();
     }
 
@@ -213,7 +208,7 @@ public class Agent05 extends ZQAgent {
             - read_file: 读取文件内容
             - write_file: 写入新文件
             - edit_file: 编辑现有文件
-            - list_files: 列出目录内容
+            - glob: 列出目录内容
             - content_search: 搜索文件内容
             
             ### 智能体工具

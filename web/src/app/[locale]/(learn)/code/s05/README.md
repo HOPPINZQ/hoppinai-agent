@@ -11,7 +11,7 @@ Agent05 在 Agent04 的基础上引入了**技能加载（Skill Loading）**机�
 - **递归扫描**：自动扫描 `skills/` 目录下所有 `SKILL.md` 文件，支持文件系统和 JAR 两种加载方式
 - **待办事项管理**：继承 Agent04 的 TodoManager，3 回合未更新自动催办
 - **子智能体委托**：继承 Agent04 的 SubAgent 静态工具类
-- **9 个工具**：bash、read_file、write_file、edit_file、list_files、content_search、sub_agent、todo、load_skill
+- **9 个工具**：bash、read_file、write_file、edit_file、glob、content_search、sub_agent、todo、load_skill
 
 ## 实现原理
 

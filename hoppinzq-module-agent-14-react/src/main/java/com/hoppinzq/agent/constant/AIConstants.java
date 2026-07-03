@@ -36,7 +36,7 @@ public class AIConstants {
     public static final String RG_PATH = "C:\\ProgramData\\chocolatey\\bin\\rg.exe";
 
     //是否开启ReAct模式
-    public static final Boolean REACT_ENABLE = false;
+    public static final Boolean REACT_ENABLE = true;
 
     public static final String MODULE_NAME = "hoppinzq-module-agent-14-react";
     // 工作目录

@@ -7,7 +7,7 @@
 Module 01 只有一个 bash 工具，所有操作都走 Shell。`cat` 截断不可预测，`sed` 遇到特殊字符就崩，每次 bash 调用都是不受约束的安全面。Module 02 的解决方案是引入专用工具，每个工具做一件事，在工具层面实现路径沙箱和参数校验。
 
 - **组合模式**：Agent02 不继承 ZQAgent，而是创建实例并注入工具列表（与 Agent01 相同）
-- **6 个工具**：bash、read_file、write_file、edit_file、list_files、content_search
+- **6 个工具**：bash、read_file、write_file、edit_file、glob、content_search
 - **循环不变**：加工具 = 加 handler + 加 schema，ZQAgent 的 run/chatMessage/invokeTool 永远不变
 
 ## 核心特性
@@ -42,7 +42,7 @@ public class Agent02 {
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
         tools.add(ReadFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
@@ -131,12 +131,16 @@ public String invoke(Object convertedInput) throws Exception {
 
 > 注意：edit_file 的所有参数都是**可选**的（required 列表为空），由 LLM 自行决定填写哪些字段。
 
-### 5. list_files
-列出指定路径下的文件和目录，支持按文件类型筛选。
+### 5. glob
+使用glob模式查找匹配的文件，类似Python的glob.glob()功能。
 
 **参数：**
-- `path` (string): 相对路径，默认为当前目录
-- `fileType` (string): 文件扩展名筛选（如 "md"、"java"、"txt"）
+- `pattern` (string, 必填): glob匹配模式，支持通配符
+  - `*.ext`: 匹配当前目录下所有.ext文件
+  - `**/*.ext`: 递归匹配所有.ext文件
+  - `test_*.py`: 匹配以test_开头的Python文件
+  - `*/`: 匹配当前目录下的所有子目录
+  - `src/`: 匹配指定目录下的所有内容
 
 ### 6. content_search
 使用 ripgrep (rg) 搜索代码或文本内容，支持正则表达式。
@@ -206,8 +210,10 @@ AI: 我来读取这个文件。
 AI: 文件内容是：Hello, World!
 
 你: 查看src目录下所有的Java文件
-工具: list_files({"path":"./src","fileType":"java"})
-结果: Agent02.java  ToolDefinition.java  Tools.java ...
+工具: glob({"pattern":"src/**/*.java"})
+结果: src/main/java/com/hoppinzq/agent/Agent02.java
+src/main/java/com/hoppinzq/agent/tool/ToolDefinition.java
+src/main/java/com/hoppinzq/agent/tool/Tools.java ...
 
 你: 搜索项目中所有包含TODO注释的代码
 工具: content_search({"pattern":"TODO","path":"./src","fileType":"java"})
@@ -244,7 +250,7 @@ hoppinzq-module-agent-02/
 │   │       ├── ReadFileInput.java # read_file输入参数（path）
 │   │       ├── WriteFileInput.java# write_file输入参数（path + content）
 │   │       ├── EditFileInput.java # edit_file输入参数（path + oldStr + newStr）
-│   │       ├── ListFilesInput.java# list_files输入参数（path + fileType）
+│   │       ├── GlobInput.java     # glob输入参数（pattern）
 │   │       └── ContentSearchInput.java # content_search输入参数
 │   └── constant/
 │       └── AIConstants.java       # 常量配置（API/模型/路径/MAX_TOKENS）

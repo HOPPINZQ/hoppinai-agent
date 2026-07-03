@@ -18,7 +18,7 @@ Agent14 使用**组合模式**（不继承 ZQAgent），与 Agent01、Agent02、
 - **正则解析引擎**：ZQAgent 使用 `Pattern.compile("Action:\\s*([^\\n]+)")` 和 `Pattern.compile("Action Input:\\s*(\\{.*?\\})(?=\\s*\\n|$)", Pattern.DOTALL)` 从文本中提取工具名和参数
 - **Observation 注入**：工具执行结果以 `Observation:` 前缀注入为用户消息，形成完整的推理闭环
 - **双系统提示词**：根据模式自动选择 `buildReActSystemPrompt()` 或 `buildNormalSystemPrompt()`
-- **6 个基础工具**：与 Agent01-08 相同的基础工具集（bash、read_file、write_file、edit_file、list_files、content_search）
+- **6 个基础工具**：与 Agent01-08 相同的基础工具集（bash、read_file、write_file、edit_file、glob、content_search）
 
 ## 实现原理
 
@@ -191,8 +191,8 @@ mvn exec:java -Dexec.mainClass="com.hoppinzq.agent.Agent14"
 你: 请查看当前目录有哪些文件，并读取 README.md 的内容
 
 AI:
-Thought: 用户需要两个操作：先列出目录文件，再读取 README.md。先执行 list_files
-Action: list_files
+Thought: 用户需要两个操作：先列出目录文件，再读取 README.md。先执行 glob
+Action: glob
 Action Input: {"path":"."}
 
 Observation: [Agent14.java, ZQAgent.java, ToolDefinition.java, README.md, ...]
@@ -236,7 +236,7 @@ hoppinzq-module-agent-14-react/
 │   │   │   ├── BashInput.java               # Bash输入参数
 │   │   │   ├── ContentSearchInput.java      # 内容搜索输入参数
 │   │   │   ├── EditFileInput.java           # 编辑文件输入参数
-│   │   │   ├── ListFilesInput.java          # 列出文件输入参数
+│   │   │   ├── GlobInput.java          # 列出文件输入参数
 │   │   │   ├── ReadFileInput.java           # 读取文件输入参数
 │   │   │   ├── WriteFileInput.java          # 写入文件输入参数
 │   │   │   └── ReActInput.java              # ReAct数据模型（非工具定义）

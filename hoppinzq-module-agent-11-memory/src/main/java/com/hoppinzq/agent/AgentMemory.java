@@ -136,7 +136,7 @@ public class AgentMemory {
                 如果用户告诉你偏好、纠正你、或描述项目结构，请用陈述句表达，便于记忆抽取器落盘。
 
                 ## 可用工具
-                - bash / read_file / write_file / edit_file / list_files
+                - bash / read_file / write_file / edit_file / glob
 
                 ## 环境
                 - 操作系统：%s

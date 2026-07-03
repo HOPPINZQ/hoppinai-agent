@@ -92,7 +92,7 @@ public class Agent05 extends ZQAgent {
         tools.add(ReadFileDefinition);
         tools.add(EditFileDefinition);
         tools.add(WriteFileDefinition);
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);
@@ -155,7 +155,7 @@ public class Agent05 extends ZQAgent {
             - read_file: 读取文件内容
             - write_file: 写入新文件
             - edit_file: 编辑现有文件
-            - list_files: 列出目录内容
+            - glob: 列出目录内容
             - content_search: 搜索文件内容
             
             ### 智能体工具

@@ -13,7 +13,7 @@ Agent06 在 Agent05 的基础上引入了**上下文压缩（Context Compact）*
 - **待办事项管理**：继承 Agent05 的 TodoManager，3 回合未更新自动催办
 - **技能加载系统**：继承 Agent05 的 SkillLoader 两层注入架构
 - **子智能体委托**：继承 Agent05 的 SubAgent 静态工具类
-- **10 个工具**：bash、read_file、write_file、edit_file、list_files、content_search、sub_agent、todo、load_skill、compact
+- **10 个工具**：bash、read_file、write_file、edit_file、glob、content_search、sub_agent、todo、load_skill、compact
 
 ## 实现原理
 

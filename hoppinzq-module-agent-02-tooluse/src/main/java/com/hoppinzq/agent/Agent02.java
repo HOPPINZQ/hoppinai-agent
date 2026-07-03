@@ -23,10 +23,10 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  * <p><b>示例提示词：</b></p>
  * <ul>
  *   <li>"请帮我创建一个名为test.txt的文件，内容为'Hello, World!'"</li>
- *   <li>"查看src目录下所有的Java文件"</li>
+ *   <li>"使用glob查找src目录下所有的Java文件"</li>
  *   <li>"搜索项目中所有包含TODO注释的代码"</li>
  *   <li>"修改配置文件中的debug参数为true"</li>
- *   <li>"列出当前目录下的所有文件"</li>
+ *   <li>"使用glob列出当前目录下的所有文件"</li>
  *   <li>"读取README.md文件的内容"</li>
  * </ul>
  *
@@ -47,7 +47,7 @@ public class Agent02 {
         tools.add(WriteFileDefinition);
         tools.add(ReadFileDefinition);
 
-        tools.add(ListFilesDefinition);
+        tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
         ZQAgent agent = new ZQAgent(client, MODEL, tools);
@@ -133,7 +133,7 @@ public class Agent02 {
                 " +
                 "4. **edit_file** - 编辑文本文件（替换指定内容）
                 " +
-                "5. **list_files** - 列出文件和目录（支持文件类型过滤）
+                "5. **glob** - 使用glob模式查找匹配的文件和目录（支持通配符、递归搜索）
                 " +
                 "6. **content_search** - 搜索代码内容（支持正则表达式）
                 
@@ -153,7 +153,7 @@ public class Agent02 {
                 " +
                 "## 最佳实践
                 " +
-                "- 使用 `list_files` 了解项目结构
+                "- 使用 `glob` 了解项目结构（支持通配符模式如 *.java, src/**/*.xml 等）
                 " +
                 "- 使用 `content_search` 查找相关代码
                 " +
