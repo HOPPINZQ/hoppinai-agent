@@ -3,17 +3,15 @@ package com.hoppinzq.agent;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.compact.ContextCompactor;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 
+import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -46,61 +44,17 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  */
 public class Agent07 extends ZQAgent {
     public static TaskManager taskManager;
-    public static ContextCompactor compactor;
-    public static boolean manualCompactRequested = false;
     public static TodoManager todoManager;
     private int roundsSinceTodo = 0;
     private long lastTodoVersion = 0;
     public static SkillLoader skillLoader;
 
-    public Agent07(AnthropicClient client, String model, List<ToolDefinition> tools,TaskManager taskManager, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
+    public Agent07(AnthropicClient client, String model, List<ToolDefinition> tools,TaskManager taskManager, SkillLoader skillLoader, TodoManager todoManager) {
         super(client, model, tools);
         Agent07.taskManager = taskManager;
-        Agent07.compactor = compactor;
         Agent07.skillLoader = skillLoader;
         Agent07.todoManager = todoManager;
         this.lastTodoVersion = todoManager.getVersion();
-    }
-
-    /**
-     * 重写chatMessage方法，实现两层压缩策略
-     *
-     * 压缩流程：
-     * 1. Layer 1（微压缩）：每次LLM调用前自动执行，将旧工具结果替换为占位符
-     * 2. Layer 2（自动压缩）：当token估算超过阈值时，保存完整对话并生成摘要
-     *
-     * 状态同步说明：
-     * - ZQAgent将messageParams字段直接传递给此方法（引用传递）
-     * - 微压缩返回新列表，自动压缩返回新列表
-     * - 发生自动压缩时，需要同步更新ZQAgent的状态
-     *
-     * @param messageParams 原始消息参数列表
-     * @return LLM响应消息
-     */
-    @Override
-    protected Message chatMessage(List<MessageParam> messageParams) {
-        // Layer 1: 微压缩 - 每次LLM调用前执行，静默压缩旧的工具结果
-        List<MessageParam> compactedParams = compactor.microCompact(new ArrayList<>(messageParams));
-
-        // Layer 2: 自动压缩 - 当token估算超过阈值时触发
-        if (ContextCompactor.estimateTokens(compactedParams) > TOKEN_THRESHOLD) {
-            System.out.println("[自动压缩已触发]");
-            compactedParams = compactor.autoCompact(compactedParams);
-
-            // 【状态同步】需要将压缩后的消息同步到ZQAgent的messageParams字段
-            // 说明：
-            // - ZQAgent维护messageParams作为状态
-            // - chatMessage接收的是messageParams字段的引用
-            // - 但microCompact和autoCompact都返回新列表，不会修改原列表
-            // - 因此需要手动将压缩后的列表同步回ZQAgent的状态
-
-            // 更新ZQAgent的消息状态，确保下次调用使用压缩后的上下文
-            this.messageParams.clear();
-            this.messageParams.addAll(compactedParams);
-        }
-
-        // 使用（可能被压缩的）消息参数调用父类的chatMessage
-        return super.chatMessage(compactedParams);
     }
 
     /**
@@ -134,37 +88,17 @@ public class Agent07 extends ZQAgent {
                     .text(reminder)
                     .build()));
         }
-
-        // ========== 三层压缩策略 ==========
-        // Layer 1: 每次工具执行后进行微压缩（静默、频繁）
-        compactor.microCompact(messageParams);
-
-        // Layer 2: 检查是否需要自动压缩（超阈值触发）
-        if (compactor.estimateTokens(messageParams) > TOKEN_THRESHOLD) {
-            System.out.println("[自动压缩已触发]");
-            List<MessageParam> compressed = compactor.autoCompact(messageParams);
-            messageParams.clear();
-            messageParams.addAll(compressed);
-        }
-
-        // Layer 3: 检查是否请求手动压缩（用户主动调用）
-        if (manualCompactRequested) {
-            System.out.println("[手动压缩]");
-            List<MessageParam> compressed = compactor.autoCompact(messageParams);
-            messageParams.clear();
-            messageParams.addAll(compressed);
-            manualCompactRequested = false;
-        }
     }
 
     public static void main(String[] args) {
         AnthropicClient client = AnthropicOkHttpClient.builder()
             .apiKey(API_KEY)
             .baseUrl(BASE_URL)
+            .timeout(Duration.ofSeconds(TIMEOUT))
+            .maxRetries(MAX_RETRIES)
             .build();
 
         taskManager = new TaskManager();
-        compactor = new ContextCompactor(client, MODEL);
         skillLoader = new SkillLoader();
         todoManager = new TodoManager();
 
@@ -178,15 +112,15 @@ public class Agent07 extends ZQAgent {
         tools.add(SubAgentDefinition);
         tools.add(TodoDefinition);
         tools.add(SkillsDefinition);
-        tools.add(ContentCompactDefinition);
 
         tools.add(TaskCreateDefinition);
         tools.add(TaskUpdateDefinition);
         tools.add(TaskListDefinition);
         tools.add(TaskGetDefinition);
+        tools.add(TaskClaimDefinition);
+        tools.add(TaskCompleteDefinition);
 
-
-        Agent07 agent = new Agent07(client, MODEL, tools, taskManager,compactor,skillLoader,todoManager);
+        Agent07 agent = new Agent07(client, MODEL, tools, taskManager,skillLoader,todoManager);
 
         agent.setSystemPrompt(buildSystemPrompt());
 
@@ -198,7 +132,11 @@ public class Agent07 extends ZQAgent {
                 taskManager.getTaskCount()
         ));
 
-        agent.setSessionManager(bootstrapSession(args));
+        SessionManager sessionManager = bootstrapSession(args);
+        // 设置任务管理器的会话ID
+        taskManager.setSessionId(sessionManager.getSessionId());
+
+        agent.setSessionManager(sessionManager,skillLoader);
         try {
             agent.run();
         } catch (Exception e) {

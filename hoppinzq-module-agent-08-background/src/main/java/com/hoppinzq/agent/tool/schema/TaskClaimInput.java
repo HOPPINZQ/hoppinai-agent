@@ -11,26 +11,20 @@ import static com.hoppinzq.agent.constant.AIConstants.JSON_FAIL;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * task_update工具输入参数
+ * task_claim工具输入参数
  * @author hoppinzq
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class TaskUpdateInput {
+public class TaskClaimInput {
 
     @JsonProperty("taskId")
     private String taskId;
 
-    @JsonProperty("status")
-    private String status;
-
-    @JsonProperty("addBlockedBy")
-    private java.util.List<String> addBlockedBy;
-
-    @JsonProperty("addBlocks")
-    private java.util.List<String> addBlocks;
+    @JsonProperty("owner")
+    private String owner;
 
     @Override
     public String toString() {

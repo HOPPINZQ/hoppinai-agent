@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * 任务管理器
- * <p>
+ *
  * 核心功能：
  * 1. 任务持久化到磁盘（.tasks目录）
  * 2. 依赖关系管理（blockedBy和blocks）
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 public class TaskManager {
     private final Path tasksDir;
     private final ObjectMapper mapper;
-    private int nextId;
+    private String currentSessionId;
 
     public TaskManager() {
         this.tasksDir = Paths.get(AIConstants.ROOT, ".tasks");
@@ -35,63 +35,76 @@ public class TaskManager {
         try {
             Files.createDirectories(tasksDir);
         } catch (IOException e) {
+            // 只在初始化失败时记录日志
             log.error("创建任务目录失败", e);
         }
-        this.nextId = findMaxId() + 1;
     }
 
     /**
-     * 查找当前最大的任务ID
+     * 设置当前会话ID
      */
-    private int findMaxId() {
-        try {
-            return Files.list(tasksDir)
-                    .filter(p -> p.getFileName().toString().startsWith("task_"))
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .map(p -> {
-                        String filename = p.getFileName().toString();
-                        String idStr = filename.substring(5, filename.length() - 5); // task_{id}.json
-                        try {
-                            return Integer.parseInt(idStr);
-                        } catch (NumberFormatException e) {
-                            return 0;
-                        }
-                    })
-                    .max(Integer::compareTo)
-                    .orElse(0);
-        } catch (IOException e) {
-            return 0;
-        }
+    public void setSessionId(String sessionId) {
+        this.currentSessionId = sessionId;
     }
 
     /**
      * 创建新任务
      */
-    public String createTask(String subject, String description) {
+    public String createTask(String subject, String description, List<String> blockedBy) {
+        String taskId = UUID.randomUUID().toString();
         TaskInfo task = new TaskInfo();
-        task.setId(nextId++);
+        task.setId(taskId);
+        task.setSessionId(currentSessionId);
         task.setSubject(subject);
         task.setDescription(description != null ? description : "");
         task.setStatus("pending");
 
-        saveTask(task);
-        log.info("创建任务 #{}: {}", task.getId(), task.getSubject());
+        // 处理blockedBy - 将短ID转换为完整ID
+        if (blockedBy != null && !blockedBy.isEmpty()) {
+            List<String> fullBlockedBy = new ArrayList<>();
+            for (String blockedId : blockedBy) {
+                String fullId = resolveTaskId(blockedId);
+                if (fullId != null) {
+                    fullBlockedBy.add(fullId);
+                }
+            }
+            task.setBlockedBy(fullBlockedBy);
+        }
 
-        return taskToJson(task);
+        saveTask(task);
+        return formatResult("✅ 创建任务", task.getShortId() + ": " + subject);
     }
 
     /**
      * 获取任务详情
      */
-    public String getTask(int taskId) {
+    public String getTask(String taskId) {
         TaskInfo task = loadTask(taskId);
-        return taskToJson(task);
+        StringBuilder sb = new StringBuilder();
+        sb.append("📄 任务详情\n");
+        sb.append("════════════════════════════════════════\n");
+        sb.append("ID: ").append(task.getShortId()).append("\n");
+        sb.append("标题: ").append(task.getSubject()).append("\n");
+        sb.append("状态: ").append(task.getStatusText()).append("\n");
+        if (task.getOwner() != null && !task.getOwner().isEmpty()) {
+            sb.append("所有者: ").append(task.getOwner()).append("\n");
+        }
+        if (task.getDescription() != null && !task.getDescription().isEmpty()) {
+            sb.append("描述: ").append(task.getDescription()).append("\n");
+        }
+        if (!task.getBlockedBy().isEmpty()) {
+            sb.append("阻塞: ").append(formatIdList(task.getBlockedBy())).append("\n");
+        }
+        sb.append("════════════════════════════════════════\n");
+        sb.append("\n");
+        sb.append(listAllTasks());
+        return sb.toString();
     }
 
     /**
      * 更新任务
      */
-    public String updateTask(int taskId, String status, List<Integer> addBlockedBy, List<Integer> addBlocks) {
+    public String updateTask(String taskId, String status, List<String> addBlockedBy, List<String> addBlocks) {
         TaskInfo task = loadTask(taskId);
 
         // 更新状态
@@ -109,33 +122,43 @@ public class TaskManager {
 
         // 添加阻塞依赖
         if (addBlockedBy != null && !addBlockedBy.isEmpty()) {
-            Set<Integer> uniqueBlockedBy = new HashSet<>(task.getBlockedBy());
-            uniqueBlockedBy.addAll(addBlockedBy);
+            Set<String> uniqueBlockedBy = new HashSet<>(task.getBlockedBy());
+            for (String blockedId : addBlockedBy) {
+                String fullId = resolveTaskId(blockedId);
+                if (fullId != null) {
+                    uniqueBlockedBy.add(fullId);
+                }
+            }
             task.setBlockedBy(new ArrayList<>(uniqueBlockedBy));
         }
 
         // 添加阻塞的任务
         if (addBlocks != null && !addBlocks.isEmpty()) {
-            Set<Integer> uniqueBlocks = new HashSet<>(task.getBlocks());
-            uniqueBlocks.addAll(addBlocks);
+            Set<String> uniqueBlocks = new HashSet<>(task.getBlocks());
+            for (String blockId : addBlocks) {
+                String fullId = resolveTaskId(blockId);
+                if (fullId != null) {
+                    uniqueBlocks.add(fullId);
+                }
+            }
             task.setBlocks(new ArrayList<>(uniqueBlocks));
 
             // 双向更新：更新被阻塞任务的blockedBy列表
-            for (Integer blockedId : addBlocks) {
+            for (String blockedId : uniqueBlocks) {
                 try {
                     TaskInfo blockedTask = loadTask(blockedId);
-                    if (!blockedTask.getBlockedBy().contains(taskId)) {
-                        blockedTask.getBlockedBy().add(taskId);
+                    if (!blockedTask.getBlockedBy().contains(task.getId())) {
+                        blockedTask.getBlockedBy().add(task.getId());
                         saveTask(blockedTask);
                     }
                 } catch (Exception e) {
-                    log.warn("更新被阻塞任务 #{} 失败", blockedId);
+                    // 静默处理
                 }
             }
         }
 
         saveTask(task);
-        return taskToJson(task);
+        return formatResult("✅ 更新任务", task.getShortId() + ": " + task.getSubject());
     }
 
     /**
@@ -144,19 +167,50 @@ public class TaskManager {
     public String listAllTasks() {
         try {
             List<TaskInfo> tasks = Files.list(tasksDir)
-                    .filter(p -> p.getFileName().toString().startsWith("task_"))
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .map(this::loadTaskFromFile)
-                    .sorted(Comparator.comparingInt(TaskInfo::getId))
-                    .toList();
+                .filter(p -> p.getFileName().toString().startsWith("task_"))
+                .filter(p -> p.getFileName().toString().endsWith(".json"))
+                .map(this::loadTaskFromFile)
+                .sorted(Comparator.comparingLong(TaskInfo::getCreatedAt))
+                .toList();
 
             if (tasks.isEmpty()) {
-                return "暂无任务。";
+                return "暂无任务。使用 task_create 创建新任务。";
             }
 
-            return tasks.stream()
-                    .map(TaskInfo::getDisplayString)
-                    .collect(Collectors.joining("\n"));
+            // 统计信息
+            long pendingCount = tasks.stream().filter(t -> "pending".equals(t.getStatus())).count();
+            long inProgressCount = tasks.stream().filter(t -> "in_progress".equals(t.getStatus())).count();
+            long completedCount = tasks.stream().filter(t -> "completed".equals(t.getStatus())).count();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("╔════════════════════════════════════════════════════════════════╗\n");
+            sb.append("║                       📋 任务列表                                 ║\n");
+            sb.append("╠════════════════════════════════════════════════════════════════╣\n");
+            sb.append(String.format("║ 总计: %d  │  ○ 待处理: %d  │  ● 进行中: %d  │  ✓ 已完成: %d   ║\n",
+                    tasks.size(), pendingCount, inProgressCount, completedCount));
+            sb.append("╠════════════════════════════════════════════════════════════════╣\n");
+
+            for (TaskInfo task : tasks) {
+                sb.append("║ ").append(task.getDisplayString()).append("\n");
+            }
+
+            sb.append("╚════════════════════════════════════════════════════════════════╝\n");
+
+            // 添加可执行任务提示
+            List<TaskInfo> readyTasks = tasks.stream()
+                    .filter(t -> "pending".equals(t.getStatus()))
+                    .filter(t -> t.getBlockedBy().isEmpty())
+                    .toList();
+
+            if (!readyTasks.isEmpty()) {
+                sb.append("\n🟢 可立即执行的任务: ");
+                sb.append(readyTasks.stream()
+                        .map(t -> t.getShortId())
+                        .collect(Collectors.joining(", ")));
+                sb.append("\n");
+            }
+
+            return sb.toString();
         } catch (IOException e) {
             return "列出任务时出错: " + e.getMessage();
         }
@@ -165,33 +219,36 @@ public class TaskManager {
     /**
      * 清除依赖关系（当任务完成时）
      */
-    private void clearDependency(int completedId) {
+    private void clearDependency(String completedId) {
         try {
             Files.list(tasksDir)
-                    .filter(p -> p.getFileName().toString().startsWith("task_"))
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .forEach(p -> {
-                        try {
-                            TaskInfo task = loadTaskFromFile(p);
-                            if (task.getBlockedBy().contains(completedId)) {
-                                task.getBlockedBy().remove(Integer.valueOf(completedId));
-                                saveTask(task);
-                                log.info("解除任务 #{} 的阻塞，前置任务 #{} 已完成", task.getId(), completedId);
-                            }
-                        } catch (Exception e) {
-                            log.warn("清除任务依赖失败", e);
+                .filter(p -> p.getFileName().toString().startsWith("task_"))
+                .filter(p -> p.getFileName().toString().endsWith(".json"))
+                .forEach(p -> {
+                    try {
+                        TaskInfo task = loadTaskFromFile(p);
+                        if (task.getBlockedBy().contains(completedId)) {
+                            task.getBlockedBy().remove(completedId);
+                            saveTask(task);
                         }
-                    });
+                    } catch (Exception e) {
+                        // 静默处理
+                    }
+                });
         } catch (IOException e) {
-            log.error("清除依赖关系失败", e);
+            // 静默处理
         }
     }
 
     /**
      * 加载任务
      */
-    private TaskInfo loadTask(int taskId) {
-        Path taskPath = tasksDir.resolve("task_" + taskId + ".json");
+    private TaskInfo loadTask(String taskId) {
+        String fullId = resolveTaskId(taskId);
+        if (fullId == null) {
+            throw new IllegalArgumentException("任务 " + taskId + " 未找到");
+        }
+        Path taskPath = tasksDir.resolve("task_" + fullId + ".json");
         if (!Files.exists(taskPath)) {
             throw new IllegalArgumentException("任务 " + taskId + " 未找到");
         }
@@ -205,7 +262,6 @@ public class TaskManager {
         try {
             return mapper.readValue(path.toFile(), TaskInfo.class);
         } catch (IOException e) {
-            log.error("从文件加载任务失败: {}", path, e);
             throw new RuntimeException("加载任务失败", e);
         }
     }
@@ -218,19 +274,7 @@ public class TaskManager {
         try {
             mapper.writerWithDefaultPrettyPrinter().writeValue(taskPath.toFile(), task);
         } catch (IOException e) {
-            log.error("保存任务 #{} 失败", task.getId(), e);
             throw new RuntimeException("保存任务失败", e);
-        }
-    }
-
-    /**
-     * 将任务转换为JSON字符串
-     */
-    private String taskToJson(TaskInfo task) {
-        try {
-            return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(task);
-        } catch (IOException e) {
-            return "{ \"error\": \"序列化任务失败\" }";
         }
     }
 
@@ -242,21 +286,104 @@ public class TaskManager {
     }
 
     /**
-     * 获取可运行的任务（没有被阻塞的pending任务）
+     * 检查任务是否可以开始（所有 blockedBy 依赖是否已完成）
      */
-    public List<TaskInfo> getReadyTasks() {
+    public boolean canStart(String taskId) {
+        TaskInfo task = loadTask(taskId);
+        for (String depId : task.getBlockedBy()) {
+            Path depPath = tasksDir.resolve("task_" + depId + ".json");
+            if (!Files.exists(depPath)) {
+                return false;
+            }
+            TaskInfo depTask = loadTaskFromFile(depPath);
+            if (!"completed".equals(depTask.getStatus())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 认领任务
+     */
+    public String claimTask(String taskId, String owner) {
+        TaskInfo task = loadTask(taskId);
+
+        if (!"pending".equals(task.getStatus())) {
+            return formatError("任务 " + task.getShortId() + " 当前状态为「" + task.getStatusText() + "」，无法认领");
+        }
+
+        if (!canStart(taskId)) {
+            List<String> blockingTasks = new ArrayList<>();
+            for (String depId : task.getBlockedBy()) {
+                Path depPath = tasksDir.resolve("task_" + depId + ".json");
+                if (!Files.exists(depPath)) {
+                    blockingTasks.add(depId.substring(0, 8));
+                } else {
+                    TaskInfo depTask = loadTaskFromFile(depPath);
+                    if (!"completed".equals(depTask.getStatus())) {
+                        blockingTasks.add(depId.substring(0, 8));
+                    }
+                }
+            }
+            return formatError("任务 " + task.getShortId() + " 被以下任务阻塞: " +
+                    blockingTasks.stream().collect(Collectors.joining(", ")));
+        }
+
+        task.setOwner(owner != null ? owner : "agent");
+        task.setStatus("in_progress");
+        saveTask(task);
+
+        return formatResult("✅ 认领任务", task.getShortId() + ": " + task.getSubject() + " → 进行中");
+    }
+
+    /**
+     * 完成任务
+     */
+    public String completeTask(String taskId) {
+        TaskInfo task = loadTask(taskId);
+
+        if (!"in_progress".equals(task.getStatus())) {
+            return formatError("任务 " + task.getShortId() + " 当前状态为「" + task.getStatusText() + "」，无法完成");
+        }
+
+        task.setStatus("completed");
+        saveTask(task);
+
+        // 清除依赖关系
+        clearDependency(taskId);
+
+        // 查找被解除阻塞的下游任务
+        List<String> unblockedTasks = new ArrayList<>();
         try {
-            return Files.list(tasksDir)
+            List<TaskInfo> allTasks = Files.list(tasksDir)
                     .filter(p -> p.getFileName().toString().startsWith("task_"))
                     .filter(p -> p.getFileName().toString().endsWith(".json"))
                     .map(this::loadTaskFromFile)
-                    .filter(t -> "pending".equals(t.getStatus()))
-                    .filter(t -> t.getBlockedBy().isEmpty())
-                    .sorted(Comparator.comparingInt(TaskInfo::getId))
-                    .collect(Collectors.toList());
+                    .toList();
+
+            for (TaskInfo t : allTasks) {
+                if ("pending".equals(t.getStatus()) &&
+                    !t.getBlockedBy().isEmpty() &&
+                    canStart(t.getId())) {
+                    unblockedTasks.add(t.getShortId() + ": " + t.getSubject());
+                }
+            }
         } catch (IOException e) {
-            return Collections.emptyList();
+            // 静默处理
         }
+
+        StringBuilder result = new StringBuilder();
+        result.append(formatResult("✅ 完成任务", task.getShortId() + ": " + task.getSubject()));
+
+        if (!unblockedTasks.isEmpty()) {
+            result.append("\n\n🔓 解除阻塞，以下任务现在可以开始:\n");
+            for (String unblocked : unblockedTasks) {
+                result.append("   • ").append(unblocked).append("\n");
+            }
+        }
+
+        return result.toString();
     }
 
     /**
@@ -265,11 +392,59 @@ public class TaskManager {
     public int getTaskCount() {
         try {
             return (int) Files.list(tasksDir)
-                    .filter(p -> p.getFileName().toString().startsWith("task_"))
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .count();
+                .filter(p -> p.getFileName().toString().startsWith("task_"))
+                .filter(p -> p.getFileName().toString().endsWith(".json"))
+                .count();
         } catch (IOException e) {
             return 0;
         }
+    }
+
+    /**
+     * 解析任务ID（支持短ID和完整ID）
+     */
+    private String resolveTaskId(String shortId) {
+        // 如果是完整UUID，直接返回
+        if (shortId.length() == 36) {
+            return shortId;
+        }
+        // 否则查找匹配的任务
+        try {
+            return Files.list(tasksDir)
+                .filter(p -> p.getFileName().toString().startsWith("task_"))
+                .filter(p -> p.getFileName().toString().endsWith(".json"))
+                .map(p -> p.getFileName().toString().substring(5, 41)) // 去掉 "task_" 和 ".json"
+                .filter(id -> id.startsWith(shortId))
+                .findFirst()
+                .orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 格式化ID列表
+     */
+    private String formatIdList(List<String> ids) {
+        return ids.stream()
+                .map(id -> id.substring(0, Math.min(8, id.length())))
+                .collect(Collectors.joining(", "));
+    }
+
+    /**
+     * 格式化操作结果（附带完整任务列表）
+     */
+    private String formatResult(String operation, String detail) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(operation).append(": ").append(detail).append("\n\n");
+        sb.append(listAllTasks());
+        return sb.toString();
+    }
+
+    /**
+     * 格式化错误结果
+     */
+    private String formatError(String message) {
+        return "❌ " + message + "\n\n" + listAllTasks();
     }
 }

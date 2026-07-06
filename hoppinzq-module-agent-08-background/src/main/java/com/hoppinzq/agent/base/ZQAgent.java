@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
+import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 import lombok.Data;
 
 import java.util.*;
@@ -45,12 +47,10 @@ public class ZQAgent {
     /**
      * 设置会话管理器，同时初始化命令处理器。
      */
-    public void setSessionManager(SessionManager sessionManager) {
+    public void setSessionManager(SessionManager sessionManager, SkillLoader skillLoader) {
         this.sessionManager = sessionManager;
-        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager,skillLoader) : null;
     }
-
-
 
     public void run() {
         if (sessionManager != null) {
@@ -63,7 +63,7 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/skills 查看技能，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
@@ -375,6 +375,125 @@ public class ZQAgent {
             MessageParam toolResultMessage = MessageParam.builder()
                     .role(MessageParam.Role.USER)
                     .content(content)
+                    .build();
+            messageParams.add(toolResultMessage);
+        }
+    }
+
+    /**
+     * 执行任务并返回包含 token 使用情况的结果
+     *
+     * @param prompt 任务提示词
+     * @return 包含结果和 token 使用情况的 SubAgentSessionResult
+     */
+    public SubAgentSessionResult runTaskWithTokenUsage(String prompt) {
+        long totalInputTokens = 0;
+        long totalOutputTokens = 0;
+
+        MessageParam userMessage = MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(prompt)
+                .build();
+        messageParams.add(userMessage);
+
+        while (true) {
+            Message message;
+            try {
+                message = chatMessage(messageParams);
+            } catch (Exception e) {
+                return SubAgentSessionResult.error("Error: " + e.getMessage());
+            }
+            messageParams.add(message.toParam());
+
+            // 累积 token 使用情况
+            if (message.usage() != null) {
+                totalInputTokens += message.usage().inputTokens();
+                totalOutputTokens += message.usage().outputTokens();
+            }
+
+            for (ContentBlock content : message.content()) {
+                if (content.isText()) {
+                    Optional<TextBlock> text = content.text();
+                    String result = text.map(TextBlock::text).orElse("");
+                    if (!result.isBlank()) {
+                        System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", result);
+                    }
+                }
+            }
+
+            // 没有工具调用：把文本拼接后作为任务结果返回
+            if (!isToolUse(message)) {
+                warnIfTruncated(message);
+                String result = message.content().stream()
+                        .filter(ContentBlock::isText)
+                        .map(cb -> cb.text().get().text())
+                        .reduce("", (a, b) -> a + b);
+                return SubAgentSessionResult.success(result, totalInputTokens, totalOutputTokens);
+            }
+
+            // 处理本轮全部工具调用；其中 task_completed 直接短路返回
+            List<ContentBlockParam> toolResults = new ArrayList<>();
+            for (ContentBlock content : message.content()) {
+                if (!content.isToolUse()) {
+                    continue;
+                }
+                ToolUseBlock toolUse = content.asToolUse();
+                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+
+                if ("task_completed".equals(toolUse.name())) {
+                    try {
+                        JsonValue input = toolUse._input();
+                        Optional<Map<String, JsonValue>> object = input.asObject();
+                        if (object.isPresent()) {
+                            JsonValue res = object.get().get("result");
+                            if (res != null && res.asString().isPresent()) {
+                                return SubAgentSessionResult.success(
+                                        res.asString().get().toString(),
+                                        totalInputTokens,
+                                        totalOutputTokens);
+                            }
+                        }
+                        return SubAgentSessionResult.success("Task completed.", totalInputTokens, totalOutputTokens);
+                    } catch (Exception e) {
+                        return SubAgentSessionResult.error("Error parsing task_completed: " + e.getMessage());
+                    }
+                }
+
+                String toolResult = null;
+                Exception toolError = null;
+                ToolDefinition matched = null;
+                for (ToolDefinition tool : tools) {
+                    if (tool.getName().equals(toolUse.name())) {
+                        matched = tool;
+                        break;
+                    }
+                }
+                if (matched == null) {
+                    toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
+                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", toolError.getMessage());
+                } else {
+                    try {
+                        toolResult = invokeTool(matched, toolUse._input());
+                        System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", toolResult);
+                    } catch (Exception e) {
+                        toolError = e;
+                        System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+
+                toolResults.add(ContentBlockParam.ofToolResult(
+                        ToolResultBlockParam.builder()
+                                .toolUseId(toolUse.id())
+                                .content(toolError != null ? toolError.getMessage() : toolResult)
+                                .isError(toolError != null)
+                                .build()
+                ));
+            }
+
+            MessageParam toolResultMessage = MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(MessageParam.Content.ofBlockParams(toolResults))
                     .build();
             messageParams.add(toolResultMessage);
         }

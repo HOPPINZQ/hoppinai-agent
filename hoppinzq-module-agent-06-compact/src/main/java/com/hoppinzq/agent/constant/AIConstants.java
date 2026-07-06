@@ -55,7 +55,7 @@ public class AIConstants {
     // L3 tool_result_budget: 单次消息最大字节数
     public static final int MAX_BYTES_PER_MESSAGE = 200_000;
     // L4 auto_compact: token阈值
-    public static final int CONTEXT_LIMIT = 50000;
+    public static final int CONTEXT_LIMIT = 10000;
 
     // 兼容旧名称
     public static final int TOKEN_THRESHOLD = CONTEXT_LIMIT;

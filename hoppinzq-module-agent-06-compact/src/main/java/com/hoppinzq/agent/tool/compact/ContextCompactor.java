@@ -639,7 +639,7 @@ public class ContextCompactor {
      */
     public List<MessageParam> autoCompact(List<MessageParam> messages, String reason) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        int estimatedTokens = estimateTokens(messages);
+        int estimatedTokens = countTokens(messages);
         int messageCount = messages.size();
 
         // 声明 transcriptPath 变量（方法级别）
@@ -826,27 +826,39 @@ public class ContextCompactor {
     }
 
     /**
-     * 估算消息列表的token数量
+     * 准确计算消息列表的token数量
      *
      * 说明：
-     * - 使用粗略估算方法：约4个字符 ≈ 1个token
-     * - 将消息列表序列化为JSON后计算长度
+     * - 使用 Anthropic 官方 SDK 的 countTokens API
+     * - 提供准确的 token 计数，而非估算
      * - 用于判断是否需要触发自动压缩
      *
      * 注意：
-     * - 这是简化估算，实际token数量可能有所不同
-     * - 对于精确控制，应使用官方的tokenizer工具
+     * - 这是官方提供的准确计数方法
+     * - 不会额外收费（仅用于计算，不生成内容）
      *
-     * @param messages 要估算的消息列表
-     * @return 估算的token数量
+     * @param messages 要计算的消息列表
+     * @return 准确的token数量，失败时返回0
      */
-    public static int estimateTokens(List<MessageParam> messages) {
+    public int countTokens(List<MessageParam> messages) {
         try {
-            String json = OBJECT_MAPPER.writeValueAsString(messages);
-            return json.length() / 4;
+            // 构建token计数参数
+            MessageCountTokensParams params = MessageCountTokensParams.builder()
+                    .model(model) // 使用当前模型
+                    .messages(messages)
+                    .build();
+
+            // 调用官方 API 获取准确的 token 数量
+            return Math.toIntExact(client.messages().countTokens(params).inputTokens());
         } catch (Exception e) {
-            // 序列化失败时返回0，表示无法估算
-            return 0;
+            // API 调用失败时，使用备用估算方法
+            System.err.println("[Token 计算失败，使用备用方法] " + e.getMessage());
+            try {
+                String json = mapper.writeValueAsString(messages);
+                return json.length() / 4;
+            } catch (Exception ex) {
+                return 0;
+            }
         }
     }
 

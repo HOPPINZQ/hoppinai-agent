@@ -54,37 +54,35 @@ public class BackgroundManager {
 
     /**
      * 排空后台通知队列，将结果注入到消息中
-     * 
+     *
      * 工作流程：
      * 1. 从后台管理器获取所有已完成的任务通知
-     * 2. 将通知格式化为易读的文本
+     * 2. 将通知格式化为XML格式（与Python s8保持一致）
      * 3. 将格式化后的结果注入到LLM对话中
      * 4. 在控制台输出通知信息
-     * 
+     *
      * 注意：此方法在每次LLM调用前被调用，确保后台任务结果能及时反馈给用户
      */
     public static void injectBackgroundNotifications(List<MessageParam> messageParams, BackgroundManager backgroundManager) {
         List<BackgroundManager.BackgroundNotification> notifications = backgroundManager.drainNotifications();
 
         if (!notifications.isEmpty()) {
-            // 构建通知文本，使用中文状态描述
+            // 构建通知文本，使用XML格式（与Python s8保持一致）
             String notifText = notifications.stream()
-                    .map(n -> {
-                        String statusChinese = getStatusChinese(n.getStatus());
-                        return String.format("[后台任务:%s] %s: %s",
-                                n.getTaskId(), statusChinese, n.getResult());
-                    })
+                    .map(n -> String.format(
+                            "<task_notification>\n" +
+                            "  <task_id>%s</task_id>\n" +
+                            "  <status>%s</status>\n" +
+                            "  <command>%s</command>\n" +
+                            "  <summary>%s</summary>\n" +
+                            "</task_notification>",
+                            n.getTaskId(), n.getStatus(), n.getCommand(), n.getResult()))
                     .collect(Collectors.joining("\n"));
 
             // 注入后台任务结果到LLM对话
             messageParams.add(MessageParam.builder()
                     .role(MessageParam.Role.USER)
-                    .content("<后台任务结果>\n" + notifText + "\n</后台任务结果>")
-                    .build());
-
-            messageParams.add(MessageParam.builder()
-                    .role(MessageParam.Role.ASSISTANT)
-                    .content("已记录后台任务结果。")
+                    .content(notifText)
                     .build());
 
             System.out.println("\n[后台任务通知注入]");
@@ -103,6 +101,60 @@ public class BackgroundManager {
             case "error": return "错误";
             default: return status;
         }
+    }
+
+    /**
+     * 启发式判断：检测是否是耗时操作（预计超过30秒）
+     * <p>
+     * 基于命令内容的关键词匹配，判断是否可能需要长时间执行。
+     * 适用于自动后台检测，当模型未明确指定 run_in_background 时使用。
+     * </p>
+     *
+     * @param command 要执行的命令字符串
+     * @return 如果命令包含耗时关键词则返回 true
+     */
+    public static boolean isSlowOperation(String command) {
+        if (command == null || command.isEmpty()) {
+            return false;
+        }
+
+        String cmd = command.toLowerCase();
+        // 耗时操作关键词列表
+        String[] slowKeywords = {
+                "install", "build", "test", "deploy", "compile",
+                "docker build", "pip install", "npm install",
+                "cargo build", "pytest", "make", "mvn",
+                "gradle", "webpack", "vite", "tsc",
+                "git clone", "bundle", "pack"
+        };
+
+        for (String keyword : slowKeywords) {
+            if (cmd.contains(keyword)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 判断命令是否应该在后台运行
+     * <p>
+     * 优先级规则：
+     * 1. 如果参数中明确指定了 run_in_background=true，则使用后台运行
+     * 2. 如果未指定，则使用启发式判断是否是耗时操作
+     * </p>
+     *
+     * @param runInBackground 用户明确指定的后台运行标志
+     * @param command 要执行的命令字符串
+     * @return 如果应该在后台运行则返回 true
+     */
+    public static boolean shouldRunBackground(Boolean runInBackground, String command) {
+        // 用户明确指定了后台运行
+        if (Boolean.TRUE.equals(runInBackground)) {
+            return true;
+        }
+        // 使用启发式判断
+        return isSlowOperation(command);
     }
 
     /**

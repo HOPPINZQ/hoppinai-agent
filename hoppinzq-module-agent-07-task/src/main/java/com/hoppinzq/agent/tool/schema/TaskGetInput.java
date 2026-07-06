@@ -21,7 +21,7 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 public class TaskGetInput {
 
     @JsonProperty("taskId")
-    private Integer taskId;
+    private String taskId;
 
     @Override
     public String toString() {

@@ -1,18 +1,15 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.Agent07;
 import com.hoppinzq.agent.base.SubAgent;
 import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
-import com.hoppinzq.agent.tool.util.FileExclusionHelper;
+
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -23,7 +20,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -42,22 +38,19 @@ public class Tools {
 
     /**
      * 读取指定文件内容，支持./../相对路径
+     *
      * @param input
      * @return
      */
     public static String readFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            ReadFileInput readFileInput = mapper.readValue(input, ReadFileInput.class);
+            ReadFileInput readFileInput = OBJECT_MAPPER.readValue(input, ReadFileInput.class);
 
             if (LOG_ENABLE) {
                 log.info("读取文件: {}", readFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            if (LOG_ENABLE) {
-                log.info("当前工作目录: {}", currentPath);
-            }
-            Path fullPath = currentPath.resolve(readFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(readFileInput.getPath());
             byte[] bytes = Files.readAllBytes(fullPath);
             String content = new String(bytes);
 
@@ -76,19 +69,19 @@ public class Tools {
 
     /**
      * 写入内容到指定文件，支持./../相对路径
+     *
      * @param input
      * @return
      */
     public static String writeFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            WriteFileInput writeFileInput = mapper.readValue(input, WriteFileInput.class);
+            WriteFileInput writeFileInput = OBJECT_MAPPER.readValue(input, WriteFileInput.class);
 
             if (LOG_ENABLE) {
                 log.info("写入文件: {}", writeFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            Path fullPath = currentPath.resolve(writeFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(writeFileInput.getPath());
 
             // Ensure parent directories exist
             if (fullPath.getParent() != null) {
@@ -115,12 +108,12 @@ public class Tools {
      * 该函数接收一个JSON格式的输入字符串，解析出要执行的命令和命令类型，
      * 根据指定的类型（cmd/powershell/bash）使用不同的方式执行命令，
      * 并捕获命令的标准输出和错误输出。
-     *
+     * <p>
      * 支持的命令类型：
      * - cmd: Windows CMD 命令提示符
      * - powershell: Windows PowerShell
      * - bash: Linux/Mac Bash shell（或 Windows Git Bash）
-     *
+     * <p>
      * 如果不指定类型，则根据操作系统自动选择：
      * - Windows: 默认使用 cmd
      * - Linux/Mac: 默认使用 bash
@@ -132,8 +125,7 @@ public class Tools {
      */
     public static String executeBash(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            BashInput bashInput = mapper.readValue(input, BashInput.class);
+            BashInput bashInput = OBJECT_MAPPER.readValue(input, BashInput.class);
 
             if (LOG_ENABLE) {
                 log.info("执行指令: {}, 类型: {}", bashInput.getCommand(), bashInput.getType());
@@ -167,11 +159,21 @@ public class Tools {
                 }
             }
 
+            // 根据命令类型和操作系统动态选择编码
+            String charsetName;
+            if ("bash".equalsIgnoreCase(type) ||
+                    (!System.getProperty("os.name").toLowerCase().contains("win") &&
+                            (type == null || type.isEmpty()))) {
+                charsetName = "UTF-8";
+            } else {
+                charsetName = "GBK";
+            }
+
             Process process = processBuilder.start();
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), "GBK"))) {
+                    new InputStreamReader(process.getInputStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
@@ -180,7 +182,7 @@ public class Tools {
 
             StringBuilder error = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), "GBK"))) {
+                    new InputStreamReader(process.getErrorStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     error.append(line).append("\n");
@@ -221,9 +223,9 @@ public class Tools {
      * 2. 验证输入参数有效性（路径非空且新旧字符串不同）
      * 3. 读取目标文件内容，处理文件不存在的情况
      * 4. 执行替换或追加操作：
-     *    - 当oldStr为空时直接追加newStr
-     *    - 当oldStr存在且唯一时执行替换
-     *    - 当oldStr不存在或出现多次时报错
+     * - 当oldStr为空时直接追加newStr
+     * - 当oldStr存在且唯一时执行替换
+     * - 当oldStr不存在或出现多次时报错
      * 5. 将修改后的内容写回文件
      *
      * @param input JSON格式的输入字符串，包含：
@@ -231,19 +233,27 @@ public class Tools {
      *              - oldStr: 要被替换的字符串（可选）
      *              - newStr: 要写入的新字符串（必填）
      * @return 操作结果字符串：
-     *         - "OK" 表示成功
-     *         - 错误信息字符串（如参数无效、文件读取错误等）
+     * - "OK" 表示成功
+     * - 错误信息字符串（如参数无效、文件读取错误等）
      */
     public static String editFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            EditFileInput editFileInput = mapper.readValue(input, EditFileInput.class);
-            if (editFileInput.getPath() == null || editFileInput.getPath().isEmpty() ||
-                    editFileInput.getOldStr().equals(editFileInput.getNewStr())) {
+            EditFileInput editFileInput = OBJECT_MAPPER.readValue(input, EditFileInput.class);
+
+            // [修复] 第一步：校验路径
+            if (editFileInput.getPath() == null || editFileInput.getPath().isEmpty()) {
                 if (LOG_ENABLE) {
-                    log.error("编辑文件失败: 无效的入参");
+                    log.error("编辑文件失败: 路径不能为空");
                 }
-                return "错误: 无效的入参";
+                return "错误: 路径不能为空";
+            }
+
+            // [修复] 第二步：仅在 oldStr 不为 null 时检查是否与 newStr 相同
+            if (editFileInput.getOldStr() != null && editFileInput.getOldStr().equals(editFileInput.getNewStr())) {
+                if (LOG_ENABLE) {
+                    log.error("编辑文件失败: oldStr 和 newStr 不能相同");
+                }
+                return "错误: oldStr 和 newStr 不能相同";
             }
 
             if (LOG_ENABLE) {
@@ -251,7 +261,7 @@ public class Tools {
                         editFileInput.getPath(), editFileInput.getOldStr(), editFileInput.getNewStr());
             }
 
-            Path filePath = Paths.get(ROOT+File.separator+editFileInput.getPath());
+            Path filePath = resolvePath(editFileInput.getPath());
             String oldContent;
 
             try {
@@ -322,112 +332,239 @@ public class Tools {
     }
 
     /**
-     * 列出指定目录下的所有文件和子目录（递归遍历）
-     * 可跳过指定前缀的目录
+     * 智能路径解析：支持绝对路径和相对路径
+     * <p>
+     * - 绝对路径：直接使用（当 ROOT="*" 时无限制；否则需在 ROOT 范围内）
+     * - 相对路径：从 ROOT 解析
      *
-     * @param input JSON格式的输入参数，包含要遍历的目录路径（path字段）
-     *                如果path为空或null，则默认使用当前目录(".")
-     * @return JSON格式的字符串，包含所有找到的文件和目录的相对路径列表
-     *         如果发生错误，返回错误信息字符串
+     * @param inputPath 用户输入的路径
+     * @return 解析后的完整路径
+     * @throws IllegalArgumentException 当路径超出 ROOT 限制时抛出
      */
-    public static String listFiles(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            ListFilesInput listFilesInput = mapper.readValue(input, ListFilesInput.class);
-
-            String dir = ROOT;
-            String fileType;
-            if (listFilesInput.getPath() != null && !listFilesInput.getPath().isEmpty()) {
-                dir = ROOT + File.separator + listFilesInput.getPath();
-            }
-            if (listFilesInput.getFileType() != null) {
-                fileType = listFilesInput.getFileType();
-            } else {
-                fileType = null;
-            }
-            if (AIConstants.LOG_ENABLE) {
-                log.info("列出文件: {}", dir);
-            }
-
-            ArrayNode arrayNode = OBJECT_MAPPER.createArrayNode();
-            Path startPath = Paths.get(dir).toAbsolutePath();
-
-            // 定义要排除的目录和文件
-            Set<String> excludedDirs = Set.of(".idea", ".git", "target", "node_modules",
-                    "build", "dist", "out", "bin", "tmp", "temp", "cache", "logs", "zq_ai_ignores", "hoppinzq-html");
-
-            Set<String> excludedFilePatterns = Set.of(
-                    "*.iml", "**/*.iml",
-                    "**/test/**"
-            );
-
-            FileExclusionHelper exclusionHelper = new FileExclusionHelper(excludedDirs, excludedFilePatterns);
-
-            try (Stream<Path> stream = Files.walk(startPath)) {
-                stream.forEach(path -> {
-                    try {
-                        Path relativePath = startPath.relativize(path);
-                        Path absolutePath = relativePath.toAbsolutePath();
-                        String relativePathStr = relativePath.toString();
-                        String absolutePathStr = absolutePath.toString();
-                        String fileOrDirName = relativePath.getFileName().toString();
-                        ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-                        objectNode.put("path", relativePathStr);
-                        objectNode.put("absolutePath", absolutePathStr);
-
-                        // 使用排除助手检查
-                        boolean shouldExclude = exclusionHelper.shouldExclude(relativePathStr, Files.isDirectory(path));
-
-                        if (shouldExclude) {
-                            return;
-                        }
-
-                        if (!relativePathStr.isEmpty()) {
-                            if (Files.isDirectory(path)) {
-                                if (fileType == null || fileType.isEmpty()) {
-                                    objectNode.put("type", "directory");
-                                    objectNode.put("dirName", fileOrDirName);
-                                    arrayNode.add(objectNode);
-                                }
-                            } else {
-                                String ext = "";
-                                int dotIndex = relativePathStr.lastIndexOf(".");
-                                if (dotIndex > 0) {
-                                    ext = relativePathStr.substring(dotIndex + 1);
-                                } else if (dotIndex == 0) {
-                                    ext = relativePathStr.substring(1);
-                                }
-                                
-                                if (fileType == null || fileType.isEmpty() || fileType.equalsIgnoreCase(ext)) {
-                                    objectNode.put("type", "file");
-                                    objectNode.put("fileName", fileOrDirName);
-                                    arrayNode.add(objectNode);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (log.isErrorEnabled()) {
-                            log.error("错误的路径: {}", e.getMessage());
-                        }
-                    }
-                });
-            }
-
-            String result = OBJECT_MAPPER.writeValueAsString(arrayNode);
-
-            if (AIConstants.LOG_ENABLE) {
-                log.info("找到{}个文件，目录 {}", arrayNode.size(), dir);
-            }
-
-            return result;
-        } catch (Exception e) {
-            if (AIConstants.LOG_ENABLE) {
-                log.error("列出文件错误: {}", e.getMessage());
-            }
-            return "列出文件错误: " + e.getMessage();
+    private static Path resolvePath(String inputPath) {
+        if (inputPath == null || inputPath.isEmpty()) {
+            throw new IllegalArgumentException("路径不能为空");
         }
+
+        Path input = Paths.get(inputPath);
+
+        // 绝对路径处理
+        if (input.isAbsolute()) {
+            // UNRESTRICTED_PATH_MODE=true 表示无限制模式
+            if (UNRESTRICTED_PATH_MODE) {
+                if (LOG_ENABLE) {
+                    log.info("UNRESTRICTED_PATH_MODE=true，允许任意绝对路径: {}", inputPath);
+                }
+                return input.normalize();
+            }
+
+            // 普通模式：检查绝对路径是否在 ROOT 范围内
+            Path rootPath = Paths.get(ROOT).toAbsolutePath();
+            Path resolved = input.normalize();
+
+            // 检查 resolved 是否以 rootPath 开头（安全沙箱）
+            if (!resolved.startsWith(rootPath)) {
+                throw new IllegalArgumentException(
+                        "路径必须在项目目录内。ROOT=" + ROOT + "，尝试访问: " + inputPath);
+            }
+
+            if (LOG_ENABLE) {
+                log.info("绝对路径（已验证在 ROOT 范围内）: {} -> {}", inputPath, resolved);
+            }
+            return resolved;
+        }
+
+        // 相对路径：从 ROOT 解析
+        Path rootPath = Paths.get(ROOT).toAbsolutePath();
+        Path resolved = rootPath.resolve(inputPath).normalize();
+
+        // 再次检查（防止 ../ 跳出，除非在非限制模式）
+        if (!UNRESTRICTED_PATH_MODE && !resolved.startsWith(rootPath)) {
+            throw new IllegalArgumentException(
+                    "相对路径解析后超出项目目录。ROOT=" + ROOT + "，输入: " + inputPath);
+        }
+
+        if (LOG_ENABLE) {
+            log.info("相对路径解析: {} -> {}", inputPath, resolved);
+        }
+        return resolved;
     }
 
+    /**
+     * 使用glob模式查找匹配的文件和目录
+     * 类似Python的glob.glob()，支持通配符匹配文件路径
+     *
+     * 支持的glob模式：
+     * - *: 匹配当前目录下所有文件和目录
+     * - *.ext: 匹配当前目录下所有.ext文件
+     * - test_*.py: 匹配以test_开头的Python文件
+     *
+     * @param input JSON格式的输入参数，包含pattern字段（glob匹配模式）
+     * @return 匹配的文件路径列表，每行一个路径
+     *         如果没有匹配则返回"(no matches)"
+     *         如果发生错误则返回错误信息
+     */
+    public static String glob(String input) {
+        try {
+            GlobInput globInput = OBJECT_MAPPER.readValue(input, GlobInput.class);
+
+            if (globInput.getPattern() == null || globInput.getPattern().isEmpty()) {
+                if (LOG_ENABLE) {
+                    log.error("glob pattern不能为空");
+                }
+                return "错误: pattern不能为空";
+            }
+
+            String pattern = globInput.getPattern();
+            if (LOG_ENABLE) {
+                log.info("执行glob匹配: {}", pattern);
+            }
+
+            // 确定搜索的根目录
+            final Path startPath = Paths.get(ROOT).toAbsolutePath();
+
+            // 处理glob模式中的路径部分
+            final String globPattern;
+            Path searchPath = startPath;
+            boolean recursive = false;
+
+            // 如果pattern包含路径分隔符，提取路径部分
+            int lastSlash = pattern.lastIndexOf('/');
+            if (lastSlash >= 0) {
+                String pathPart = pattern.substring(0, lastSlash);
+                if (!pathPart.isEmpty()) {
+                    // 检查是否包含 **，表示递归搜索
+                    if (pathPart.contains("**")) {
+                        recursive = true;
+                        // 对于 **，从根目录开始递归搜索
+                        if (pathPart.equals("**")) {
+                            searchPath = startPath;
+                        } else {
+                            // 解析相对路径（如 src/**）
+                            searchPath = startPath.resolve(pathPart.replace("**", "")).normalize();
+                        }
+                        globPattern = pattern.substring(lastSlash + 1);
+                    } else if (pathPart.equals("*")) {
+                        // * 表示当前目录，特殊处理（如 */ 模式）
+                        searchPath = startPath;
+                        globPattern = "*";
+                    } else {
+                        // 普通相对路径
+                        searchPath = startPath.resolve(pathPart).normalize();
+                        globPattern = pattern.substring(lastSlash + 1);
+                    }
+                } else {
+                    // pattern 以 / 开头，如 */
+                    // 特殊处理：*/ 模式表示只匹配当前目录下的所有目录
+                    globPattern = "*"; // 设置为匹配所有，由onlyDirectories控制只返回目录
+                }
+            } else {
+                globPattern = pattern;
+            }
+
+            // 确保搜索路径在允许的范围内
+            if (!UNRESTRICTED_PATH_MODE && !searchPath.startsWith(startPath)) {
+                return "错误: 搜索路径超出允许范围";
+            }
+
+            StringBuilder results = new StringBuilder();
+            int matchCount = 0;
+
+            // 判断是否只返回目录
+            boolean onlyDirectories = pattern.endsWith("/");
+            // 判断是否匹配所有
+            boolean matchAll = pattern.equals("*");
+
+            try (Stream<Path> stream = recursive ? Files.walk(searchPath) : Files.list(searchPath)) {
+                List<String> matches = stream
+                        .filter(path -> {
+                            try {
+                                boolean isDirectory = Files.isDirectory(path);
+                                boolean isFile = Files.isRegularFile(path);
+
+                                // 如果pattern明确要求目录，只匹配目录
+                                if (onlyDirectories) {
+                                    return isDirectory;
+                                }
+
+                                // 如果pattern是 *，匹配文件和目录
+                                if (matchAll) {
+                                    return true;
+                                }
+
+                                // 其他模式（如 *.py），只匹配文件
+                                if (isFile) {
+                                    String fileName = path.getFileName().toString();
+                                    // 特殊处理：globPattern是单个"*"，匹配所有文件
+                                    if (globPattern.equals("*")) {
+                                        return true;
+                                    }
+                                    if (globPattern.startsWith("*.")) {
+                                        // 处理 *.ext 模式
+                                        return fileName.endsWith(globPattern.substring(1));
+                                    } else if (globPattern.length() > 1 && globPattern.startsWith("*") && globPattern.endsWith("*")) {
+                                        // 处理 *模式* 模式（确保长度>1避免单个*的情况）
+                                        String patternPart = globPattern.substring(1, globPattern.length() - 1);
+                                        return fileName.contains(patternPart);
+                                    } else if (globPattern.startsWith("*") && globPattern.length() > 1) {
+                                        // 处理 *开头模式
+                                        String patternPart = globPattern.substring(1);
+                                        return fileName.endsWith(patternPart);
+                                    } else if (globPattern.endsWith("*")) {
+                                        // 处理 *结尾模式
+                                        String patternPart = globPattern.substring(0, globPattern.length() - 1);
+                                        return fileName.startsWith(patternPart);
+                                    } else {
+                                        // 精确匹配
+                                        return fileName.equals(globPattern);
+                                    }
+                                }
+                                return false;
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        })
+                        .map(path -> {
+                            try {
+                                // 返回相对于ROOT的路径
+                                Path relativePath = startPath.relativize(path.toAbsolutePath());
+                                String result = relativePath.toString().replace("\\", "/");
+                                // 如果是目录且pattern不是 */，添加/标识
+                                boolean isDirectory = Files.isDirectory(path);
+                                if (isDirectory && !onlyDirectories) {
+                                    return result + "/";
+                                }
+                                return result;
+                            } catch (IllegalArgumentException e) {
+                                // 如果路径无法相对化，返回绝对路径
+                                return path.toAbsolutePath().toString().replace("\\", "/");
+                            }
+                        })
+                        .sorted()
+                        .toList();
+
+                for (String match : matches) {
+                    results.append(match).append("\n");
+                    matchCount++;
+                }
+            }
+
+            if (LOG_ENABLE) {
+                log.info("glob匹配完成: pattern={}, 找到{}个匹配", pattern, matchCount);
+            }
+
+            if (matchCount == 0) {
+                return "(no matches)";
+            }
+
+            return results.toString().trim();
+        } catch (Exception e) {
+            if (LOG_ENABLE) {
+                log.error("glob执行错误: {}", e.getMessage());
+            }
+            return "glob执行错误: " + e.getMessage();
+        }
+    }
 
     /**
      * 使用ripgrep工具在指定路径下搜索代码内容
@@ -439,14 +576,13 @@ public class Tools {
      *              - fileType: 可选，文件类型过滤
      *              - caseSensitive: 可选，是否区分大小写（默认为false）
      * @return 搜索结果字符串：
-     *         - 成功时返回匹配的代码行（最多显示前50条）
-     *         - 失败时返回错误信息
-     *         - 无匹配时返回"没有找到匹配的内容"
+     * - 成功时返回匹配的代码行（最多显示前50条）
+     * - 失败时返回错误信息
+     * - 无匹配时返回"没有找到匹配的内容"
      */
     public static String searchContent(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            ContentSearchInput searchInput = mapper.readValue(input, ContentSearchInput.class);
+            ContentSearchInput searchInput = OBJECT_MAPPER.readValue(input, ContentSearchInput.class);
 
             String pattern = searchInput.getPattern();
             String path = searchInput.getPath() != null ? searchInput.getPath() : ".";
@@ -454,13 +590,13 @@ public class Tools {
             boolean caseSensitive = searchInput.getCaseSensitive() != null ? searchInput.getCaseSensitive() : false;
 
             if (pattern == null || pattern.isEmpty()) {
-                if (AIConstants.LOG_ENABLE) {
+                if (LOG_ENABLE) {
                     log.error("pattern不能为空");
                 }
                 return "错误: pattern不能为空";
             }
 
-            if (AIConstants.LOG_ENABLE) {
+            if (LOG_ENABLE) {
                 log.info("搜索内容: {}", pattern);
             }
 
@@ -489,14 +625,14 @@ public class Tools {
             // 搜索的文件路径
             args.add(path);
 
-            if (AIConstants.LOG_ENABLE) {
+            if (LOG_ENABLE) {
                 // rg --line-number --with-filename --color=never --ignore-case What D:\myProject\github\hoppin-ai\hoppinzq-module-openai
                 log.info("执行 ripgrep 的参数: {}", args);
             }
 
             ProcessBuilder pb = new ProcessBuilder(args);
             Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
             StringBuilder output = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -505,12 +641,12 @@ public class Tools {
             int exitCode = process.waitFor();
 
             if (exitCode == 1) {
-                if (AIConstants.LOG_ENABLE) {
+                if (LOG_ENABLE) {
                     log.info("没有找到匹配的内容: {}", pattern);
                 }
                 return "没有找到匹配的内容";
             } else if (exitCode != 0) {
-                if (AIConstants.LOG_ENABLE) {
+                if (LOG_ENABLE) {
                     log.error("Ripgrep 命令执行失败: {}", exitCode);
                 }
                 return "错误: 搜索失败，尝试一下绝对路径";
@@ -519,7 +655,7 @@ public class Tools {
             String result = output.toString().trim();
             String[] lines = result.split("\n");
 
-            if (AIConstants.LOG_ENABLE) {
+            if (LOG_ENABLE) {
                 log.info("找到 {} 处匹配的结果: {}", lines.length, pattern);
             }
 
@@ -531,7 +667,7 @@ public class Tools {
 
             return result;
         } catch (Exception e) {
-            if (AIConstants.LOG_ENABLE) {
+            if (LOG_ENABLE) {
                 log.error("搜索内容错误: {}", e.getMessage());
             }
             return "搜索内容错误: " + e.getMessage();
@@ -568,41 +704,10 @@ public class Tools {
         }
     }
 
-    /**
-     * 手动压缩工具 - 触发Layer 3压缩
-     *
-     * 功能说明：
-     * - 设置手动压缩请求标志，由主循环检测并执行压缩
-     * - focus参数可选，用于指定压缩重点（如保留特定类型的消息）
-     * - 未指定focus时默认为"general"（通用压缩）
-     *
-     * 执行时机：用户主动调用compact工具时
-     *
-     * @param input 压缩参数（包含可选的focus字段）
-     * @return 压缩请求确认消息
-     */
-    public static String compact(CompactInput input) {
-        // 设置手动压缩请求标志，主循环会检测此标志并执行压缩
-        Agent07.manualCompactRequested = true;
-        // 返回确认消息，显示压缩重点（如果未指定则显示"通用"）
-        return "手动压缩已请求。压缩重点: " + (input.getFocus() != null ? input.getFocus() : "通用");
-    }
-
     // ==================== 任务管理工具方法 ====================
 
     /**
      * 创建新任务
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为TaskCreateInput对象
-     * - 调用TaskManager创建新任务
-     * - 任务会被持久化到磁盘（.tasks目录）
-     * - 新任务默认状态为pending（待处理）
-     *
-     * @param input JSON格式的输入参数，包含：
-     *              - subject: 任务的标题或简短描述（必填）
-     *              - description: 任务的详细说明（可选）
-     * @return 创建的任务JSON字符串，包含任务ID、标题、描述和状态
      */
     public static String createTask(String input) {
         try {
@@ -610,42 +715,21 @@ public class Tools {
             TaskCreateInput taskInput = mapper.readValue(input, TaskCreateInput.class);
 
             if (taskInput.getSubject() == null || taskInput.getSubject().isEmpty()) {
-                if (LOG_ENABLE) {
-                    log.error("创建任务失败: subject不能为空");
-                }
                 return "错误: 任务标题(subject)不能为空";
             }
 
-            if (LOG_ENABLE) {
-                log.info("创建任务: {} - {}", taskInput.getSubject(),
-                    taskInput.getDescription() != null ? taskInput.getDescription() : "无描述");
-            }
-
-            return Agent07.taskManager.createTask(taskInput.getSubject(), taskInput.getDescription());
+            return Agent07.taskManager.createTask(
+                taskInput.getSubject(),
+                taskInput.getDescription(),
+                taskInput.getBlockedBy()
+            );
         } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("创建任务失败: {}", e.getMessage());
-            }
             return "创建任务失败: " + e.getMessage();
         }
     }
 
     /**
      * 更新任务
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为TaskUpdateInput对象
-     * - 支持更新任务状态（pending、in_progress、completed）
-     * - 支持添加任务依赖关系（addBlockedBy和addBlocks）
-     * - 当任务状态更新为completed时，自动清除依赖关系
-     * - 双向更新依赖关系，确保数据一致性
-     *
-     * @param input JSON格式的输入参数，包含：
-     *              - taskId: 要更新的任务ID（必填）
-     *              - status: 新的状态（可选）：pending/in_progress/completed
-     *              - addBlockedBy: 要添加的前置依赖任务ID列表（可选）
-     *              - addBlocks: 要添加的后置任务ID列表（可选）
-     * @return 更新后的任务JSON字符串，或错误信息
      */
     public static String updateTask(String input) {
         try {
@@ -653,16 +737,7 @@ public class Tools {
             TaskUpdateInput taskInput = mapper.readValue(input, TaskUpdateInput.class);
 
             if (taskInput.getTaskId() == null) {
-                if (LOG_ENABLE) {
-                    log.error("更新任务失败: taskId不能为空");
-                }
                 return "错误: 任务ID(taskId)不能为空";
-            }
-
-            if (LOG_ENABLE) {
-                log.info("更新任务 #{}: status={}, addBlockedBy={}, addBlocks={}",
-                    taskInput.getTaskId(), taskInput.getStatus(),
-                    taskInput.getAddBlockedBy(), taskInput.getAddBlocks());
             }
 
             return Agent07.taskManager.updateTask(
@@ -672,64 +747,67 @@ public class Tools {
                 taskInput.getAddBlocks()
             );
         } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("更新任务失败: {}", e.getMessage());
-            }
             return "更新任务失败: " + e.getMessage();
         }
     }
 
     /**
      * 列出所有任务
-     * <p>
-     * 功能说明：
-     * - 从.tasks目录读取所有持久化的任务
-     * - 按任务ID排序输出
-     * - 显示任务的状态和依赖关系
-     * - 便于查看整体进度和确定可执行的任务
-     *
-     * @param input 输入参数（忽略，为空对象）
-     * @return 格式化的任务列表字符串，包含ID、标题、状态和依赖关系；若无任务则返回提示信息
      */
     public static String listTasks(String input) {
         try {
-            if (LOG_ENABLE) {
-                log.info("列出所有任务");
-            }
             return Agent07.taskManager.listAllTasks();
         } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("列出任务失败: {}", e.getMessage());
-            }
             return "列出任务失败: " + e.getMessage();
         }
     }
 
     /**
      * 获取任务详情
-     * <p>
-     * 功能说明：
-     * - 根据任务ID从.tasks目录读取任务完整信息
-     * - 返回任务的详细JSON数据
-     * - 包含任务的所有属性：ID、标题、描述、状态、依赖关系等
-     *
-     * @param input JSON格式的输入参数，包含：taskId（要查询的任务ID）
-     * @return 任务的完整JSON字符串，包含所有详细信息；若任务不存在则返回错误信息
      */
     public static String getTask(String input) {
         try {
             ObjectMapper mapper = new ObjectMapper();
             TaskGetInput taskInput = mapper.readValue(input, TaskGetInput.class);
-
-            if (LOG_ENABLE) {
-                log.info("获取任务详情: #{}", taskInput.getTaskId());
-            }
             return Agent07.taskManager.getTask(taskInput.getTaskId());
         } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("获取任务详情失败: {}", e.getMessage());
-            }
             return "获取任务详情失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 认领任务
+     */
+    public static String claimTask(String input) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            TaskClaimInput taskInput = mapper.readValue(input, TaskClaimInput.class);
+
+            if (taskInput.getTaskId() == null) {
+                return "错误: 任务ID(taskId)不能为空";
+            }
+
+            return Agent07.taskManager.claimTask(taskInput.getTaskId(), taskInput.getOwner());
+        } catch (Exception e) {
+            return "认领任务失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 完成任务
+     */
+    public static String completeTask(String input) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            TaskCompleteInput taskInput = mapper.readValue(input, TaskCompleteInput.class);
+
+            if (taskInput.getTaskId() == null) {
+                return "错误: 任务ID(taskId)不能为空";
+            }
+
+            return Agent07.taskManager.completeTask(taskInput.getTaskId());
+        } catch (Exception e) {
+            return "完成任务失败: " + e.getMessage();
         }
     }
 

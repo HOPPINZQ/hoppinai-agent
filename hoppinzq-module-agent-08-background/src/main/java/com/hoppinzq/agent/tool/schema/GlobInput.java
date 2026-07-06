@@ -11,26 +11,22 @@ import static com.hoppinzq.agent.constant.AIConstants.JSON_FAIL;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * task_update工具输入参数
+ * Glob工具的输入参数
+ *
  * @author hoppinzq
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class TaskUpdateInput {
+public class GlobInput {
 
-    @JsonProperty("taskId")
-    private String taskId;
-
-    @JsonProperty("status")
-    private String status;
-
-    @JsonProperty("addBlockedBy")
-    private java.util.List<String> addBlockedBy;
-
-    @JsonProperty("addBlocks")
-    private java.util.List<String> addBlocks;
+    /**
+     * Glob模式，支持通配符匹配
+     * 例如: *.java, 双星号/*.json, test_*.py
+     */
+    @JsonProperty("pattern")
+    private String pattern;
 
     @Override
     public String toString() {

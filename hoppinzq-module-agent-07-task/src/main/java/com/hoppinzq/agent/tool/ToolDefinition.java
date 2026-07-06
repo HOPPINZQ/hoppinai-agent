@@ -138,18 +138,18 @@ public class ToolDefinition {
             Tools::editFile
     );
 
-public static ToolDefinition GlobDefinition = new ToolDefinition(
-            "glob",
-            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
-            createInputSchema(
-                    Map.of(
-                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
-                    ),
-                    List.of("pattern")
-            ),
-            GlobInput.class,
-            Tools::glob
-    );
+    public static ToolDefinition GlobDefinition = new ToolDefinition(
+                "glob",
+                "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
+                createInputSchema(
+                        Map.of(
+                                "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
+                        ),
+                        List.of("pattern")
+                ),
+                GlobInput.class,
+                Tools::glob
+        );
 
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",
@@ -226,7 +226,7 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
      * 任务创建工具定义
      * <p>
      * 用于创建新任务，将大型目标分解为更小的可执行任务单元。
-     * 支持为任务设置标题和详细描述，便于后续跟踪和管理。
+     * 支持为任务设置标题、详细描述和依赖关系，便于后续跟踪和管理。
      * </p>
      */
     public static ToolDefinition TaskCreateDefinition = new ToolDefinition(
@@ -238,11 +238,17 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             "• 多个任务需要协同完成时，建立清晰的任务层级\n\n" +
             "参数说明：\n" +
             "• subject: 任务的简短标题或名称（必填）\n" +
-            "• description: 任务的详细描述，包括具体要求、验收标准等（可选）",
+            "• description: 任务的详细描述，包括具体要求、验收标准等（可选）\n" +
+            "• blockedBy: 此任务依赖的前置任务ID列表（可选，支持短ID前缀匹配）",
             createInputSchema(
                     Map.of(
                             "subject", createProperty("string", "任务的标题或简短描述，概括任务的核心内容"),
-                            "description", createProperty("string", "任务的详细说明，包括具体要求、实现思路、验收标准等信息（可选）")
+                            "description", createProperty("string", "任务的详细说明，包括具体要求、实现思路、验收标准等信息（可选）"),
+                            "blockedBy", Map.of(
+                                    "type", "array",
+                                    "items", Map.of("type", "string"),
+                                    "description", "此任务依赖的前置任务ID列表（支持短ID，如 'a1b2c3d4'）。这些任务完成后，当前任务才能开始执行。"
+                            )
                     ),
                     List.of("subject")
             ),
@@ -274,17 +280,17 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             "• addBlocks: 添加依赖于此任务的后置任务ID列表（此任务完成后这些任务才能开始）",
             createInputSchema(
                     Map.of(
-                            "taskId", createProperty("integer", "要更新的任务ID"),
+                            "taskId", createProperty("string", "要更新的任务ID（支持短ID前缀匹配）"),
                             "status", createProperty("string", "任务的新状态：pending（待处理）、in_progress（进行中）或 completed（已完成）"),
                             "addBlockedBy", Map.of(
                                     "type", "array",
-                                    "items", Map.of("type", "integer"),
-                                    "description", "添加此任务依赖的前置任务ID列表。这些任务完成后，当前任务才能开始执行。"
+                                    "items", Map.of("type", "string"),
+                                    "description", "添加此任务依赖的前置任务ID列表（支持短ID）。这些任务完成后，当前任务才能开始执行。"
                             ),
                             "addBlocks", Map.of(
                                     "type", "array",
-                                    "items", Map.of("type", "integer"),
-                                    "description", "添加依赖于此任务的后置任务ID列表。当前任务完成后，这些任务才能开始执行。"
+                                    "items", Map.of("type", "string"),
+                                    "description", "添加依赖于此任务的后置任务ID列表（支持短ID）。当前任务完成后，这些任务才能开始执行。"
                             )
                     ),
                     List.of("taskId")
@@ -308,9 +314,9 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             "• 需要查看任务间的依赖关系时\n" +
             "• 需要确定哪些任务可以开始执行时\n\n" +
             "输出信息：\n" +
-            "• 任务ID和标题\n" +
+            "• 任务短ID（8位UUID前缀）和标题\n" +
             "• 任务状态（pending/in_progress/completed）\n" +
-            "• 依赖关系（blockedBy/blocks）",
+            "• 依赖关系（blockedBy）",
             createInputSchema(Map.of(), List.of()),
             TaskListInput.class,
             Tools::listTasks
@@ -333,9 +339,10 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             "输出信息：\n" +
             "• 任务ID、标题和详细描述\n" +
             "• 当前状态\n" +
-            "• 依赖关系列表（blockedBy和blocks）",
+            "• 依赖关系列表（blockedBy和blocks）\n" +
+            "• 完整任务列表",
             createInputSchema(
-                    Map.of("taskId", createProperty("integer", "要查询详情的任务ID")),
+                    Map.of("taskId", createProperty("string", "要查询详情的任务ID（支持短ID前缀匹配）")),
                     List.of("taskId")
             ),
             TaskGetInput.class,
@@ -343,28 +350,64 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
     );
 
     /**
-     * 对话压缩工具定义
+     * 任务认领工具定义
      * <p>
-     * 用于手动触发对话上下文压缩，减少 token 使用量，支持长时间对话。
+     * 用于认领一个待处理的任务，设置所有者并变更状态为进行中。
+     * 会自动检查任务状态和依赖关系，确保任务可以开始执行。
      * </p>
      */
-    public static ToolDefinition ContentCompactDefinition = new ToolDefinition(
-            "compact",
-            "手动触发对话压缩。当上下文过大时使用此工具。\n\n" +
+    public static ToolDefinition TaskClaimDefinition = new ToolDefinition(
+            "task_claim",
+            "认领一个待处理的任务。设置所有者并变更状态为进行中（in_progress）。\n\n" +
             "使用场景：\n" +
-            "• 对话历史过长，占用大量 token 时\n" +
-            "• 需要保持核心信息但压缩历史对话时\n" +
-            "• 系统提示接近 token 限制时\n\n" +
+            "• 开始执行一个待处理的任务时\n" +
+            "• 多个代理协作时，认领并锁定一个任务\n" +
+            "• 确保任务依赖都已满足后再开始执行\n\n" +
             "功能说明：\n" +
-            "• 压缩历史对话，保留关键信息\n" +
-            "• 可选指定压缩重点（focus 参数）\n" +
-            "• 自动识别并保留重要的上下文信息",
+            "• 只能认领状态为 pending 的任务\n" +
+            "• 自动检查所有 blockedBy 依赖是否已完成\n" +
+            "• 如果依赖未完成，会返回阻塞信息\n" +
+            "• 认领成功后设置 owner 并变更状态为 in_progress\n\n" +
+            "参数说明：\n" +
+            "• taskId: 要认领的任务ID（必填，支持短ID前缀匹配）\n" +
+            "• owner: 认领者名称（可选，默认为 'agent'）",
             createInputSchema(
-                    Map.of("focus", ToolDefinition.createProperty("string", "压缩重点，指定在摘要中保留的内容类型（可选）")),
-                    List.of()
+                    Map.of(
+                            "taskId", createProperty("string", "要认领的任务ID（支持短ID前缀匹配）"),
+                            "owner", createProperty("string", "认领者名称（可选，默认为 'agent'）")
+                    ),
+                    List.of("taskId")
             ),
-            CompactInput.class,
-            Tools::compact
+            TaskClaimInput.class,
+            Tools::claimTask
+    );
+
+    /**
+     * 任务完成工具定义
+     * <p>
+     * 用于标记一个进行中的任务为已完成，并自动解除依赖该任务的其他任务的阻塞状态。
+     * </p>
+     */
+    public static ToolDefinition TaskCompleteDefinition = new ToolDefinition(
+            "task_complete",
+            "完成一个进行中的任务。标记为已完成并解除依赖该任务的其他任务的阻塞状态。\n\n" +
+            "使用场景：\n" +
+            "• 任务执行完毕，标记为完成状态\n" +
+            "• 需要自动解除下游任务的阻塞时\n" +
+            "• 查看哪些任务因本任务的完成而被解锁\n\n" +
+            "功能说明：\n" +
+            "• 只能完成状态为 in_progress 的任务\n" +
+            "• 完成后自动清除依赖关系（移除此任务对其他任务的阻塞）\n" +
+            "• 返回被解除阻塞的下游任务列表\n" +
+            "• 便于了解哪些任务现在可以开始执行\n\n" +
+            "参数说明：\n" +
+            "• taskId: 要完成的任务ID（必填，支持短ID前缀匹配）",
+            createInputSchema(
+                    Map.of("taskId", createProperty("string", "要完成的任务ID（支持短ID前缀匹配）")),
+                    List.of("taskId")
+            ),
+            TaskCompleteInput.class,
+            Tools::completeTask
     );
 
     /**

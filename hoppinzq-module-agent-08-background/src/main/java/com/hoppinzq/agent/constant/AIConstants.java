@@ -33,13 +33,9 @@ public class AIConstants {
     // 你可以使用指令`where rg.exe`查看你的rg路径
     public static final String RG_PATH = "C:\\ProgramData\\chocolatey\\bin\\rg.exe";
 
-    public static final String MODULE_NAME = "hoppinzq-module-agent-08";
+    public static final String MODULE_NAME = "hoppinzq-module-agent-08-background";
     // 工作目录
     public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
-    public static final String TRANSCRIPT_DIR = ROOT + File.separator + ".transcripts";
     // 技能目录
     public static final String SKILL_PATH = "skills";
-    // 压缩配置
-    public static final int TOKEN_THRESHOLD = 20000;
-    public static final int KEEP_RECENT = 10;
 }

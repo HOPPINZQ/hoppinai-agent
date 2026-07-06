@@ -47,6 +47,16 @@ public class BashInput {
     @JsonProperty("type")
     private String type;
 
+    /**
+     * 是否在后台运行
+     * <p>
+     * 如果设置为 true，命令将在后台线程中执行，立即返回任务ID，
+     * 主线程不会被阻塞。适用于耗时命令如 npm install, pytest, docker build 等。
+     * </p>
+     */
+    @JsonProperty("run_in_background")
+    private Boolean runInBackground;
+
     @Override
     public String toString() {
         try {

@@ -4,7 +4,6 @@ import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.schema.LoadSkillInput;
 import com.hoppinzq.agent.tool.schema.SubAgentInput;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,7 +48,7 @@ public class SubAgent {
             ZQAgent subAgent = new ZQAgent(client, model, subTools);
 
             // 设置系统提示词，定义子Agent的角色和行为
-            subAgent.setSystemPrompt("你是一个子智能体。你已接收一个具体任务，请使用可用的工具（读取文件、写入文件、编辑文件）来完成该任务。任务完成后，请直接返回结果。");
+            subAgent.setSystemPrompt("你是一个子智能体。你已接收一个具体任务，请使用可用的工具（读取文件、写入文件、编辑文件、搜索内容）来完成该任务。任务完成后，请直接返回结果。");
 
             // 执行任务并获取结果（包含 Token 统计）
             SubAgentSessionResult result = subAgent.runTaskWithTokenUsage(input.getPrompt());

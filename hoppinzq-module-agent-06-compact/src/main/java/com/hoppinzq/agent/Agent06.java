@@ -74,7 +74,7 @@ public class Agent06 extends ZQAgent {
      * 显示当前 token 使用统计
      */
     private void showTokenStats() {
-        int currentTokens = compactor.estimateTokens(this.messageParams);
+        int currentTokens = compactor.countTokens(this.messageParams);
         int currentMessages = this.messageParams.size();
         int threshold = TOKEN_THRESHOLD;
 
@@ -126,11 +126,10 @@ public class Agent06 extends ZQAgent {
             }
 
             int messageCount = this.messageParams.size();
-            int estimatedTokens = ContextCompactor.estimateTokens(this.messageParams);
+            int estimatedTokens = compactor.countTokens(this.messageParams);
 
             System.out.printf("[开始手动压缩] 消息数: %d, 估算tokens: %d%n", messageCount, estimatedTokens);
 
-            // 直接调用 LLM 生成摘要（参考 Python s08 的 compact_history）
             List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
 
             // 替换消息列表
@@ -186,7 +185,7 @@ public class Agent06 extends ZQAgent {
         messageParams.addAll(working);
 
         // L4: auto_compact — token仍超阈值时触发（1 API调用，expensive last）
-        if (ContextCompactor.estimateTokens(messageParams) > TOKEN_THRESHOLD) {
+        if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
             List<MessageParam> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
 
@@ -250,7 +249,7 @@ public class Agent06 extends ZQAgent {
         messageParams.addAll(working);
 
         // L4: auto_compact — token仍超阈值时触发
-        if (compactor.estimateTokens(messageParams) > TOKEN_THRESHOLD) {
+        if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
             List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
             replaceMessageParams(compressed);
