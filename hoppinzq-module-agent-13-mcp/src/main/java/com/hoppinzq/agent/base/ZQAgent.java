@@ -10,26 +10,40 @@ import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import lombok.Data;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MAX_TOKENS;
+import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
  * 智能体基类
+ *
  * @author hoppinzq
  */
 @Data
 public class ZQAgent {
-    private String systemPrompt;
+    protected final AnthropicClient client;
+    protected final List<MessageParam> messageParams = new ArrayList<>();
     private final Scanner scanner;
     private final String model;
-    protected final AnthropicClient client;
     private final List<ToolDefinition> tools;
-    protected final List<MessageParam> messageParams = new ArrayList<>();
+    private String systemPrompt;
     private String taskResult;
     private boolean taskCompleted = false;
-    /** 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。 */
+
+    /**
+     * 可选的会话管理器；设置后，每条消息会自动持久化，启动时自动恢复历史。
+     */
     private SessionManager sessionManager;
+
+    /**
+     * 可选的命令处理器；设置后可处理 /stats、/usage、/exit 等特殊命令。
+     * -- SETTER --
+     *  设置命令处理器（可选，覆盖默认实现）。
+     */
     private AgentCommandHandler commandHandler;
 
     public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
@@ -37,6 +51,14 @@ public class ZQAgent {
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
+    }
+
+    /**
+     * 设置会话管理器，同时初始化命令处理器。
+     */
+    public void setSessionManager(SessionManager sessionManager) {
+        this.sessionManager = sessionManager;
+        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
     }
 
     public void run() {
@@ -50,7 +72,7 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/exit 退出）");
+        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/mcp 查看 MCP，/exit 退出）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
@@ -127,7 +149,9 @@ public class ZQAgent {
                 .orElse(false);
     }
 
-    /** 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。 */
+    /**
+     * 命中 MAX_TOKENS 时打印警告，避免静默截断工具调用导致死循环。
+     */
     private void warnIfTruncated(Message message) {
         boolean maxTokens = message.stopReason()
                 .map(StopReason.MAX_TOKENS::equals)
@@ -214,16 +238,18 @@ public class ZQAgent {
             if (input.asObject().isEmpty()) {
                 throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数不是 JSON 对象");
             }
+            // 把 JsonValue 落到 Jackson JsonNode 后再组装，避免直接序列化 SDK 内部包装类型
             ObjectNode root = OBJECT_MAPPER.createObjectNode();
             root.set("input", input.convert(JsonNode.class));
             root.put("tool_name", tool.getName());
             return tool.getFunction().apply(root.toString());
         } else {
+            // 工具自定义了入参 POJO 类型：依赖其 toString() 返回 JSON
             return tool.getFunction().apply(Objects.requireNonNull(input.convert(tool.getType())).toString());
         }
     }
 
-    protected Message chatMessage(List<MessageParam> messageParams){
+    protected Message chatMessage(List<MessageParam> messageParams) {
         // 准备工具配置
         List<ToolUnion> anthropicTools = new ArrayList<>();
         for (ToolDefinition tool : tools) {
@@ -240,22 +266,13 @@ public class ZQAgent {
                 .messages(messageParams)
                 .tools(anthropicTools);
 
-        if(systemPrompt != null && !systemPrompt.isEmpty()){
+        if (systemPrompt != null && !systemPrompt.isEmpty()) {
             messageBuilder.system(systemPrompt);
         }
 
-         messageBuilder.maxTokens(MAX_TOKENS);
+        messageBuilder.maxTokens(MAX_TOKENS);
 
         MessageCreateParams params = messageBuilder.build();
         return client.messages().create(params);
-    }
-
-    public void setSessionManager(SessionManager sessionManager) {
-        this.sessionManager = sessionManager;
-        this.commandHandler = sessionManager != null ? new AgentCommandHandler(sessionManager) : null;
-    }
-
-    public void setCommandHandler(AgentCommandHandler commandHandler) {
-        this.commandHandler = commandHandler;
     }
 }

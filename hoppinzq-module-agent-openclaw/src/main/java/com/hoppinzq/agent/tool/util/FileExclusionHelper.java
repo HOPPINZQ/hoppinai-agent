@@ -6,6 +6,7 @@ import java.util.regex.Pattern;
 
 /**
  * 完整的文件排除工具类，用于判断给定的文件路径是否应该被排除
+ *
  * @author deepseek
  */
 public class FileExclusionHelper {
@@ -28,45 +29,45 @@ public class FileExclusionHelper {
     private Pattern compileWildcardToPattern(String wildcard) {
         // 将路径分隔符统一为 /
         String normalized = wildcard.replace("\\", "/");
-        
+
         StringBuilder regex = new StringBuilder();
         regex.append("^");
-        
+
         String[] parts = normalized.split("/");
         for (int i = 0; i < parts.length; i++) {
             if (i > 0) {
                 regex.append("/");
             }
-            
+
             String part = parts[i];
             if ("**".equals(part)) {
                 regex.append(".*");
             } else {
                 // 转义特殊字符
                 part = part.replace(".", "\\.")
-                          .replace("+", "\\+")
-                          .replace("$", "\\$")
-                          .replace("[", "\\[")
-                          .replace("]", "\\]")
-                          .replace("(", "\\(")
-                          .replace(")", "\\)");
-                
+                        .replace("+", "\\+")
+                        .replace("$", "\\$")
+                        .replace("[", "\\[")
+                        .replace("]", "\\]")
+                        .replace("(", "\\(")
+                        .replace(")", "\\)");
+
                 // 将 * 替换为 [^/]*
                 part = part.replace("*", "[^/]*");
                 // 将 ? 替换为 [^/]
                 part = part.replace("?", "[^/]");
-                
+
                 regex.append(part);
             }
         }
-        
+
         // 如果以 ** 结尾，需要特殊处理
         if (wildcard.endsWith("/**")) {
             regex.append(".*");
         }
-        
+
         regex.append("$");
-        
+
         return Pattern.compile(regex.toString());
     }
 
@@ -83,10 +84,7 @@ public class FileExclusionHelper {
                     if (normalizedPath.startsWith(excludedDir + "/")) {
                         return true; // 路径以排除目录开头
                     }
-                    if (normalizedPath.contains("/" + excludedDir + "/")) {
-                        return true; // 路径中包含排除目录
-                    }
-                    return false;
+                    return normalizedPath.contains("/" + excludedDir + "/"); // 路径中包含排除目录
                 });
 
         if (dirExcluded) {

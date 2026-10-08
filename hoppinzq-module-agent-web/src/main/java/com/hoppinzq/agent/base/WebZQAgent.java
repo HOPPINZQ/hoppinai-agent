@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static com.hoppinzq.agent.constant.AIConstants.MAX_TOKENS;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
-import static com.hoppinzq.agent.constant.AIConstants.TEMPERATURE;
 import static com.hoppinzq.agent.constant.AIConstants.REACT_ENABLE;
 
 /**

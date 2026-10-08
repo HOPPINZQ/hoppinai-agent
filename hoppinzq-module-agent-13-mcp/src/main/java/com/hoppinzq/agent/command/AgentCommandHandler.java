@@ -1,6 +1,9 @@
 package com.hoppinzq.agent.command;
 
 import com.hoppinzq.agent.session.SessionManager;
+import com.hoppinzq.agent.tool.mcp.MCPAgent;
+import com.hoppinzq.agent.tool.mcp.McpLoader;
+import lombok.Setter;
 
 /**
  * Agent 特殊命令处理器。
@@ -9,6 +12,8 @@ import com.hoppinzq.agent.session.SessionManager;
  * <ul>
  *   <li>{@code /stats} —— 打印当前会话的 token 统计</li>
  *   <li>{@code /usage} —— 打印每次 LLM 调用的 token 明细</li>
+ *   <li>{@code /mcp} —— 显示 MCP 服务器信息</li>
+ *   <li>{@code /mcp tools} —— 显示 MCP 工具列表</li>
  *   <li>{@code /exit} —— 退出程序并打印统计</li>
  * </ul>
  *
@@ -17,6 +22,11 @@ import com.hoppinzq.agent.session.SessionManager;
 public class AgentCommandHandler {
 
     private final SessionManager sessionManager;
+
+    @Setter
+    private MCPAgent mcpAgent;
+    @Setter
+    private McpLoader mcpLoader;
 
     public AgentCommandHandler(SessionManager sessionManager) {
         this.sessionManager = sessionManager;
@@ -43,7 +53,10 @@ public class AgentCommandHandler {
             return false;
         }
 
-        switch (input.toLowerCase()) {
+        String cmd = input.toLowerCase();
+
+        // 基础命令
+        switch (cmd) {
             case "/stats":
                 handleStats();
                 return true;
@@ -53,11 +66,58 @@ public class AgentCommandHandler {
             case "/exit":
                 handleExit();
                 return true;
-            default:
-                System.out.println("\u001b[90m[提示] 未知命令: " + input + "\u001b[0m");
-                System.out.println("\u001b[90m可用命令: /stats, /usage, /exit\u001b[0m");
+            case "/mcp":
+                handleMcp();
+                return true;
+            case "/mcp tools":
+                handleMcpTools();
                 return true;
         }
+
+        // 检查是否是 MCP 相关命令
+        if (cmd.startsWith("/mcp")) {
+            handleMcp();
+            return true;
+        }
+
+        System.out.println("\u001b[90m[提示] 未知命令: " + input + "\u001b[0m");
+        printHelp();
+        return true;
+    }
+
+    /**
+     * 打印帮助信息
+     */
+    private void printHelp() {
+        System.out.println("\u001b[90m可用命令:\u001b[0m");
+        System.out.println("  /stats   - 打印当前会话的 token 统计");
+        System.out.println("  /usage   - 打印每次 LLM 调用的 token 明细");
+        System.out.println("  /mcp     - 显示 MCP 服务器信息");
+        System.out.println("  /mcp tools - 显示 MCP 工具列表");
+        System.out.println("  /exit    - 退出程序并打印统计");
+    }
+
+    /**
+     * 处理 MCP 服务器信息命令
+     */
+    private void handleMcp() {
+        if (mcpLoader == null) {
+            System.out.println("\u001b[90m[提示] 本会话未启用 MCP 功能\u001b[0m");
+            return;
+        }
+        System.out.println("\u001b[96m========== MCP 服务器信息 ==========\u001b[0m");
+        System.out.print(mcpLoader.getServerInfo());
+    }
+
+    /**
+     * 处理 MCP 工具列表命令
+     */
+    private void handleMcpTools() {
+        if (mcpAgent == null) {
+            System.out.println("\u001b[90m[提示] 本会话未启用 MCP 功能\u001b[0m");
+            return;
+        }
+        mcpAgent.listTools();
     }
 
     private void handleStats() {

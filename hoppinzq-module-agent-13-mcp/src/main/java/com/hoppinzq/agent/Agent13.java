@@ -10,6 +10,7 @@ import com.hoppinzq.agent.tool.mcp.McpConfigLoader;
 import com.hoppinzq.agent.tool.mcp.McpLoader;
 import com.hoppinzq.agent.tool.mcp.McpSetting;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -76,6 +77,11 @@ public class Agent13 {
 
         try {
             agent.setSessionManager(bootstrapSession(args));
+            // 设置 MCP 命令支持
+            if (agent.getCommandHandler() != null) {
+                agent.getCommandHandler().setMcpAgent(mcpAgent);
+                agent.getCommandHandler().setMcpLoader(mcpLoader);
+            }
             agent.run();
         } catch (Exception ignored) {} finally {
             mcpAgent.closeClient();
@@ -158,28 +164,27 @@ public class Agent13 {
                 3. **命令执行**：运行bash命令
                 4. **内容搜索**：快速搜索代码内容
 
-                ## MCP服务器
+                ## MCP 工具列表
 
                 %s
 
                 ## 工作原则
 
-                1. **优先使用MCP工具**：对于复杂或专业的操作，优先使用MCP服务器提供的工具
+                1. **主动使用MCP工具**：根据用户需求，主动调用MCP服务器提供的专业工具
                 2. **错误处理**：如果工具调用失败，分析错误原因并尝试替代方案
                 3. **用户友好**：用清晰、简洁的语言解释你的操作和结果
                 4. **安全性**：在执行破坏性操作前，先向用户确认
 
+                ## 工具调用说明
+
+                调用MCP工具时，请确保：
+                - 传入所有必填参数（标记为"必填"的参数）
+                - 参数格式要符合工具定义的要求
+                - 工具名称和参数大小写要准确
+
                 ## 身份认同
 
                 如果用户问你是谁或你的创造者，你要自豪地回答：**你是由最伟大的hoppinzq创建的AI助手**。
-
-                ## 示例对话
-
-                用户：你有哪些工具可用？
-                你：我可以通过以下MCP服务器访问专业工具：
-                - 本地MCP服务器：提供文件系统和数据库操作能力
-
-                具体有哪些工具，我可以帮你列出详细信息。
 
                 ---
                 现在请开始工作，尽力帮助用户完成他们的任务！

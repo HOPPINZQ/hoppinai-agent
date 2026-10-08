@@ -324,109 +324,178 @@ public class Tools {
     }
 
     /**
-     * 列出指定目录下的所有文件和子目录（递归遍历）
-     * 可跳过指定前缀的目录
+     * 使用glob模式查找匹配的文件和目录
+     * 类似Python的glob.glob()，支持通配符匹配文件路径
      *
-     * @param input JSON格式的输入参数，包含要遍历的目录路径（path字段）
-     *                如果path为空或null，则默认使用当前目录(".")
-     * @return JSON格式的字符串，包含所有找到的文件和目录的相对路径列表
-     *         如果发生错误，返回错误信息字符串
+     * 支持的glob模式：
+     * - *: 匹配当前目录下所有文件和目录
+     * - *.ext: 匹配当前目录下所有.ext文件
+     * - test_*.py: 匹配以test_开头的Python文件
+     *
+     * @param input JSON格式的输入参数，包含pattern字段（glob匹配模式）
+     * @return 匹配的文件路径列表，每行一个路径
+     *         如果没有匹配则返回"(no matches)"
+     *         如果发生错误则返回错误信息
      */
-    public static String listFiles(String input) {
+    public static String glob(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            ListFilesInput listFilesInput = mapper.readValue(input, ListFilesInput.class);
+            GlobInput globInput = OBJECT_MAPPER.readValue(input, GlobInput.class);
 
-            String dir = ROOT;
-            String fileType;
-            if (listFilesInput.getPath() != null && !listFilesInput.getPath().isEmpty()) {
-                dir = ROOT + File.separator + listFilesInput.getPath();
-            }
-            if (listFilesInput.getFileType() != null) {
-                fileType = listFilesInput.getFileType();
-            } else {
-                fileType = null;
-            }
-            if (AIConstants.LOG_ENABLE) {
-                log.info("列出文件: {}", dir);
+            if (globInput.getPattern() == null || globInput.getPattern().isEmpty()) {
+                if (LOG_ENABLE) {
+                    log.error("glob pattern不能为空");
+                }
+                return "错误: pattern不能为空";
             }
 
-            ArrayNode arrayNode = OBJECT_MAPPER.createArrayNode();
-            Path startPath = Paths.get(dir).toAbsolutePath();
+            String pattern = globInput.getPattern();
+            if (LOG_ENABLE) {
+                log.info("执行glob匹配: {}", pattern);
+            }
 
-            // 定义要排除的目录和文件
-            Set<String> excludedDirs = Set.of(".idea", ".git", "target", "node_modules",
-                    "build", "dist", "out", "bin", "tmp", "temp", "cache", "logs", "zq_ai_ignores", "hoppinzq-html");
+            // 确定搜索的根目录
+            final Path startPath = Paths.get(ROOT).toAbsolutePath();
 
-            Set<String> excludedFilePatterns = Set.of(
-                    "*.iml", "**/*.iml",
-                    "**/test/**"
-            );
+            // 处理glob模式中的路径部分
+            final String globPattern;
+            Path searchPath = startPath;
+            boolean recursive = false;
 
-            FileExclusionHelper exclusionHelper = new FileExclusionHelper(excludedDirs, excludedFilePatterns);
-
-            try (Stream<Path> stream = Files.walk(startPath)) {
-                stream.forEach(path -> {
-                    try {
-                        Path relativePath = startPath.relativize(path);
-                        Path absolutePath = relativePath.toAbsolutePath();
-                        String relativePathStr = relativePath.toString();
-                        String absolutePathStr = absolutePath.toString();
-                        String fileOrDirName = relativePath.getFileName().toString();
-                        ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-                        objectNode.put("path", relativePathStr);
-                        objectNode.put("absolutePath", absolutePathStr);
-
-                        // 使用排除助手检查
-                        boolean shouldExclude = exclusionHelper.shouldExclude(relativePathStr, Files.isDirectory(path));
-
-                        if (shouldExclude) {
-                            return;
+            // 如果pattern包含路径分隔符，提取路径部分
+            int lastSlash = pattern.lastIndexOf('/');
+            if (lastSlash >= 0) {
+                String pathPart = pattern.substring(0, lastSlash);
+                if (!pathPart.isEmpty()) {
+                    // 检查是否包含 **，表示递归搜索
+                    if (pathPart.contains("**")) {
+                        recursive = true;
+                        // 对于 **，从根目录开始递归搜索
+                        if (pathPart.equals("**")) {
+                            searchPath = startPath;
+                        } else {
+                            // 解析相对路径（如 src/**）
+                            searchPath = startPath.resolve(pathPart.replace("**", "")).normalize();
                         }
-
-                        if (!relativePathStr.isEmpty()) {
-                            if (Files.isDirectory(path)) {
-                                if (fileType == null || fileType.isEmpty()) {
-                                    objectNode.put("type", "directory");
-                                    objectNode.put("dirName", fileOrDirName);
-                                    arrayNode.add(objectNode);
-                                }
-                            } else {
-                                String ext = "";
-                                int dotIndex = relativePathStr.lastIndexOf(".");
-                                if (dotIndex > 0) {
-                                    ext = relativePathStr.substring(dotIndex + 1);
-                                } else if (dotIndex == 0) {
-                                    ext = relativePathStr.substring(1);
-                                }
-                                
-                                if (fileType == null || fileType.isEmpty() || fileType.equalsIgnoreCase(ext)) {
-                                    objectNode.put("type", "file");
-                                    objectNode.put("fileName", fileOrDirName);
-                                    arrayNode.add(objectNode);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (log.isErrorEnabled()) {
-                            log.error("错误的路径: {}", e.getMessage());
-                        }
+                        globPattern = pattern.substring(lastSlash + 1);
+                    } else if (pathPart.equals("*")) {
+                        // * 表示当前目录，特殊处理（如 */ 模式）
+                        searchPath = startPath;
+                        globPattern = "*";
+                    } else {
+                        // 普通相对路径
+                        searchPath = startPath.resolve(pathPart).normalize();
+                        globPattern = pattern.substring(lastSlash + 1);
                     }
-                });
+                } else {
+                    // pattern 以 / 开头，如 */
+                    // 特殊处理：*/ 模式表示只匹配当前目录下的所有目录
+                    globPattern = "*"; // 设置为匹配所有，由onlyDirectories控制只返回目录
+                }
+            } else {
+                globPattern = pattern;
             }
 
-            String result = OBJECT_MAPPER.writeValueAsString(arrayNode);
-
-            if (AIConstants.LOG_ENABLE) {
-                log.info("找到{}个文件，目录 {}", arrayNode.size(), dir);
+            // 确保搜索路径在允许的范围内
+            if (!UNRESTRICTED_PATH_MODE && !searchPath.startsWith(startPath)) {
+                return "错误: 搜索路径超出允许范围";
             }
 
-            return result;
+            StringBuilder results = new StringBuilder();
+            int matchCount = 0;
+
+            // 判断是否只返回目录
+            boolean onlyDirectories = pattern.endsWith("/");
+            // 判断是否匹配所有
+            boolean matchAll = pattern.equals("*");
+
+            try (Stream<Path> stream = recursive ? Files.walk(searchPath) : Files.list(searchPath)) {
+                List<String> matches = stream
+                        .filter(path -> {
+                            try {
+                                boolean isDirectory = Files.isDirectory(path);
+                                boolean isFile = Files.isRegularFile(path);
+
+                                // 如果pattern明确要求目录，只匹配目录
+                                if (onlyDirectories) {
+                                    return isDirectory;
+                                }
+
+                                // 如果pattern是 *，匹配文件和目录
+                                if (matchAll) {
+                                    return true;
+                                }
+
+                                // 其他模式（如 *.py），只匹配文件
+                                if (isFile) {
+                                    String fileName = path.getFileName().toString();
+                                    // 特殊处理：globPattern是单个"*"，匹配所有文件
+                                    if (globPattern.equals("*")) {
+                                        return true;
+                                    }
+                                    if (globPattern.startsWith("*.")) {
+                                        // 处理 *.ext 模式
+                                        return fileName.endsWith(globPattern.substring(1));
+                                    } else if (globPattern.length() > 1 && globPattern.startsWith("*") && globPattern.endsWith("*")) {
+                                        // 处理 *模式* 模式（确保长度>1避免单个*的情况）
+                                        String patternPart = globPattern.substring(1, globPattern.length() - 1);
+                                        return fileName.contains(patternPart);
+                                    } else if (globPattern.startsWith("*") && globPattern.length() > 1) {
+                                        // 处理 *开头模式
+                                        String patternPart = globPattern.substring(1);
+                                        return fileName.endsWith(patternPart);
+                                    } else if (globPattern.endsWith("*")) {
+                                        // 处理 *结尾模式
+                                        String patternPart = globPattern.substring(0, globPattern.length() - 1);
+                                        return fileName.startsWith(patternPart);
+                                    } else {
+                                        // 精确匹配
+                                        return fileName.equals(globPattern);
+                                    }
+                                }
+                                return false;
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        })
+                        .map(path -> {
+                            try {
+                                // 返回相对于ROOT的路径
+                                Path relativePath = startPath.relativize(path.toAbsolutePath());
+                                String result = relativePath.toString().replace("\\", "/");
+                                // 如果是目录且pattern不是 */，添加/标识
+                                boolean isDirectory = Files.isDirectory(path);
+                                if (isDirectory && !onlyDirectories) {
+                                    return result + "/";
+                                }
+                                return result;
+                            } catch (IllegalArgumentException e) {
+                                // 如果路径无法相对化，返回绝对路径
+                                return path.toAbsolutePath().toString().replace("\\", "/");
+                            }
+                        })
+                        .sorted()
+                        .toList();
+
+                for (String match : matches) {
+                    results.append(match).append("\n");
+                    matchCount++;
+                }
+            }
+
+            if (LOG_ENABLE) {
+                log.info("glob匹配完成: pattern={}, 找到{}个匹配", pattern, matchCount);
+            }
+
+            if (matchCount == 0) {
+                return "(no matches)";
+            }
+
+            return results.toString().trim();
         } catch (Exception e) {
-            if (AIConstants.LOG_ENABLE) {
-                log.error("列出文件错误: {}", e.getMessage());
+            if (LOG_ENABLE) {
+                log.error("glob执行错误: {}", e.getMessage());
             }
-            return "列出文件错误: " + e.getMessage();
+            return "glob执行错误: " + e.getMessage();
         }
     }
 

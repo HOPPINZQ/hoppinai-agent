@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "红警95_stdio": {
+      "enabled": true,
+      "command": "java",
+      "args": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-jar",
+        "D:\\mcp\\mcp-demo-red95-1.0.jar"
+      ]
+    },
+    "红警95": {
+      "enabled": false,
+      "url": "http://localhost:9002/sse"
+    }
+  }
+}

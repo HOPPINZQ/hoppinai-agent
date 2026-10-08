@@ -96,18 +96,20 @@ public class ToolDefinition {
             EditFileInput.class,
             Tools::editFile
     );
-public static ToolDefinition GlobDefinition = new ToolDefinition(
-            "glob",
-            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
-            createInputSchema(
-                    Map.of(
-                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
-                    ),
-                    List.of("pattern")
-            ),
-            GlobInput.class,
-            Tools::glob
-    );
+
+    public static ToolDefinition GlobDefinition = new ToolDefinition(
+                "glob",
+                "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
+                createInputSchema(
+                        Map.of(
+                                "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
+                        ),
+                        List.of("pattern")
+                ),
+                GlobInput.class,
+                Tools::glob
+        );
+
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",
             "使用ripgrep (rg)搜索代码或文本。\n\n适用于查找代码库中的代码片段、函数定义、变量使用情况或任何文本内容。\n支持按正则表达式、文件类型或目录进行精准搜索。",

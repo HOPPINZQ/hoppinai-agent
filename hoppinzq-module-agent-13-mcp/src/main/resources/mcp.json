@@ -1,16 +1,21 @@
 {
   "mcpServers": {
-    "论坛MCP": {
+    "红警95_stdio": {
+      "enabled": true,
       "command": "java",
       "args": [
         "-Dfile.encoding=UTF-8",
         "-Dsun.stdout.encoding=UTF-8",
         "-jar",
-        "D:\\mcp\\hoppinzq-module-mcp-wcbbs-stdio-1.0.1-SNAPSHOT.jar"
+        "D:\\mcp\\mcp-demo-red95-0.0.1-SNAPSHOT.jar"
       ],
       "env": {
         "wc_bbs_token": "wc_bbs_xxxxxxxxxxxx"
       }
+    },
+    "红警95": {
+      "enabled": false,
+      "url": "http://localhost:9002/sse"
     }
   }
 }

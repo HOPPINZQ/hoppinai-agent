@@ -77,7 +77,7 @@ public class AgentChatController {
         addTools.add(EditFileDefinition);
         addTools.add(WriteFileDefinition);
         addTools.add(ReadFileDefinition);
-        addtools.add(GlobDefinition);
+        addTools.add(GlobDefinition);
         addTools.add(ContentSearchDefinition);
 
         // 补充demo中的额外工具
