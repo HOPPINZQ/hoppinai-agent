@@ -10,8 +10,8 @@ import java.io.File;
  * @author hoppinzq
  */
 public class AIConstants {
-    //anthropic 地址 或者代理地址 必填
-    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+    //OpenAI 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /chat/completions
+    public static final String BASE_URL = "https://api.deepseek.com";
     //API KEY 必填
     public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
     //模型名称 必填

@@ -13,14 +13,14 @@ Module 01 只有一个 bash 工具，所有操作都走 Shell。`cat` 截断不�
 ## 核心特性
 
 - **多工具支持**：bash 命令执行 + 5 个文件操作专用工具
-- **会话持久化与恢复**：`SessionManager` 把每条 user/assistant/tool_use/tool_result 消息自动落盘到 `.sessions/<sessionId>.json`；启动时交互式列出历史会话或开新会话，历史会话可完整恢复 `messageParams`
+- **会话持久化与恢复**：`SessionManager` 把每条 user/assistant/tool_use/tool_result 消息自动落盘到 `.sessions/<sessionId>.json`（tool_result 统一存为 user 消息内嵌块，加载时展开为多条 `role=tool` 消息）；启动时交互式列出历史会话或开新会话，历史会话可完整恢复 `messageParams`
 - **纯文本回复可见**：每次 `create` 后都调用 `printText()` 打印 assistant 的文本块，避免纯文本回复（无工具调用）被静默吞掉
 - **截断告警**：命中 `MAX_TOKENS` 时调用 `warnIfTruncated()` 打印警告，避免工具调用被静默截断导致死循环
 - **路径沙箱**：所有文件操作基于当前工作目录，防止路径逃逸
 - **参数校验**：通过 JSON Schema 进行严格的类型检查
 - **类型安全**：`ToolDefinition` + 泛型 Schema 类实现强类型工具调用
 - **灵活调度**：`List<ToolDefinition>` 列表式注册，一次遍历匹配工具名
-- **错误处理**：工具未找到、执行异常等场景都会被标记为 `isError=true` 回灌给模型
+- **错误处理**：工具未找到、执行异常等场景都以普通文本（`错误: ...` 前缀）回灌给模型 —— OpenAI 协议没有 isError 标记
 - **交互式会话选择**：支持 `java Agent02 <sessionId>` 直接恢复指定会话，或交互式选择历史会话
 
 ## 实现原理
@@ -34,7 +34,7 @@ Agent02 使用**组合模式**，创建 `ZQAgent` 实例并注入工具列表：
 ```java
 public class Agent02 {
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
+        OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(API_KEY).baseUrl(BASE_URL).build();
 
         List<ToolDefinition> tools = new ArrayList<>();
@@ -61,7 +61,7 @@ public class Agent02 {
 | `ZQAgent` | 智能体基类，实现工具调用循环（`run()` / `chatMessage()` / `invokeTool()`）、会话同步（`appendMessage()`）、文本打印（`printText()`）和截断告警（`warnIfTruncated()`） |
 | `session/SessionManager` | 会话管理器，启动时恢复历史、运行时持久化每条消息、记录 token 使用 |
 | `session/SessionStore` | `.sessions/<id>.json` 文件读写 |
-| `session/MessageConverter` | `MessageParam` ↔ 可序列化 `SessionMessage` 互转 |
+| `session/MessageConverter` | `ChatCompletionMessageParam` ↔ 可序列化 `SessionMessage` 互转 |
 | `ToolDefinition` | 工具定义类，支持 `Function<String,String>` 和 `TypedToolFunction<T>` 两种注册方式 |
 | `Tools` | 工具实现类，包含 6 个工具的处理方法 |
 | `AIConstants` | 常量配置（API地址、密钥、模型、MAX_TOKENS 等） |
@@ -157,18 +157,18 @@ public String invoke(Object convertedInput) throws Exception {
 
 - Java 17+
 - Maven 3.6+
-- Anthropic API 密钥（或兼容代理服务）
+- DeepSeek API 密钥（环境变量 `DEEPSEEK_API_KEY`，或任何 OpenAI 兼容端点的密钥）
 
 ### 配置
 
 编辑 `src/main/java/com/hoppinzq/agent/constant/AIConstants.java`：
 
 ```java
-// API地址（支持Anthropic官方API或兼容的代理服务）
-public static final String BASE_URL = "https://hoppinzq.com:520/deepseek/anthropic";
+// OpenAI 兼容地址（DeepSeek）或代理地址；SDK 会在其后拼接 /chat/completions
+public static final String BASE_URL = "https://api.deepseek.com";
 
-// API密钥
-public static final String API_KEY = "your-api-key-here";
+// API密钥（默认读取环境变量 DEEPSEEK_API_KEY）
+public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
 
 // 模型名称
 public static final String MODEL = "deepseek-v4-flash";
@@ -237,7 +237,7 @@ hoppinzq-module-agent-02/
 │   ├── session/                   # 会话持久化与恢复
 │   │   ├── SessionManager.java    # 会话管理器（恢复历史 / 运行时持久化 / token统计）
 │   │   ├── SessionStore.java      # .sessions/<id>.json 文件读写
-│   │   ├── MessageConverter.java  # MessageParam ↔ SessionMessage 互转
+│   │   ├── MessageConverter.java  # ChatCompletionMessageParam ↔ SessionMessage 互转
 │   │   ├── SessionMessage.java    # 可序列化的消息块
 │   │   ├── SessionBlock.java      # 单个内容块的序列化表示
 │   │   ├── SessionData.java       # 会话完整数据（消息列表 + 元信息）
@@ -264,8 +264,8 @@ hoppinzq-module-agent-02/
 | 技术 | 用途 |
 |------|------|
 | Java 17 | 编程语言 |
-| Anthropic Java SDK | LLM API 客户端 |
-| OkHttp | HTTP 客户端（Anthropic SDK 底层） |
+| OpenAI Java SDK（com.openai:openai-java 4.69.2） | LLM API 客户端（DeepSeek 兼容端点） |
+| OkHttp | HTTP 客户端（OpenAI SDK 底层） |
 | Jackson | JSON 序列化/反序列化 |
 | Lombok | 减少样板代码 |
 | SLF4J | 日志框架 |
@@ -277,7 +277,7 @@ hoppinzq-module-agent-02/
 2. **会话自动持久化**：每次 `appendMessage()` 都通过 `SessionManager.onMessageAppended()` 自动落盘，无需手动保存；重启后可完整恢复对话历史
 3. **交互式会话选择**：启动时自动列出历史会话，用户可输入序号恢复或直接回车开新会话；也支持 `java Agent02 <sessionId>` 直接恢复指定会话
 4. **纯文本回复可见**：每次 `create` 后调用 `printText()` 打印文本块，避免无工具调用的纯文本回复被静默吞掉
-5. **截断告警**：非 TOOL_USE 退出循环时调用 `warnIfTruncated()`，命中 `MAX_TOKENS` 打印警告，避免工具调用被静默截断导致死循环
+5. **截断告警**：`finish_reason` 非 `tool_calls` 退出循环时调用 `warnIfTruncated()`，命中 `MAX_TOKENS`（finish_reason == length）打印警告，避免工具调用被静默截断导致死循环
 6. **路径沙箱**：所有文件操作通过 `Paths.get("").toAbsolutePath().resolve(path).normalize()` 解析，防止路径逃逸
 7. **TypedToolFunction 泛型接口**：Module 02 新增类型安全的工具注册方式，参数直接以对象传入，无需手动 JSON 反序列化
 8. **edit_file 无必填参数**：`required` 列表为空，LLM 根据上下文自行决定填写哪些字段 —— 更灵活的编辑体验

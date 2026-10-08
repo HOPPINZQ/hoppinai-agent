@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
@@ -17,7 +17,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 /**
  * 使用工具
  * <p>
- * 这是一个基于Java的AI智能体框架，使用Anthropic API实现工具调用能力。
+ * 这是一个基于Java的AI智能体框架，使用 OpenAI API（DeepSeek 兼容端点，需设置环境变量 DEEPSEEK_API_KEY）实现工具调用能力。
  * 该项目展示了如何构建一个能够使用多种工具（文件操作、命令执行等）的AI智能体。
  *
  * <p><b>示例提示词：</b></p>
@@ -35,7 +35,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent02 {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
+        OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .baseUrl(BASE_URL)
                 .timeout(Duration.ofSeconds(TIMEOUT))

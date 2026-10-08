@@ -1,7 +1,7 @@
 package com.hoppinzq.agent.session;
 
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.Usage;
+import com.openai.models.chat.completions.ChatCompletionMessageParam;
+import com.openai.models.completions.CompletionUsage;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -12,7 +12,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 会话编排器：维护当前 {@code sessionId} 与内存中的消息副本，
  * 在每条消息追加时自动持久化到 {@link SessionStore}。
- * <p>与 agent 解耦：agent 只需在添加消息时调用 {@link #onMessageAppended(MessageParam)}，
+ * <p>与 agent 解耦：agent 只需在添加消息时调用 {@link #onMessageAppended(ChatCompletionMessageParam)}，
  * 启动时调用 {@link #populate(List)} 即可恢复历史。
  *
  * <h3>典型用法</h3>
@@ -94,18 +94,29 @@ public class SessionManager {
     /**
      * 把历史消息回放到 agent 的 messageParams。
      * <p>由 agent 在 run 启动时调用，恢复上下文。
+     * 一条 user+tool_result 的 {@link SessionMessage} 会展开为 N 条 {@code role=tool} 消息。
      */
-    public void populate(List<MessageParam> out) {
+    public void populate(List<ChatCompletionMessageParam> out) {
         for (SessionMessage sm : sessionData.getMessages()) {
-            out.add(converter.toMessageParam(sm));
+            out.addAll(converter.toMessageParams(sm));
         }
     }
 
     /**
      * 每当 agent 追加一条新消息时调用：转成 {@link SessionMessage} 并落盘。
      */
-    public void onMessageAppended(MessageParam param) {
+    public void onMessageAppended(ChatCompletionMessageParam param) {
         sessionData.getMessages().add(converter.toSessionMessage(param));
+        sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        persist();
+    }
+
+    /**
+     * 一轮的 N 条 {@code role=tool} 结果消息合并为一条 user SessionMessage 落盘
+     * （保持与旧版一致的落盘格式）。
+     */
+    public void onToolMessagesAppended(List<ChatCompletionMessageParam> toolParams) {
+        sessionData.getMessages().add(converter.toMergedSessionMessage(toolParams));
         sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         persist();
     }
@@ -113,15 +124,17 @@ public class SessionManager {
     /**
      * 每次调用 LLM 后记录 token 使用情况。
      */
-    public void recordUsage(Usage usage) {
+    public void recordUsage(CompletionUsage usage) {
         if (usage == null) {
             return;
         }
         TokenUsage tokenUsage = TokenUsage.builder()
-                .inputTokens(usage.inputTokens())
-                .outputTokens(usage.outputTokens())
-                .cacheReadTokens(usage.cacheReadInputTokens().orElse(null))
-                .cacheCreationTokens(usage.cacheCreationInputTokens().orElse(null))
+                .inputTokens(usage.promptTokens())
+                .outputTokens(usage.completionTokens())
+                .cacheReadTokens(usage.promptTokensDetails()
+                        .flatMap(CompletionUsage.PromptTokensDetails::cachedTokens).orElse(null))
+                .cacheCreationTokens(usage.promptTokensDetails()
+                        .flatMap(CompletionUsage.PromptTokensDetails::cacheWriteTokens).orElse(null))
                 .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .build();
         sessionData.getUsage().add(tokenUsage);
@@ -197,17 +210,16 @@ public class SessionManager {
 
     /**
      * 本次会话的缓存命中率（0-1）。
-     * <p>注：Anthropic API 的 {@code input_tokens} 与 {@code cache_read_input_tokens}
-     * 是独立统计，后者是额外从 prompt cache 读取的 token 数。
+     * <p>注：OpenAI API 的 {@code prompt_tokens_details.cached_tokens} 是 {@code prompt_tokens}
+     * 的子集（DeepSeek 同样如此），与 Anthropic 的独立统计语义不同。
      */
     public double getCacheHitRate() {
         long cached = getCacheReadTokens();
         long input = getInputTokens();
-        long totalInput = cached + input;
-        if (totalInput == 0) {
+        if (input == 0) {
             return 0.0;
         }
-        return (double) cached / totalInput;
+        return (double) cached / input;
     }
 
     /**
