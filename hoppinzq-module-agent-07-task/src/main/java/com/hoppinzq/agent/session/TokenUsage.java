@@ -55,17 +55,16 @@ public class TokenUsage {
     }
 
     /**
-     * 计算缓存命中率：缓存命中 / (缓存命中 + 实际输入)。
-     * <p>注：Anthropic API 的 {@code input_tokens} 与 {@code cache_read_input_tokens}
-     * 是独立统计，后者是额外从 prompt cache 读取的 token 数。
+     * 计算缓存命中率：缓存命中 / 实际输入。
+     * <p>注：OpenAI API 的 {@code prompt_tokens_details.cached_tokens} 是
+     * {@code prompt_tokens} 的子集（DeepSeek 同样如此），与 Anthropic 的独立统计语义不同。
      */
     public double getCacheHitRate() {
         long cached = cacheReadTokens != null ? cacheReadTokens : 0;
         long input = inputTokens != null ? inputTokens : 0;
-        long totalInput = cached + input;
-        if (totalInput == 0) {
+        if (input == 0) {
             return 0.0;
         }
-        return (double) cached / totalInput;
+        return (double) cached / input;
     }
 }

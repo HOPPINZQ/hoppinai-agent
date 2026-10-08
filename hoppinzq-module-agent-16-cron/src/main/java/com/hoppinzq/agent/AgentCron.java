@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
@@ -39,12 +39,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentCron {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 6 个原有工具 + 3 个 cron 工具
         List<ToolDefinition> tools = new ArrayList<>();
@@ -62,7 +57,7 @@ public class AgentCron {
         CronScheduler scheduler = new CronScheduler();
         Tools.setCronScheduler(scheduler);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setCronScheduler(scheduler);
         agent.setSessionManager(bootstrapSession(args));

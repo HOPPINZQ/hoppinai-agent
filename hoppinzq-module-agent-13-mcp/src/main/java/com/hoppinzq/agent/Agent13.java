@@ -1,7 +1,7 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
@@ -10,7 +10,6 @@ import com.hoppinzq.agent.tool.mcp.McpConfigLoader;
 import com.hoppinzq.agent.tool.mcp.McpLoader;
 import com.hoppinzq.agent.tool.mcp.McpSetting;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -39,12 +38,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent13 {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 配置MCP服务器
         List<McpSetting> settings = new McpConfigLoader().loadMcpSettings();
@@ -69,7 +63,7 @@ public class Agent13 {
 
         tools.addAll(mcpLoader.loadTools());
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
 
         // 构建系统提示
         String systemPrompt = buildSystemPrompt(mcpLoader);

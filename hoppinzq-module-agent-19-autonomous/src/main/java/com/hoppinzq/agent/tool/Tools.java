@@ -13,7 +13,7 @@ import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.util.FileExclusionHelper;
-import com.anthropic.client.AnthropicClient;
+import com.hoppinzq.agent.client.LlmProvider;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -54,8 +54,8 @@ public class Tools {
 
     // ========================= teams / protocols 注入位 =========================
 
-    /** lead 的 LLM client，spawn_teammate 时复用 */
-    private static volatile AnthropicClient LEAD_CLIENT;
+    /** lead 的 LLM provider，spawn_teammate 时复用 */
+    private static volatile LlmProvider LEAD_PROVIDER;
     /** lead 使用的模型名 */
     private static volatile String LEAD_MODEL;
     /** lead 与 teammate 共享的消息总线 */
@@ -67,7 +67,13 @@ public class Tools {
     /** 当前调用 send_message 的 teammate 名字（teammate 线程内设置；lead 调用时为 null，代表 from=lead） */
     public static final ThreadLocal<String> CURRENT_TEAMMATE_NAME = new ThreadLocal<>();
 
-    public static void setLeadClient(AnthropicClient client) { LEAD_CLIENT = client; }
+    /** teammate 线程启动时登记自己的名字（TeammateRunner 调用） */
+    public static void setCurrentTeammateName(String name) { CURRENT_TEAMMATE_NAME.set(name); }
+
+    /** teammate 线程结束时清除登记（TeammateRunner 调用） */
+    public static void clearCurrentTeammateName() { CURRENT_TEAMMATE_NAME.remove(); }
+
+    public static void setLeadProvider(LlmProvider provider) { LEAD_PROVIDER = provider; }
     public static void setLeadModel(String model) { LEAD_MODEL = model; }
     public static void setLeadBus(MessageBus bus) { LEAD_BUS = bus; }
     public static void setLeadTeammateTools(List<ToolDefinition> tools) { LEAD_TEAMMATE_TOOLS = tools; }
@@ -738,8 +744,8 @@ public class Tools {
      */
     public static String spawnTeammate(String input) {
         try {
-            if (LEAD_CLIENT == null || LEAD_MODEL == null || LEAD_BUS == null) {
-                return "错误：lead client/model/bus 未初始化";
+            if (LEAD_PROVIDER == null || LEAD_MODEL == null || LEAD_BUS == null) {
+                return "错误：lead provider/model/bus 未初始化";
             }
             ObjectMapper mapper = new ObjectMapper();
             SpawnTeammateInput in = mapper.readValue(input, SpawnTeammateInput.class);
@@ -748,10 +754,10 @@ public class Tools {
             }
             List<ToolDefinition> tools = LEAD_TEAMMATE_TOOLS == null
                     ? new ArrayList<>() : new ArrayList<>(LEAD_TEAMMATE_TOOLS);
-            TeammateSpawner.spawn(LEAD_CLIENT, LEAD_MODEL, in.getName(),
+            TeammateSpawner.spawn(LEAD_PROVIDER, LEAD_MODEL, in.getName(),
                     in.getRole() == null ? "assistant" : in.getRole(),
                     in.getPrompt(),
-                    LEAD_BUS, tools, LEAD_REGISTRY);
+                    LEAD_BUS, tools);
             return "已启动 teammate " + in.getName();
         } catch (Exception e) {
             return "spawn_teammate 错误: " + e.getMessage();

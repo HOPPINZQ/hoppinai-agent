@@ -2,21 +2,13 @@ package com.hoppinzq.agent.base;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.openai.client.OpenAIClient;
-import com.openai.models.chat.completions.ChatCompletion;
-import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import com.openai.models.chat.completions.ChatCompletionFunctionTool;
-import com.openai.models.chat.completions.ChatCompletionMessage;
-import com.openai.models.chat.completions.ChatCompletionMessageFunctionToolCall;
-import com.openai.models.chat.completions.ChatCompletionMessageParam;
-import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
-import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
-import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
-import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
-import com.openai.models.FunctionDefinition;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -26,14 +18,16 @@ import java.util.Scanner;
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
- * 智能体基类
+ * 智能体基类。
+ * <p>只面向协议中立的 {@link LlmProvider}/{@link LlmMessage} 编程，
+ * 协议差异（Anthropic / OpenAI）由 Provider 实现类封装。
  *
  * @author hoppinzq
  */
 @Data
 public class ZQAgent {
-    protected final OpenAIClient client;
-    protected final List<ChatCompletionMessageParam> messageParams = new ArrayList<>();
+    protected final LlmProvider provider;
+    protected final List<LlmMessage> messageParams = new ArrayList<>();
     private final Scanner scanner;
     private final String model;
     private final List<ToolDefinition> tools;
@@ -52,8 +46,8 @@ public class ZQAgent {
      */
     private AgentCommandHandler commandHandler;
 
-    public ZQAgent(OpenAIClient client, String model, List<ToolDefinition> tools) {
-        this.client = client;
+    public ZQAgent(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        this.provider = provider;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
@@ -90,32 +84,30 @@ public class ZQAgent {
                 commandHandler.handleCommand(userInput);
                 continue;
             }
-            appendMessage(ChatCompletionMessageParam.ofUser(
-                    ChatCompletionUserMessageParam.builder().content(userInput).build()));
+            appendMessage(LlmMessage.user(userInput));
 
-            ChatCompletion completion;
+            LlmResponse response;
             try {
-                completion = chatMessage(messageParams);
+                response = chatMessage(messageParams);
             } catch (Exception e) {
                 System.out.println("错误: " + e.getMessage());
                 e.printStackTrace();
                 continue;
             }
-            ChatCompletion.Choice choice = completion.choices().isEmpty() ? null : completion.choices().get(0);
-            if (choice == null) {
-                System.out.println("错误: 响应中没有 choices");
+            LlmMessage message = response.getMessage();
+            if (message == null) {
+                System.out.println("错误: 响应中没有消息");
                 continue;
             }
-            ChatCompletionMessage message = choice.message();
-            appendMessage(ChatCompletionMessageParam.ofAssistant(message.toParam()));
-            recordUsageIfNeeded(completion);
+            appendMessage(message);
+            recordUsageIfNeeded(response);
             // 每次 create 后都打印 assistant 的文本输出，避免纯文本回复（无工具调用）被静默吞掉
             printText(message);
 
-            // 官方推荐的 canonical agentic loop：以 finish_reason == tool_calls 为循环条件
+            // canonical agentic loop：以 finish_reason == tool_calls 为循环条件
             // 见 https://platform.openai.com/docs/guides/function-calling
-            while (hasPendingToolCalls(choice, message)) {
-                List<ChatCompletionMessageParam> toolResults = executeToolCalls(message);
+            while (hasPendingToolCalls(response)) {
+                List<LlmMessage> toolResults = executeToolCalls(message);
                 if (toolResults.isEmpty()) {
                     // 防御：本轮没有任何有效工具调用，继续请求只会死循环
                     break;
@@ -126,37 +118,34 @@ public class ZQAgent {
                 }
 
                 try {
-                    completion = chatMessage(messageParams);
+                    response = chatMessage(messageParams);
                 } catch (Exception e) {
                     System.out.println("错误: " + e.getMessage());
                     break;
                 }
-                choice = completion.choices().isEmpty() ? null : completion.choices().get(0);
-                if (choice == null) {
-                    System.out.println("错误: 响应中没有 choices");
+                message = response.getMessage();
+                if (message == null) {
+                    System.out.println("错误: 响应中没有消息");
                     break;
                 }
-                message = choice.message();
-                appendMessage(ChatCompletionMessageParam.ofAssistant(message.toParam()));
-                recordUsageIfNeeded(completion);
+                appendMessage(message);
+                recordUsageIfNeeded(response);
                 printText(message);
             }
             // 非 tool_calls 退出：检查是否被截断
-            warnIfTruncated(choice);
+            warnIfTruncated(response);
         }
     }
 
     /**
      * 打印 assistant 消息中的文本。空文本跳过。
-     * <p>DeepSeek 等后端返回 tool_calls 时 content 常为 null（Optional.empty）。
+     * <p>DeepSeek 等后端返回 tool_calls 时文本常为 null。
      */
-    private void printText(ChatCompletionMessage message) {
-        String text = message.content().orElse("");
-        if (!text.isBlank()) {
+    private void printText(LlmMessage message) {
+        String text = message.getText();
+        if (text != null && !text.isBlank()) {
             System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
         }
-        message.refusal().filter(r -> !r.isBlank())
-                .ifPresent(r -> System.out.printf("\u001b[93mAI\u001b[0m: %s%n", r));
     }
 
     /**
@@ -164,18 +153,19 @@ public class ZQAgent {
      * <p>以 {@code finish_reason == tool_calls} 为主判据；个别 OpenAI 兼容后端
      * 返回 tool_calls 时 finish_reason 可能仍是 stop，故兜底检查 toolCalls 非空。
      */
-    private boolean hasPendingToolCalls(ChatCompletion.Choice choice, ChatCompletionMessage message) {
-        if (ChatCompletion.Choice.FinishReason.TOOL_CALLS.equals(choice.finishReason())) {
+    private boolean hasPendingToolCalls(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.TOOL_CALLS) {
             return true;
         }
-        return message.toolCalls().map(calls -> !calls.isEmpty()).orElse(false);
+        LlmMessage message = response.getMessage();
+        return message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty();
     }
 
     /**
      * 命中 LENGTH 时打印警告，避免静默截断工具调用导致死循环。
      */
-    private void warnIfTruncated(ChatCompletion.Choice choice) {
-        if (ChatCompletion.Choice.FinishReason.LENGTH.equals(choice.finishReason())) {
+    private void warnIfTruncated(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.LENGTH) {
             System.out.printf("\u001b[91m[警告]\u001b[0m 本轮回复被 max_tokens=%d 截断，工具调用可能不完整。建议调大 MAX_TOKENS。%n",
                     MAX_TOKENS);
         }
@@ -183,20 +173,16 @@ public class ZQAgent {
 
     /**
      * 执行一轮 assistant 回复中的所有工具调用，每个调用对应一条 {@code role=tool} 消息。
-     * <p>文本块已由 {@link #printText(ChatCompletionMessage)} 处理，这里只负责工具；
-     * 找不到工具或执行抛异常都以普通文本回灌（OpenAI 协议没有 isError 标记）。
+     * <p>文本已由 {@link #printText(LlmMessage)} 处理，这里只负责工具；
+     * 找不到工具或执行抛异常都以普通文本回灌（协议没有 isError 标记）。
      * <p>协议要求每个 tool_call_id 必须有且仅有一条应答消息（含失败），否则下次请求 400。
      */
-    private List<ChatCompletionMessageParam> executeToolCalls(ChatCompletionMessage message) {
-        List<ChatCompletionMessageParam> toolMessages = new ArrayList<>();
-        for (ChatCompletionMessageToolCall call : message.toolCalls().orElse(List.of())) {
-            if (!call.isFunction()) {
-                continue;
-            }
-            ChatCompletionMessageFunctionToolCall fn = call.asFunction();
-            String callId = fn.id();
-            String toolName = fn.function().name();
-            String arguments = fn.function().arguments();
+    private List<LlmMessage> executeToolCalls(LlmMessage message) {
+        List<LlmMessage> toolMessages = new ArrayList<>();
+        for (LlmMessage.ToolCall call : message.getToolCalls()) {
+            String callId = call.getId();
+            String toolName = call.getName();
+            String arguments = call.getArgumentsJson();
             System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
             String result;
@@ -219,10 +205,7 @@ public class ZQAgent {
             }
             System.out.printf("\u001b[92m结果\u001b[0m: %s%n", result);
 
-            toolMessages.add(ChatCompletionMessageParam.ofTool(ChatCompletionToolMessageParam.builder()
-                    .toolCallId(callId)
-                    .content(result == null ? "" : result)
-                    .build()));
+            toolMessages.add(LlmMessage.tool(callId, result));
         }
         return toolMessages;
     }
@@ -230,9 +213,9 @@ public class ZQAgent {
     /**
      * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
      */
-    private void recordUsageIfNeeded(ChatCompletion completion) {
-        if (sessionManager != null) {
-            completion.usage().ifPresent(sessionManager::recordUsage);
+    private void recordUsageIfNeeded(LlmResponse response) {
+        if (sessionManager != null && response.getUsage() != null) {
+            sessionManager.recordUsage(response.getUsage());
         }
     }
 
@@ -242,10 +225,10 @@ public class ZQAgent {
      * <p>注意：一轮的多条 {@code role=tool} 结果不走此方法，
      * 由 {@link SessionManager#onToolMessagesAppended(List)} 合并落盘。
      */
-    protected void appendMessage(ChatCompletionMessageParam param) {
-        messageParams.add(param);
+    protected void appendMessage(LlmMessage message) {
+        messageParams.add(message);
         if (sessionManager != null) {
-            sessionManager.onMessageAppended(param);
+            sessionManager.onMessageAppended(message);
         }
     }
 
@@ -267,30 +250,13 @@ public class ZQAgent {
         }
     }
 
-    protected ChatCompletion chatMessage(List<ChatCompletionMessageParam> messageParams) {
-        // messages(List) 是整体替换而非追加：system 必须拼进同一个 list
-        List<ChatCompletionMessageParam> payload = new ArrayList<>();
-        if (systemPrompt != null && !systemPrompt.isEmpty()) {
-            payload.add(ChatCompletionMessageParam.ofSystem(
-                    ChatCompletionSystemMessageParam.builder()
-                            .content(systemPrompt)
-                            .build()));
-        }
-        payload.addAll(messageParams);
-
-        ChatCompletionCreateParams.Builder builder = ChatCompletionCreateParams.builder()
+    protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
+        return provider.complete(LlmRequest.builder()
                 .model(model)
-                .messages(payload)
-                .maxTokens(MAX_TOKENS);
-        for (ToolDefinition tool : tools) {
-            builder.addTool(ChatCompletionFunctionTool.builder()
-                    .function(FunctionDefinition.builder()
-                            .name(tool.getName())
-                            .description(tool.getDescription())
-                            .parameters(tool.getInputSchema())
-                            .build())
-                    .build());
-        }
-        return client.chat().completions().create(builder.build());
+                .systemPrompt(systemPrompt)
+                .messages(messageParams)
+                .tools(tools)
+                .maxTokens(MAX_TOKENS)
+                .build());
     }
 }

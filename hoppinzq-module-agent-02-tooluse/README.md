@@ -34,8 +34,8 @@ Agent02 使用**组合模式**，创建 `ZQAgent` 实例并注入工具列表：
 ```java
 public class Agent02 {
     public static void main(String[] args) {
-        OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey(API_KEY).baseUrl(BASE_URL).build();
+        // 协议中立：由 AIConstants.PROVIDER 决定使用 OpenAIProvider 或 AnthropicProvider
+        LlmProvider provider = LlmProviders.create();
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
@@ -45,7 +45,7 @@ public class Agent02 {
         tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setSessionManager(bootstrapSession(args));  // 启动时恢复历史会话或开新会话
         agent.run();

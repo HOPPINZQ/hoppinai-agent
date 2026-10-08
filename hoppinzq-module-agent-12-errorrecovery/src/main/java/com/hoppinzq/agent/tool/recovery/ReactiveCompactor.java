@@ -1,7 +1,6 @@
 package com.hoppinzq.agent.tool.recovery;
 
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.MessageParam;
+import com.hoppinzq.agent.client.LlmMessage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,24 +30,21 @@ public final class ReactiveCompactor {
     /**
      * 原地压缩 messageParams；返回是否真的发生了压缩。
      */
-    public static boolean compact(List<MessageParam> messageParams) {
+    public static boolean compact(List<LlmMessage> messageParams) {
         if (messageParams.size() <= KEEP_RECENT + 1) {
             return false;
         }
-        MessageParam first = messageParams.get(0);
+        LlmMessage first = messageParams.get(0);
         int total = messageParams.size();
         int dropStart = 1;
         int dropEnd = total - KEEP_RECENT;
         int dropped = dropEnd - dropStart;
 
-        List<MessageParam> kept = new ArrayList<>();
+        List<LlmMessage> kept = new ArrayList<>();
         kept.add(first);
 
         // 插入一条摘要
-        kept.add(MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content("[系统] 已省略 " + dropped + " 条历史消息以释放上下文空间，请继续。")
-                .build());
+        kept.add(LlmMessage.user("[系统] 已省略 " + dropped + " 条历史消息以释放上下文空间，请继续。"));
 
         // 追加最近 KEEP_RECENT 条
         for (int i = dropEnd; i < total; i++) {
@@ -64,39 +60,27 @@ public final class ReactiveCompactor {
     }
 
     /** 估算 messageParams 的字符长度（粗略，用于诊断） */
-    public static int approximateLength(List<MessageParam> messageParams) {
+    public static int approximateLength(List<LlmMessage> messageParams) {
         int n = 0;
-        for (MessageParam p : messageParams) {
-            n += extractText(p).length();
+        for (LlmMessage m : messageParams) {
+            n += extractText(m).length();
         }
         return n;
     }
 
-    private static String extractText(MessageParam p) {
+    private static String extractText(LlmMessage m) {
+        if (m == null) {
+            return "";
+        }
         StringBuilder sb = new StringBuilder();
-        // MessageParam.content() 可能是 String 或 BlockParams；这里只尽力提取
-        try {
-            Object content = p._content();
-            if (content instanceof String s) {
-                return s;
+        if (m.getText() != null) {
+            sb.append(m.getText());
+        }
+        if (m.getToolCalls() != null) {
+            for (LlmMessage.ToolCall call : m.getToolCalls()) {
+                sb.append(call.getName()).append('(').append(call.getArgumentsJson()).append(')');
             }
-            if (content instanceof List<?> list) {
-                for (Object o : list) {
-                    if (o instanceof ContentBlockParam cbp) {
-                        sb.append(cbp.toString());
-                    } else {
-                        sb.append(String.valueOf(o));
-                    }
-                }
-            }
-        } catch (Exception ignore) {
-            // best-effort
         }
         return sb.toString();
-    }
-
-    /** 仅供消除未用导入警告，实际不调用 */
-    @SuppressWarnings("unused")
-    private static void unused() {
     }
 }

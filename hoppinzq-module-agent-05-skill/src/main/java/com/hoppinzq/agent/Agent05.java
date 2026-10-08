@@ -1,16 +1,14 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
-import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -41,15 +39,15 @@ public class Agent05 extends ZQAgent {
     private long lastTodoVersion = 0;
     public static SkillLoader skillLoader;
 
-    public Agent05(AnthropicClient client, String model, List<ToolDefinition> tools, SkillLoader skillLoader, TodoManager todoManager) {
-        super(client, model, tools);
+    public Agent05(LlmProvider provider, String model, List<ToolDefinition> tools, SkillLoader skillLoader, TodoManager todoManager) {
+        super(provider, model, tools);
         Agent05.skillLoader = skillLoader;
         Agent05.todoManager = todoManager;
         this.lastTodoVersion = todoManager.getVersion();
     }
 
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
             roundsSinceTodo = 0;
@@ -70,19 +68,12 @@ public class Agent05 extends ZQAgent {
                 4. 调整任务优先级
                 </reminder>
                 """, roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
     }
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 创建技能加载器
         skillLoader = new SkillLoader();
@@ -102,7 +93,7 @@ public class Agent05 extends ZQAgent {
         tools.add(SkillsDefinition);
 
         // 创建智能体
-        Agent05 agent = new Agent05(client, MODEL, tools, skillLoader, todoManager);
+        Agent05 agent = new Agent05(provider, MODEL, tools, skillLoader, todoManager);
 
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setSessionManager(bootstrapSession(args),skillLoader);

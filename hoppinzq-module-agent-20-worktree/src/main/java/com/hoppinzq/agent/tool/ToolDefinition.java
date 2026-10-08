@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
@@ -30,7 +28,8 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 public class ToolDefinition {
     private String name;
     private String description;
-    private Tool.InputSchema inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
 
     private Class<?> type;
     private Function<String, String> function;
@@ -46,7 +45,7 @@ public class ToolDefinition {
         String apply(Object input) throws Exception;
     }
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -55,7 +54,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -103,17 +102,18 @@ public class ToolDefinition {
             Tools::writeFile
     );
 
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
-
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-
-        return schemaBuilder.build();
+        return schema;
     }
 
     public static ToolDefinition EditFileDefinition = new ToolDefinition(
@@ -131,17 +131,18 @@ public class ToolDefinition {
             Tools::editFile
     );
 
-public static ToolDefinition GlobDefinition = new ToolDefinition(
-            "glob",
-            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
+public static ToolDefinition ListFilesDefinition = new ToolDefinition(
+            "list_files",
+            "列出指定目录下的所有文件和子目录（递归遍历）。可按扩展名筛选，用于了解项目结构。",
             createInputSchema(
                     Map.of(
-                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
+                            "path", createProperty("string", "可选：要列出内容的目录路径（相对工作目录），空则使用工作目录。"),
+                            "fileType", createProperty("string", "可选：按文件扩展名筛选（例如 java、md）。")
                     ),
-                    List.of("pattern")
+                    List.of()
             ),
-            GlobInput.class,
-            Tools::glob
+            ListFilesInput.class,
+            Tools::listFiles
     );
 
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(

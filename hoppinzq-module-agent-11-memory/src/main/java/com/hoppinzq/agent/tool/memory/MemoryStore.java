@@ -1,11 +1,9 @@
 package com.hoppinzq.agent.tool.memory;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.models.messages.ContentBlock;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageCreateParams;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.TextBlock;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -46,12 +44,12 @@ public class MemoryStore {
 
     private final Path memoryDir;
     private final Path indexFile;
-    private final AnthropicClient client;
+    private final LlmProvider provider;
 
-    public MemoryStore(String root, AnthropicClient client) {
+    public MemoryStore(String root, LlmProvider provider) {
         this.memoryDir = Paths.get(root, ".memory");
         this.indexFile = Paths.get(root, "MEMORY.md");
-        this.client = client;
+        this.provider = provider;
         try {
             Files.createDirectories(memoryDir);
             if (!Files.exists(indexFile)) {
@@ -230,24 +228,14 @@ public class MemoryStore {
      * 供 {@link MemorySelector} / {@link MemoryExtractor} 共用。
      */
     public String askLlm(String prompt) {
-        MessageParam msg = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(prompt)
-                .build();
-        Message message = client.messages().create(MessageCreateParams.builder()
+        LlmResponse response = provider.complete(LlmRequest.builder()
                 .model(MODEL)
                 .maxTokens(1024)
                 .temperature(0.0)
-                .messages(List.of(msg))
+                .messages(List.of(LlmMessage.user(prompt)))
                 .build());
-        StringBuilder sb = new StringBuilder();
-        for (ContentBlock b : message.content()) {
-            if (b.isText()) {
-                TextBlock t = b.asText();
-                sb.append(t.text());
-            }
-        }
-        return sb.toString().trim();
+        String text = response.getMessage() == null ? null : response.getMessage().getText();
+        return text == null ? "" : text.trim();
     }
 
     static List<String> splitLines(String text) {

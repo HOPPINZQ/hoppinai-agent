@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
@@ -56,12 +56,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentComprehensive {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // === 各子系统 ===
         CronScheduler cron = new CronScheduler();
@@ -71,12 +66,12 @@ public class AgentComprehensive {
         WorktreeManager worktreeManager = new WorktreeManager(taskManager);
         MockMcpClient mcpClient = new MockMcpClient();
         SkillLoader skillLoader = new SkillLoader();
-        ContextCompactor compactor = new ContextCompactor(client, MODEL);
-        RetryWrapper retryWrapper = new RetryWrapper(client);
+        ContextCompactor compactor = new ContextCompactor(provider, MODEL);
+        RetryWrapper retryWrapper = new RetryWrapper(provider);
 
         // === 注入到 Tools ===
         Tools.setCronScheduler(cron);
-        Tools.setLeadClient(client);
+        Tools.setLeadProvider(provider);
         Tools.setLeadModel(MODEL);
         Tools.setLeadBus(bus);
         Tools.setLeadRegistry(registry);
@@ -134,7 +129,7 @@ public class AgentComprehensive {
         tools.add(ToolDefinition.McpDeployRunDefinition);
 
         // === 装配 ZQAgent ===
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt(skillLoader));
         agent.setCronScheduler(cron);
         agent.setMessageBus(bus);

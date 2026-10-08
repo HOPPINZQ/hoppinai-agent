@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.base.WebZQAgent;
 import com.hoppinzq.agent.tool.schema.*;
@@ -37,7 +35,8 @@ public class ToolDefinition {
             Tools::readFile
     );
     private String description;
-    private Tool.InputSchema inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
     public static ToolDefinition WriteFileDefinition = new ToolDefinition(
             "write_file",
             "将内容写入文件。如果文件不存在，则创建该文件。",
@@ -96,6 +95,7 @@ public class ToolDefinition {
             EditFileInput.class,
             Tools::editFile
     );
+
     public static ToolDefinition ListFilesDefinition = new ToolDefinition(
             "list_files",
             "列出指定路径下的文件和目录，支持按文件类型筛选。若未指定路径，则默认列出当前目录的内容。",
@@ -109,6 +109,7 @@ public class ToolDefinition {
             ListFilesInput.class,
             Tools::listFiles
     );
+
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",
             "使用ripgrep (rg)搜索代码或文本。\n\n适用于查找代码库中的代码片段、函数定义、变量使用情况或任何文本内容。\n支持按正则表达式、文件类型或目录进行精准搜索。",
@@ -354,7 +355,7 @@ public class ToolDefinition {
     // 工具的参数类型和处理函数
     private Class<?> type;
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -363,7 +364,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -398,16 +399,13 @@ public class ToolDefinition {
     /**
      * 创建InputSchema
      */
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
-
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-
-        return schemaBuilder.build();
+        return schema;
     }
 }

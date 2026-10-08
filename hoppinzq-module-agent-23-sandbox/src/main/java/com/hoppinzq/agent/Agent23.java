@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
@@ -10,8 +10,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.API_KEY;
-import static com.hoppinzq.agent.constant.AIConstants.BASE_URL;
 import static com.hoppinzq.agent.constant.AIConstants.MODEL;
 import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
 
@@ -30,17 +28,12 @@ import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
 public class Agent23 {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setSessionManager(bootstrapSession(args));
         System.out.println("[s23 安全沙箱] bash 命令将经过 L1→L2→L3→L4 四层防护");

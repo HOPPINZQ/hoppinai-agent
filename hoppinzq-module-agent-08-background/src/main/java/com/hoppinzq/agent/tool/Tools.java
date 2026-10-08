@@ -11,7 +11,6 @@ import com.hoppinzq.agent.tool.background.BackgroundManager;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.task.TaskManager;
-import com.hoppinzq.agent.tool.util.FileExclusionHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;

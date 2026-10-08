@@ -1,11 +1,10 @@
 package com.hoppinzq.controller;
 
 import com.alibaba.fastjson.JSON;
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.core.http.StreamResponse;
-import com.anthropic.models.messages.*;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.context.SessionContextHolder;
 import com.hoppinzq.agent.base.WebZQAgent;
 import com.hoppinzq.agent.service.ChatMessageService;
@@ -32,7 +31,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Stream;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
@@ -44,7 +42,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.ContentSearchDefinition;
 @CrossOrigin(origins = "*")
 public class AgentChatController {
 
-    private final AnthropicClient client;
+    private final LlmProvider provider;
     private final List<ToolDefinition> tools;
     private final WebZQAgent zqAgent;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -57,18 +55,15 @@ public class AgentChatController {
     private ChatMessageService chatMessageService;
 
     public AgentChatController() {
-        this.client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .build();
-        
+        this.provider = LlmProviders.create();
+
         BackgroundManager backgroundManager = new BackgroundManager();
         TaskManager taskManager = new TaskManager();
-        ContextCompactor compactor = new ContextCompactor(client, MODEL);
+        ContextCompactor compactor = new ContextCompactor(provider, MODEL);
         TodoManager todoManager = new TodoManager();
 
 
-        this.zqAgent = new WebZQAgent(client, MODEL);
+        this.zqAgent = new WebZQAgent(provider, MODEL);
         this.zqAgent.initManagers(backgroundManager, taskManager, compactor, skillLoader, todoManager);
 
         // 添加基础工具
@@ -312,11 +307,8 @@ public class AgentChatController {
 
         final String finalSessionId = (sessionId != null && !sessionId.isEmpty()) ? sessionId : "default";
 
-        List<MessageParam> messages = zqAgent.getMessageParams(finalSessionId);
-        messages.add(MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(message)
-                .build());
+        List<LlmMessage> messages = zqAgent.getMessageParams(finalSessionId);
+        messages.add(LlmMessage.user(message));
 
         chatSessionService.createSession(finalSessionId, "新会话");
         int userOrder = chatMessageService.getNextMessageOrder(finalSessionId);
@@ -369,303 +361,266 @@ public class AgentChatController {
         }
     }
 
-    private void processAgentStream(List<MessageParam> messages, FluxSink<String> emitter,
+    /**
+     * 流式处理：把协议中立的 {@link LlmProvider.StreamListener} 回调翻译为 SSE 事件
+     * （事件 JSON 形状与旧版保持一致，前端无需改动）。
+     */
+    private void processAgentStream(List<LlmMessage> messages, FluxSink<String> emitter,
                                     String sessionId, StringBuilder assistantResponse,
                                     AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
-        try (StreamResponse<RawMessageStreamEvent> streamResponse = zqAgent.chatMessageStream(messages)) {
-            Stream<RawMessageStreamEvent> stream = streamResponse.stream();
+        StringBuilder fullTextResponse = new StringBuilder();
+        AtomicBoolean done = new AtomicBoolean(false);
 
-            StringBuilder fullTextResponse = new StringBuilder();
-            StringBuilder toolUseId = new StringBuilder();
-            StringBuilder toolName = new StringBuilder();
-            StringBuilder toolInputStr = new StringBuilder();
-            AtomicBoolean isToolUse = new AtomicBoolean(false);
-
-            stream.forEach(event -> {
+        LlmProvider.StreamListener listener = new LlmProvider.StreamListener() {
+            @Override
+            public void onTextDelta(String text) {
                 if (emitter.isCancelled()) {
                     throw new RuntimeException("Client disconnected");
                 }
-                
-                if (event.isMessageStart()) {
-                    try {
-                        RawMessageStartEvent startEvent = event.asMessageStart();
-                        com.anthropic.models.messages.Usage usage = startEvent.message().usage();
-                        if (usage != null && usage.inputTokens() != 0) {
-                            totalInputTokens.addAndGet(usage.inputTokens());
-                        }
-                    } catch (Exception e) {
-                        log.debug("Failed to extract input tokens from message_start", e);
-                    }
-                } else if (event.isMessageDelta()) {
-                    try {
-                        RawMessageDeltaEvent deltaEvent = event.asMessageDelta();
-                        MessageDeltaUsage usage = deltaEvent.usage();
-                        if (usage != null && usage.outputTokens() != 0) {
-                            totalOutputTokens.addAndGet(usage.outputTokens());
-                        }
-                    } catch (Exception e) {
-                        log.debug("Failed to extract output tokens from message_delta", e);
-                    }
-                } else if (event.isContentBlockStart()) {
-                    RawContentBlockStartEvent blockStart = event.asContentBlockStart();
-                    if (blockStart.contentBlock().isToolUse()) {
-                        isToolUse.set(true);
-                        ToolUseBlock toolUse = blockStart.contentBlock().asToolUse();
-                        toolUseId.append(toolUse.id());
-                        toolName.append(toolUse.name());
-                    }
-                } else if (event.isContentBlockDelta()) {
-                    RawContentBlockDeltaEvent deltaEvent = event.asContentBlockDelta();
-                    if (deltaEvent.delta().isText()) {
-                        String text = deltaEvent.delta().asText().text();
-                        fullTextResponse.append(text);
-                        assistantResponse.append(text);
-                        // Emit text delta
-                        emitter.next(JSON.toJSONString(Map.of(
-                            "type", "content_block_delta",
-                            "index", deltaEvent.index(),
-                            "delta", Map.of(
+                fullTextResponse.append(text);
+                assistantResponse.append(text);
+                emitter.next(JSON.toJSONString(Map.of(
+                        "type", "content_block_delta",
+                        "index", 0,
+                        "delta", Map.of(
                                 "type", "text_delta",
                                 "text", text
-                            )
-                        )));
-                    } else if (deltaEvent.delta().isInputJson()) {
-                        String partialJson = deltaEvent.delta().asInputJson().partialJson();
-                        toolInputStr.append(partialJson);
+                        )
+                )));
+            }
+
+            @Override
+            public void onToolUse(String toolId, String toolName, String argumentsJson) {
+                if (done.get()) {
+                    return;
+                }
+                try {
+                    Object parsedInput;
+                    try {
+                        parsedInput = JSON.parse(argumentsJson);
+                    } catch (Exception e) {
+                        parsedInput = argumentsJson;
                     }
-                } else if (event.isContentBlockStop()) {
-                    if (isToolUse.get()) {
-                        // Tool use complete, let's invoke the tool
-                        try {
-                            String toolResult = null;
-                            boolean found = false;
-                            
-                            Object parsedInput;
+
+                    emitter.next(JSON.toJSONString(Map.of(
+                            "type", "tool_status",
+                            "status", "calling",
+                            "tool_name", toolName,
+                            "tool_id", toolId,
+                            "tool_input", parsedInput
+                    )));
+                    appendToolCallToResponse(assistantResponse, toolId, toolName, "calling", parsedInput, null);
+
+                    if ("task_completed".equals(toolName)) {
+                        emitter.next(JSON.toJSONString(Map.of(
+                                "type", "task_completed",
+                                "result", parsedInput
+                        )));
+                        long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
+                        persistAssistantResponse(sessionId, assistantResponse, totalTokens);
+                        done.set(true);
+                        emitter.complete();
+                        return;
+                    }
+
+                    String toolResult = null;
+                    boolean found = false;
+                    for (ToolDefinition tool : tools) {
+                        if (tool.getName().equals(toolName)) {
                             try {
-                                parsedInput = JSON.parse(toolInputStr.toString());
+                                toolResult = zqAgent.invokeTool(tool, argumentsJson);
                             } catch (Exception e) {
-                                parsedInput = toolInputStr.toString();
+                                toolResult = "错误: " + e.getMessage();
                             }
-                            
-                            emitter.next(JSON.toJSONString(Map.of(
-                                "type", "tool_status",
-                                "status", "calling",
-                                "tool_name", toolName.toString(),
-                                "tool_id", toolUseId.toString(),
-                                "tool_input", parsedInput
-                            )));
-                            appendToolCallToResponse(assistantResponse, toolUseId.toString(), toolName.toString(), "calling", parsedInput, null);
-                            
-                            if ("task_completed".equals(toolName.toString())) {
-                                Object parsedInputTemp;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        toolResult = "Error: Tool not found";
+                        Map<String, Object> errMap = new java.util.HashMap<>();
+                        errMap.put("type", "tool_status");
+                        errMap.put("status", "unknown");
+                        errMap.put("tool_name", toolName);
+                        errMap.put("tool_id", toolId);
+                        emitter.next(JSON.toJSONString(errMap));
+                        appendToolCallToResponse(assistantResponse, toolId, toolName, "unknown", null, toolResult);
+                    } else {
+                        Map<String, Object> succMap = new java.util.HashMap<>();
+                        succMap.put("type", "tool_status");
+                        succMap.put("status", "success");
+                        succMap.put("tool_name", toolName);
+                        succMap.put("tool_id", toolId);
+                        succMap.put("tool_result", toolResult);
+                        emitter.next(JSON.toJSONString(succMap));
+                        appendToolCallToResponse(assistantResponse, toolId, toolName, "success", null, toolResult);
+                    }
+
+                    // 回灌 assistant(文本+tool_use) 与 tool 结果，再递归拉起下一轮流式请求
+                    messages.add(LlmMessage.assistant(
+                            fullTextResponse.length() > 0 ? fullTextResponse.toString() : null,
+                            List.of(LlmMessage.ToolCall.builder()
+                                    .id(toolId).name(toolName).argumentsJson(argumentsJson).build())));
+                    List<LlmMessage> toolResults = new ArrayList<>();
+                    toolResults.add(LlmMessage.tool(toolId, toolResult));
+                    zqAgent.onToolExecution(toolResults);
+                    messages.addAll(toolResults);
+
+                    fullTextResponse.setLength(0);
+                    if (!emitter.isCancelled() && !done.get()) {
+                        processAgentStream(messages, emitter, sessionId, assistantResponse, totalInputTokens, totalOutputTokens);
+                    }
+                } catch (Exception e) {
+                    log.error("Tool execution failed", e);
+                    Map<String, Object> errMap = new java.util.HashMap<>();
+                    errMap.put("type", "tool_status");
+                    errMap.put("status", "error");
+                    errMap.put("tool_name", toolName);
+                    errMap.put("tool_id", toolId);
+                    errMap.put("error_msg", e.getMessage() != null ? e.getMessage() : "Unknown error");
+                    errMap.put("tool_result", e.getMessage() != null ? e.getMessage() : "Unknown error");
+                    emitter.next(JSON.toJSONString(errMap));
+                    appendToolCallToResponse(assistantResponse, toolId, toolName, "error", null,
+                            e.getMessage() != null ? e.getMessage() : "Unknown error");
+                    done.set(true);
+                    emitter.error(e);
+                }
+            }
+
+            @Override
+            public void onComplete(LlmResponse.FinishReason finishReason, com.hoppinzq.agent.session.TokenUsage usage) {
+                if (usage != null) {
+                    totalInputTokens.addAndGet(usage.getInputTokens() != null ? usage.getInputTokens() : 0);
+                    totalOutputTokens.addAndGet(usage.getOutputTokens() != null ? usage.getOutputTokens() : 0);
+                }
+                if (done.get()) {
+                    return;
+                }
+                // REACT 分支：从累计文本解析 Action:/Action Input:
+                if (REACT_ENABLE) {
+                    String resultText = fullTextResponse.toString();
+                    if (resultText.contains("Action:")) {
+                        try {
+                            String action = null;
+                            java.util.regex.Pattern actionPattern = java.util.regex.Pattern.compile("Action:\\s*([^\\n]+)");
+                            java.util.regex.Matcher actionMatcher = actionPattern.matcher(resultText);
+                            if (actionMatcher.find()) {
+                                action = actionMatcher.group(1).trim();
+                            }
+
+                            String actionInputStr = null;
+                            java.util.regex.Pattern inputPattern = java.util.regex.Pattern.compile("Action Input:\\s*(\\{.*?\\})(?=\\s*\\n|$)", java.util.regex.Pattern.DOTALL);
+                            java.util.regex.Matcher inputMatcher = inputPattern.matcher(resultText);
+                            if (inputMatcher.find()) {
+                                actionInputStr = inputMatcher.group(1);
+                            }
+
+                            if (action != null && actionInputStr != null) {
+                                String fakeToolId = "react_" + System.currentTimeMillis();
+
+                                Object parsedInput;
                                 try {
-                                    parsedInputTemp = JSON.parse(toolInputStr.toString());
+                                    parsedInput = JSON.parse(actionInputStr);
                                 } catch (Exception e) {
-                                    parsedInputTemp = toolInputStr.toString();
+                                    parsedInput = actionInputStr;
                                 }
-                                
-                                emitter.next(JSON.toJSONString(Map.of(
-                                    "type", "task_completed",
-                                    "result", parsedInputTemp
-                                )));
-                                long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
-                                persistAssistantResponse(sessionId, assistantResponse, totalTokens);
-                                emitter.complete();
-                                return;
-                            }
-                            
-                            for (ToolDefinition tool : tools) {
-                                if (tool.getName().equals(toolName.toString())) {
-                                    JsonValue jsonValue = JsonValue.from(JSON.parseObject(toolInputStr.toString()));
-                                    toolResult = zqAgent.invokeTool(tool, jsonValue);
-                                    found = true;
-                                    break;
+
+                                Map<String, Object> callingMap = new java.util.HashMap<>();
+                                callingMap.put("type", "tool_status");
+                                callingMap.put("status", "calling");
+                                callingMap.put("tool_name", action);
+                                callingMap.put("tool_id", fakeToolId);
+                                callingMap.put("tool_input", parsedInput);
+                                emitter.next(JSON.toJSONString(callingMap));
+                                appendToolCallToResponse(assistantResponse, fakeToolId, action, "calling", parsedInput, null);
+
+                                if ("task_completed".equals(action)) {
+                                    emitter.next(JSON.toJSONString(Map.of("type", "task_completed", "result", parsedInput)));
+                                    long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
+                                    persistAssistantResponse(sessionId, assistantResponse, totalTokens);
+                                    done.set(true);
+                                    emitter.complete();
+                                    return;
                                 }
-                            }
-                            if (!found) {
-                                toolResult = "Error: Tool not found";
-                                Map<String, Object> errMap = new java.util.HashMap<>();
-                                errMap.put("type", "tool_status");
-                                errMap.put("status", "unknown");
-                                errMap.put("tool_name", toolName.toString());
-                                errMap.put("tool_id", toolUseId.toString());
-                                emitter.next(JSON.toJSONString(errMap));
-                                appendToolCallToResponse(assistantResponse, toolUseId.toString(), toolName.toString(), "unknown", null, toolResult);
+
+                                String toolResult = null;
+                                boolean found = false;
+                                for (ToolDefinition tool : tools) {
+                                    if (tool.getName().equals(action)) {
+                                        toolResult = zqAgent.invokeTool(tool, actionInputStr);
+                                        found = true;
+                                        break;
+                                    }
+                                }
+
+                                Map<String, Object> resultMap = new java.util.HashMap<>();
+                                resultMap.put("type", "tool_status");
+                                resultMap.put("tool_name", action);
+                                resultMap.put("tool_id", fakeToolId);
+                                if (!found) {
+                                    toolResult = "Error: Tool not found";
+                                    resultMap.put("status", "unknown");
+                                } else {
+                                    resultMap.put("status", "success");
+                                    resultMap.put("tool_result", toolResult);
+                                }
+                                emitter.next(JSON.toJSONString(resultMap));
+                                appendToolCallToResponse(assistantResponse, fakeToolId, action, found ? "success" : "unknown", null, toolResult);
+
+                                messages.add(LlmMessage.assistant(resultText, null));
+                                messages.add(LlmMessage.user("Observation: " + toolResult));
+
+                                fullTextResponse.setLength(0);
+                                if (!emitter.isCancelled()) {
+                                    processAgentStream(messages, emitter, sessionId, assistantResponse, totalInputTokens, totalOutputTokens);
+                                }
                             } else {
-                                Map<String, Object> succMap = new java.util.HashMap<>();
-                                succMap.put("type", "tool_status");
-                                succMap.put("status", "success");
-                                succMap.put("tool_name", toolName.toString());
-                                succMap.put("tool_id", toolUseId.toString());
-                                succMap.put("tool_result", toolResult);
-                                emitter.next(JSON.toJSONString(succMap));
-                                appendToolCallToResponse(assistantResponse, toolUseId.toString(), toolName.toString(), "success", null, toolResult);
+                                messages.add(LlmMessage.assistant(resultText, null));
+                                long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
+                                emitter.next(JSON.toJSONString(Map.of("type", "end", "token", totalTokens)));
+                                persistAssistantResponse(sessionId, assistantResponse, totalTokens);
+                                done.set(true);
+                                emitter.complete();
                             }
-
-                            // Add assistant message and tool result to messages list
-                            List<ContentBlockParam> assistantBlocks = new ArrayList<>();
-                            if (fullTextResponse.length() > 0) {
-                                assistantBlocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(fullTextResponse.toString()).build()));
-                            }
-                            assistantBlocks.add(ContentBlockParam.ofToolUse(ToolUseBlockParam.builder()
-                                    .id(toolUseId.toString())
-                                    .name(toolName.toString())
-                                    .input(JsonValue.from(JSON.parseObject(toolInputStr.toString())))
-                                    .build()));
-
-                            messages.add(MessageParam.builder().role(MessageParam.Role.ASSISTANT).content(MessageParam.Content.ofBlockParams(assistantBlocks)).build());
-
-                            List<ContentBlockParam> toolResults = new ArrayList<>();
-                            toolResults.add(ContentBlockParam.ofToolResult(ToolResultBlockParam.builder()
-                                            .toolUseId(toolUseId.toString())
-                                            .content(toolResult)
-                                            .build()));
-
-                            zqAgent.onToolExecution(toolResults);
-
-                            messages.add(MessageParam.builder().role(MessageParam.Role.USER).content(MessageParam.Content.ofBlockParams(toolResults)).build());
-
-                            // Recursively call for next step
-                            if (!emitter.isCancelled()) {
-                                processAgentStream(messages, emitter, sessionId, assistantResponse, totalInputTokens, totalOutputTokens);
-                            }
-
                         } catch (Exception e) {
-                            log.error("Tool execution failed", e);
-                            Map<String, Object> errMap = new java.util.HashMap<>();
-                            errMap.put("type", "tool_status");
-                            errMap.put("status", "error");
-                            errMap.put("tool_name", toolName.toString());
-                            errMap.put("tool_id", toolUseId.toString());
-                            errMap.put("error_msg", e.getMessage() != null ? e.getMessage() : "Unknown error");
-                            errMap.put("tool_result", e.getMessage() != null ? e.getMessage() : "Unknown error");
-                            emitter.next(JSON.toJSONString(errMap));
-                            appendToolCallToResponse(assistantResponse, toolUseId.toString(), toolName.toString(), "error", null, e.getMessage() != null ? e.getMessage() : "Unknown error");
+                            log.error("ReAct execution failed", e);
+                            done.set(true);
                             emitter.error(e);
                         }
-                    }
-                } else if (event.isMessageStop()) {
-                    if (REACT_ENABLE) {
-                        String resultText = fullTextResponse.toString();
-                        if (resultText.contains("Action:")) {
-                            try {
-                                String action = null;
-                                java.util.regex.Pattern actionPattern = java.util.regex.Pattern.compile("Action:\\s*([^\\n]+)");
-                                java.util.regex.Matcher actionMatcher = actionPattern.matcher(resultText);
-                                if (actionMatcher.find()) {
-                                    action = actionMatcher.group(1).trim();
-                                }
-                                
-                                String actionInputStr = null;
-                                java.util.regex.Pattern inputPattern = java.util.regex.Pattern.compile("Action Input:\\s*(\\{.*?\\})(?=\\s*\\n|$)", java.util.regex.Pattern.DOTALL);
-                                java.util.regex.Matcher inputMatcher = inputPattern.matcher(resultText);
-                                if (inputMatcher.find()) {
-                                    actionInputStr = inputMatcher.group(1);
-                                }
-                                
-                                if (action != null && actionInputStr != null) {
-                                    String fakeToolId = "react_" + System.currentTimeMillis();
-                                    
-                                    Object parsedInput;
-                                    try {
-                                        parsedInput = JSON.parse(actionInputStr);
-                                    } catch (Exception e) {
-                                        parsedInput = actionInputStr;
-                                    }
-                                    
-                                    Map<String, Object> callingMap = new java.util.HashMap<>();
-                                    callingMap.put("type", "tool_status");
-                                    callingMap.put("status", "calling");
-                                    callingMap.put("tool_name", action);
-                                    callingMap.put("tool_id", fakeToolId);
-                                    callingMap.put("tool_input", parsedInput);
-                                    emitter.next(JSON.toJSONString(callingMap));
-                                    appendToolCallToResponse(assistantResponse, fakeToolId, action, "calling", parsedInput, null);
-                                    
-                                    if ("task_completed".equals(action)) {
-                                        Map<String, Object> completedMap = new java.util.HashMap<>();
-                                        completedMap.put("type", "task_completed");
-                                        completedMap.put("result", parsedInput);
-                                        emitter.next(JSON.toJSONString(completedMap));
-                                        long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
-                                        persistAssistantResponse(sessionId, assistantResponse, totalTokens);
-                                        emitter.complete();
-                                        return;
-                                    }
-                                    
-                                    String toolResult = null;
-                                    boolean found = false;
-                                    for (ToolDefinition tool : tools) {
-                                        if (tool.getName().equals(action)) {
-                                            JsonValue jsonValue = JsonValue.from(JSON.parseObject(actionInputStr));
-                                            toolResult = zqAgent.invokeTool(tool, jsonValue);
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    Map<String, Object> resultMap = new java.util.HashMap<>();
-                                    resultMap.put("type", "tool_status");
-                                    resultMap.put("tool_name", action);
-                                    resultMap.put("tool_id", fakeToolId);
-                                    if (!found) {
-                                        toolResult = "Error: Tool not found";
-                                        resultMap.put("status", "unknown");
-                                    } else {
-                                        resultMap.put("status", "success");
-                                        resultMap.put("tool_result", toolResult);
-                                    }
-                                    emitter.next(JSON.toJSONString(resultMap));
-                                    appendToolCallToResponse(assistantResponse, fakeToolId, action, found ? "success" : "unknown", null, toolResult);
-                                    
-                                    messages.add(MessageParam.builder()
-                                            .role(MessageParam.Role.ASSISTANT)
-                                            .content(resultText)
-                                            .build());
-                                            
-                                    messages.add(MessageParam.builder()
-                                            .role(MessageParam.Role.USER)
-                                            .content("Observation: " + toolResult)
-                                            .build());
-                                            
-                                    if (!emitter.isCancelled()) {
-                                        processAgentStream(messages, emitter, sessionId, assistantResponse, totalInputTokens, totalOutputTokens);
-                                    }
-                                } else {
-                                    messages.add(MessageParam.builder()
-                                            .role(MessageParam.Role.ASSISTANT)
-                                            .content(resultText)
-                                            .build());
-                                    long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
-                                    emitter.next(JSON.toJSONString(Map.of("type", "end", "token", totalTokens)));
-                                    persistAssistantResponse(sessionId, assistantResponse, totalTokens);
-                                    emitter.complete();
-                                }
-                            } catch (Exception e) {
-                                log.error("ReAct execution failed", e);
-                                emitter.error(e);
-                            }
-                        } else {
-                            messages.add(MessageParam.builder()
-                                    .role(MessageParam.Role.ASSISTANT)
-                                    .content(resultText)
-                                    .build());
-                            long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
-                            emitter.next(JSON.toJSONString(Map.of("type", "end", "token", totalTokens)));
-                            persistAssistantResponse(sessionId, assistantResponse, totalTokens);
-                            emitter.complete();
-                        }
-                    } else if (!isToolUse.get()) {
+                    } else {
+                        messages.add(LlmMessage.assistant(resultText, null));
                         long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
                         emitter.next(JSON.toJSONString(Map.of("type", "end", "token", totalTokens)));
                         persistAssistantResponse(sessionId, assistantResponse, totalTokens);
+                        done.set(true);
                         emitter.complete();
                     }
+                } else {
+                    long totalTokens = totalInputTokens.get() + totalOutputTokens.get();
+                    emitter.next(JSON.toJSONString(Map.of("type", "end", "token", totalTokens)));
+                    persistAssistantResponse(sessionId, assistantResponse, totalTokens);
+                    done.set(true);
+                    emitter.complete();
                 }
-            });
+            }
+
+            @Override
+            public void onError(Throwable t) {
+                if (done.get()) {
+                    return;
+                }
+                done.set(true);
+                emitter.error(t);
+            }
+        };
+
+        try {
+            zqAgent.chatMessageStream(messages, listener);
         } catch (Exception e) {
             log.error("Stream closed with error", e);
-            emitter.error(e);
+            if (!done.get()) {
+                emitter.error(e);
+            }
         }
     }
 }

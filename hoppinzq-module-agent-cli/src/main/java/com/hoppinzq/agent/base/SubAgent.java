@@ -1,7 +1,7 @@
 package com.hoppinzq.agent.base;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.schema.SubAgentInput;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 @Slf4j
 public class SubAgent {
 
-    public static String executeSubAgent(AnthropicClient client, String model, SubAgentInput input) {
+    public static String executeSubAgent(LlmProvider client, String model, SubAgentInput input) {
         try {
             if (LOG_ENABLE) {
                 log.info("--- 子Agent启动 ---");
@@ -97,12 +97,7 @@ public class SubAgent {
     }
 
     public static String executeSubAgent(SubAgentInput input) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider client = LlmProviders.create();
         return executeSubAgent(client, MODEL, input);
     }
 }

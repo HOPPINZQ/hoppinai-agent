@@ -82,17 +82,6 @@ public class SessionStore {
             throw new RuntimeException("保存会话失败: " + sessionId, e);
         }
     }
-            }
-            try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException ame) {
-                // 跨文件系统时退化为普通移动
-                Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("保存会话失败: " + sessionId, e);
-        }
-    }
 
     /**
      * 加载指定会话；不存在则返回空数据。

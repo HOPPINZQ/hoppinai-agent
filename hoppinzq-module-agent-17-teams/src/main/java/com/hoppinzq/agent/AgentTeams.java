@@ -1,7 +1,7 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
@@ -40,12 +40,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentTeams {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         MessageBus bus = new MessageBus(); // 无状态，仅作为依赖占位
 
@@ -71,7 +66,7 @@ public class AgentTeams {
         teammateTools.add(ToolDefinition.WriteFileDefinition);
         teammateTools.add(ToolDefinition.SendMessageDefinition);
 
-        Tools.setLeadClient(client);
+        Tools.setLeadProvider(provider);
         Tools.setLeadModel(MODEL);
         Tools.setLeadBus(bus);
         Tools.setLeadTeammateTools(teammateTools);
@@ -80,10 +75,10 @@ public class AgentTeams {
         CronScheduler scheduler = new CronScheduler();
         Tools.setCronScheduler(scheduler);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setMessageBus(bus);
-        agent.setTeammateClient(client);
+        agent.setTeammateProvider(provider);
         agent.setTeammateTools(teammateTools);
         agent.setCronScheduler(scheduler);
         agent.setCommandHandler(new AgentCommandHandler(null));

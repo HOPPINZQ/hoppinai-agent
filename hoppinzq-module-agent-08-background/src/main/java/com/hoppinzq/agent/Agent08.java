@@ -1,10 +1,9 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.background.BackgroundManager;
@@ -12,7 +11,6 @@ import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.task.TaskManager;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -56,8 +54,8 @@ public class Agent08 extends ZQAgent {
     private int roundsSinceTodo = 0;
     private long lastTodoVersion = 0;
 
-    public Agent08(AnthropicClient client, String model, List<ToolDefinition> tools, BackgroundManager backgroundManager, TaskManager taskManager, SkillLoader skillLoader, TodoManager todoManager) {
-        super(client, model, tools);
+    public Agent08(LlmProvider provider, String model, List<ToolDefinition> tools, BackgroundManager backgroundManager, TaskManager taskManager, SkillLoader skillLoader, TodoManager todoManager) {
+        super(provider, model, tools);
         Agent08.backgroundManager = backgroundManager;
         Agent08.taskManager = taskManager;
         Agent08.skillLoader = skillLoader;
@@ -66,12 +64,7 @@ public class Agent08 extends ZQAgent {
     }
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-            .apiKey(API_KEY)
-            .baseUrl(BASE_URL)
-            .timeout(Duration.ofSeconds(TIMEOUT))
-            .maxRetries(MAX_RETRIES)
-            .build();
+        LlmProvider provider = LlmProviders.create();
 
         backgroundManager = new BackgroundManager();
         taskManager = new TaskManager();
@@ -99,7 +92,7 @@ public class Agent08 extends ZQAgent {
         tools.add(CheckBackgroundDefinition);
 
 
-        Agent08 agent = new Agent08(client, MODEL, tools, backgroundManager, taskManager, skillLoader, todoManager);
+        Agent08 agent = new Agent08(provider, MODEL, tools, backgroundManager, taskManager, skillLoader, todoManager);
 
         agent.setSystemPrompt(buildSystemPrompt());
 
@@ -285,7 +278,7 @@ public class Agent08 extends ZQAgent {
      * @param toolResults 工具执行结果列表
      */
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         // ========== 待办事项提醒逻辑 ==========
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
@@ -300,9 +293,7 @@ public class Agent08 extends ZQAgent {
         // 如果超过3个回合未更新待办，添加提醒消息
         if (roundsSinceTodo >= 3) {
             String reminder = String.format("<reminder>\n您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。\n</reminder>", roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
     }
 }

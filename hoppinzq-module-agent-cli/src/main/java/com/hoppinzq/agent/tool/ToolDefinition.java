@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.base.CliAgent;
 import com.hoppinzq.agent.tool.schema.*;
@@ -38,8 +36,6 @@ public class ToolDefinition {
             ReadFileInput.class,
             Tools::readFile
     );
-    private String description;
-    private Tool.InputSchema inputSchema;
     public static ToolDefinition WriteFileDefinition = new ToolDefinition(
             "write_file",
             "将内容写入文件。如果文件不存在，则创建该文件。",
@@ -53,19 +49,6 @@ public class ToolDefinition {
             WriteFileInput.class,
             Tools::writeFile
     );
-    private Function<String, String> function;
-    private TypedToolInvoker typedInvoker;
-
-    @FunctionalInterface
-    public interface TypedToolFunction<T> {
-        String apply(T input) throws Exception;
-    }
-
-    @FunctionalInterface
-    public interface TypedToolInvoker {
-        String apply(Object input) throws Exception;
-    }
-
     public static ToolDefinition BashDefinition = new ToolDefinition(
             "bash",
             "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
@@ -93,17 +76,18 @@ public class ToolDefinition {
             EditFileInput.class,
             Tools::editFile
     );
-public static ToolDefinition GlobDefinition = new ToolDefinition(
-            "glob",
-            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
+    public static ToolDefinition ListFilesDefinition = new ToolDefinition(
+            "list_files",
+            "列出指定目录下的所有文件和子目录（递归遍历）。可按扩展名筛选，用于了解项目结构。",
             createInputSchema(
                     Map.of(
-                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
+                            "path", createProperty("string", "可选：要列出内容的目录路径（相对工作目录），空则使用工作目录。"),
+                            "fileType", createProperty("string", "可选：按文件扩展名筛选（例如 java、md）。")
                     ),
-                    List.of("pattern")
+                    List.of()
             ),
-            GlobInput.class,
-            Tools::glob
+            ListFilesInput.class,
+            Tools::listFiles
     );
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",
@@ -272,9 +256,15 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
     );
     // toolCall 或者 MCP 需要用的三个字段
     private String name;
+    private String description;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
+    // 工具的参数类型和处理函数
     private Class<?> type;
+    private Function<String, String> function;
+    private TypedToolInvoker typedInvoker;
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -283,13 +273,37 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
         this.type = type;
         this.function = null;
         this.typedInvoker = input -> typedFunction.apply(type.cast(input));
+    }
+
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
+        if (required != null && !required.isEmpty()) {
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
+        }
+        return schema;
+    }
+
+    /**
+     * 创建属性定义
+     */
+    public static Map<String, Object> createProperty(String type, String description) {
+        Map<String, Object> property = new HashMap<>();
+        property.put("type", type);
+        property.put("description", description);
+        return property;
     }
 
     public String invoke(Object convertedInput) throws Exception {
@@ -305,20 +319,13 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
         throw new IllegalStateException("没有该工具的处理方法: " + name);
     }
 
-    public static Map<String, Object> createProperty(String type, String description) {
-        Map<String, Object> property = new HashMap<>();
-        property.put("type", type);
-        property.put("description", description);
-        return property;
+    @FunctionalInterface
+    public interface TypedToolFunction<T> {
+        String apply(T input) throws Exception;
     }
 
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
-        if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
-        }
-        return schemaBuilder.build();
+    @FunctionalInterface
+    public interface TypedToolInvoker {
+        String apply(Object input) throws Exception;
     }
 }

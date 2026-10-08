@@ -1,10 +1,11 @@
 package com.hoppinzq.agent.base;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.bus.MailboxMessage;
@@ -36,9 +37,9 @@ public class ZQAgent {
     private String systemPrompt;
     private final Scanner scanner;
     private final String model;
-    protected final AnthropicClient client;
+    protected final LlmProvider provider;
     private final List<ToolDefinition> tools;
-    protected final List<MessageParam> messageParams = new ArrayList<>();
+    protected final List<LlmMessage> messageParams = new ArrayList<>();
     private CronScheduler cronScheduler;
     /** teams / protocols 共享的消息总线 */
     private MessageBus messageBus;
@@ -46,20 +47,20 @@ public class ZQAgent {
     private ProtocolRegistry protocolRegistry = new ProtocolRegistry();
     /** lead 侧 inbox 分发器 */
     private ProtocolDispatcher protocolDispatcher = new ProtocolDispatcher(protocolRegistry);
-    /** 用于 spawn teammate 时复用的 client（默认与 lead 相同） */
-    private AnthropicClient teammateClient;
+    /** 用于 spawn teammate 时复用的 provider（默认与 lead 相同） */
+    private LlmProvider teammateProvider;
     /** teammate 可用工具列表 */
     private List<ToolDefinition> teammateTools;
     private String taskResult;
     private boolean taskCompleted = false;
     private AgentCommandHandler commandHandler;
 
-    public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
-        this.client = client;
+    public ZQAgent(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        this.provider = provider;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
-        this.teammateClient = client;
+        this.teammateProvider = provider;
     }
 
     public void setCommandHandler(AgentCommandHandler commandHandler) {
@@ -105,43 +106,54 @@ public class ZQAgent {
                 continue;
             }
 
-            MessageParam userMessage = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(userInput)
-                    .build();
-            messageParams.add(userMessage);
+            messageParams.add(LlmMessage.user(userInput));
 
             if (cronScheduler != null) {
                 cronScheduler.markBusy();
             }
 
-            Message message;
+            LlmResponse response;
             try {
-                message = chatMessage(messageParams);
+                response = chatMessage(messageParams);
             } catch (Exception e) {
                 System.out.println("错误: " + e.getMessage());
                 e.printStackTrace();
                 if (cronScheduler != null) cronScheduler.markIdle();
                 continue;
             }
-            messageParams.add(message.toParam());
-            recordUsageIfNeeded(message);
+            LlmMessage message = response.getMessage();
+            if (message == null) {
+                System.out.println("错误: 响应中没有消息");
+                if (cronScheduler != null) cronScheduler.markIdle();
+                continue;
+            }
+            messageParams.add(message);
+            recordUsageIfNeeded(response);
             printText(message);
 
-            while (isToolUse(message)) {
-                MessageParam toolResultMessage = executeToolCalls(message);
-                messageParams.add(toolResultMessage);
+            while (hasPendingToolCalls(response)) {
+                List<LlmMessage> toolResults = executeToolCalls(message);
+                if (toolResults.isEmpty()) {
+                    // 防御：本轮没有任何有效工具调用，继续请求只会死循环
+                    break;
+                }
+                messageParams.addAll(toolResults);
                 try {
-                    message = chatMessage(messageParams);
+                    response = chatMessage(messageParams);
                 } catch (Exception e) {
                     System.out.println("错误: " + e.getMessage());
                     break;
                 }
-                messageParams.add(message.toParam());
-                recordUsageIfNeeded(message);
+                message = response.getMessage();
+                if (message == null) {
+                    System.out.println("错误: 响应中没有消息");
+                    break;
+                }
+                messageParams.add(message);
+                recordUsageIfNeeded(response);
                 printText(message);
             }
-            warnIfTruncated(message);
+            warnIfTruncated(response);
 
             // 一轮结束：poll lead 的 mailbox，按协议消息类型路由处理
             pollInbox();
@@ -153,57 +165,51 @@ public class ZQAgent {
         }
     }
 
-    private void printText(Message message) {
-        for (ContentBlock content : message.content()) {
-            if (content.isText()) {
-                String text = content.text().map(TextBlock::text).orElse("");
-                if (!text.isBlank()) {
-                    System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
-                }
-            }
+    private void printText(LlmMessage message) {
+        String text = message.getText();
+        if (text != null && !text.isBlank()) {
+            System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
         }
     }
 
-    private boolean isToolUse(Message message) {
-        return message.stopReason()
-                .map(StopReason.TOOL_USE::equals)
-                .orElse(false);
+    private boolean hasPendingToolCalls(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.TOOL_CALLS) {
+            return true;
+        }
+        LlmMessage message = response.getMessage();
+        return message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty();
     }
 
-    private void warnIfTruncated(Message message) {
-        boolean maxTokens = message.stopReason()
-                .map(StopReason.MAX_TOKENS::equals)
-                .orElse(false);
-        if (maxTokens) {
+    private void warnIfTruncated(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.LENGTH) {
             System.out.printf("\u001b[91m[警告]\u001b[0m 本轮回复被 max_tokens=%d 截断，工具调用可能不完整。建议调大 MAX_TOKENS。%n",
                     MAX_TOKENS);
         }
     }
 
-    private MessageParam executeToolCalls(Message message) {
-        List<ContentBlockParam> toolResults = new ArrayList<>();
-        for (ContentBlock content : message.content()) {
-            if (!content.isToolUse()) {
-                continue;
-            }
-            ToolUseBlock toolUse = content.asToolUse();
-            System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+    private List<LlmMessage> executeToolCalls(LlmMessage message) {
+        List<LlmMessage> toolResults = new ArrayList<>();
+        for (LlmMessage.ToolCall call : message.getToolCalls()) {
+            String callId = call.getId();
+            String toolName = call.getName();
+            String arguments = call.getArgumentsJson();
+            System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
             String toolResult = null;
             Exception toolError = null;
             ToolDefinition matched = null;
             for (ToolDefinition tool : tools) {
-                if (tool.getName().equals(toolUse.name())) {
+                if (tool.getName().equals(toolName)) {
                     matched = tool;
                     break;
                 }
             }
             if (matched == null) {
-                toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
+                toolError = new Exception("工具 '" + toolName + "' 没有找到");
                 System.out.printf("\u001b[91m错误\u001b[0m: %s%n", toolError.getMessage());
             } else {
                 try {
-                    toolResult = invokeTool(matched, toolUse._input());
+                    toolResult = invokeTool(matched, arguments);
                     System.out.printf("\u001b[92m结果\u001b[0m: %s%n", toolResult);
                 } catch (Exception e) {
                     toolError = e;
@@ -212,25 +218,17 @@ public class ZQAgent {
                 }
             }
 
-            toolResults.add(ContentBlockParam.ofToolResult(
-                    ToolResultBlockParam.builder()
-                            .toolUseId(toolUse.id())
-                            .content(toolError != null ? toolError.getMessage() : toolResult)
-                            .isError(toolError != null)
-                            .build()
-            ));
+            toolResults.add(LlmMessage.tool(callId,
+                    toolError != null ? "错误: " + toolError.getMessage() : toolResult));
         }
-        return MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(MessageParam.Content.ofBlockParams(toolResults))
-                .build();
+        return toolResults;
     }
 
     /**
      * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
      * 注意：agent-18 当前没有 SessionManager，此方法为预留接口。
      */
-    private void recordUsageIfNeeded(Message message) {
+    private void recordUsageIfNeeded(LlmResponse response) {
         // 暂无 SessionManager，预留接口
     }
 
@@ -249,52 +247,34 @@ public class ZQAgent {
         for (MailboxMessage msg : msgs) {
             DispatchOutcome outcome = protocolDispatcher.handle(msg);
             if (outcome.getUserNotice() != null && !outcome.getUserNotice().isBlank()) {
-                messageParams.add(MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content("[protocol] " + outcome.getUserNotice())
-                        .build());
+                messageParams.add(LlmMessage.user("[protocol] " + outcome.getUserNotice()));
             }
         }
     }
 
-    private String invokeTool(ToolDefinition tool, JsonValue input) {
+    private String invokeTool(ToolDefinition tool, String arguments) throws Exception {
+        JsonNode input = OBJECT_MAPPER.readTree(arguments == null || arguments.isBlank() ? "{}" : arguments);
         if (tool.getType() == null) {
-            if (input.asObject().isEmpty()) {
+            if (!input.isObject()) {
                 throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数不是 JSON 对象");
             }
             ObjectNode root = OBJECT_MAPPER.createObjectNode();
-            root.set("input", input.convert(JsonNode.class));
+            root.set("input", input);
             root.put("tool_name", tool.getName());
             return tool.getFunction().apply(root.toString());
         } else {
-            return tool.getFunction().apply(Objects.requireNonNull(input.convert(tool.getType())).toString());
+            Object pojo = OBJECT_MAPPER.treeToValue(input, tool.getType());
+            return tool.getFunction().apply(OBJECT_MAPPER.writeValueAsString(pojo));
         }
     }
 
-    protected Message chatMessage(List<MessageParam> messageParams){
-        // 准备工具配置
-        List<ToolUnion> anthropicTools = new ArrayList<>();
-        for (ToolDefinition tool : tools) {
-            anthropicTools.add(ToolUnion.ofTool(
-                    Tool.builder()
-                            .name(tool.getName())
-                            .description(tool.getDescription())
-                            .inputSchema(tool.getInputSchema())
-                            .build()
-            ));
-        }
-        MessageCreateParams.Builder messageBuilder = MessageCreateParams.builder()
+    protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
+        return provider.complete(LlmRequest.builder()
                 .model(model)
+                .systemPrompt(systemPrompt)
                 .messages(messageParams)
-                .tools(anthropicTools);
-
-        if(systemPrompt != null && !systemPrompt.isEmpty()){
-            messageBuilder.system(systemPrompt);
-        }
-
-        messageBuilder.maxTokens(MAX_TOKENS);
-
-        MessageCreateParams params = messageBuilder.build();
-        return client.messages().create(params);
+                .tools(tools)
+                .maxTokens(MAX_TOKENS)
+                .build());
     }
 }

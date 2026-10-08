@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.Agent05;
@@ -30,7 +28,8 @@ public class ToolDefinition {
     // toolCall 或者 MCP需要用的三个字段
     private String name;
     private String description;
-    private Tool.InputSchema inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
 
     // 工具的参数类型和处理函数
     private Class<?> type;
@@ -47,7 +46,7 @@ public class ToolDefinition {
         String apply(Object input) throws Exception;
     }
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -56,7 +55,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -231,18 +230,16 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
     }
 
     /**
-     * 创建InputSchema
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
      */
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
-
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-
-        return schemaBuilder.build();
+        return schema;
     }
 }

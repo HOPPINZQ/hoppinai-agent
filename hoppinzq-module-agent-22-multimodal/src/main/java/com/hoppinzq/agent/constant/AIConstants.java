@@ -10,9 +10,17 @@ import java.io.File;
  * @author hoppinzq
  */
 public class AIConstants {
-    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
+    //协议实现：openai（默认）或 anthropic，见 client/LlmProviders
+    public static final String PROVIDER = "openai";
+    //OpenAI 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /chat/completions
+    public static final String OPENAI_BASE_URL = "https://api.deepseek.com";
+    //Anthropic 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /v1/messages
+    public static final String ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
     public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
     public static final String MODEL = "deepseek-v4-flash";
+
+    //采样温度
+    public static final double TEMPERATURE = 0.7;
 
     public static final int MAX_TOKENS = 12500;
     public static final long TIMEOUT = 5 * 60;

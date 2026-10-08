@@ -1,6 +1,5 @@
 package com.hoppinzq.agent.tool.mcp;
 
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -106,19 +105,20 @@ public class McpLoader {
         // 创建工具执行函数
         Function<String, String> executeFunction = createExecuteFunction(setting);
 
-        // 构建InputSchema,将required放在正确的位置
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(com.anthropic.core.JsonValue.fromJsonNode(propertiesNode));
+        // 构建协议中立的 InputSchema（JSON Schema：type/properties/required）
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", propertiesNode);
 
         // 只有当required不为null且不为空时才添加到InputSchema层级
         if (requiredList != null && !requiredList.isEmpty()) {
-            schemaBuilder.required(requiredList);
+            schema.set("required", OBJECT_MAPPER.valueToTree(requiredList));
         }
 
         return ToolDefinition.builder()
                 .name(mcpTool.name())
                 .description(mcpTool.description())
-                .inputSchema(schemaBuilder.build())
+                .inputSchema(schema)
                 .function(executeFunction)
                 .build();
     }

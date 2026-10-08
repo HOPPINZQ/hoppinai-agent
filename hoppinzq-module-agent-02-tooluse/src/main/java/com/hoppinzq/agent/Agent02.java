@@ -1,12 +1,11 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -17,7 +16,8 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 /**
  * 使用工具
  * <p>
- * 这是一个基于Java的AI智能体框架，使用 OpenAI API（DeepSeek 兼容端点，需设置环境变量 DEEPSEEK_API_KEY）实现工具调用能力。
+ * 这是一个基于Java的AI智能体框架，通过协议中立的 LlmProvider（OpenAI / Anthropic 两个实现类，
+ * 由 AIConstants.PROVIDER 切换，需设置环境变量 DEEPSEEK_API_KEY）实现工具调用能力。
  * 该项目展示了如何构建一个能够使用多种工具（文件操作、命令执行等）的AI智能体。
  *
  * <p><b>示例提示词：</b></p>
@@ -35,12 +35,7 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent02 {
 
     public static void main(String[] args) {
-        OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
         tools.add(EditFileDefinition);
@@ -50,7 +45,7 @@ public class Agent02 {
         tools.add(GlobDefinition);
         tools.add(ContentSearchDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setSessionManager(bootstrapSession(args));
         agent.run();

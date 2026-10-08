@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.prompt.PromptAssembler;
@@ -39,12 +39,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class  AgentSysPrompt {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(ToolDefinition.BashDefinition);
@@ -53,7 +48,7 @@ public class  AgentSysPrompt {
         tools.add(ToolDefinition.EditFileDefinition);
         tools.add(ToolDefinition.ListFilesDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         // 不再调 setSystemPrompt —— 完全由 PromptAssembler 装配
         agent.setPromptAssembler(new PromptAssembler());
 

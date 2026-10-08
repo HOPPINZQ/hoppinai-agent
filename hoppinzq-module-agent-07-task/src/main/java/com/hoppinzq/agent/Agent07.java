@@ -1,17 +1,15 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 
-import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -49,8 +47,8 @@ public class Agent07 extends ZQAgent {
     private long lastTodoVersion = 0;
     public static SkillLoader skillLoader;
 
-    public Agent07(AnthropicClient client, String model, List<ToolDefinition> tools,TaskManager taskManager, SkillLoader skillLoader, TodoManager todoManager) {
-        super(client, model, tools);
+    public Agent07(LlmProvider provider, String model, List<ToolDefinition> tools,TaskManager taskManager, SkillLoader skillLoader, TodoManager todoManager) {
+        super(provider, model, tools);
         Agent07.taskManager = taskManager;
         Agent07.skillLoader = skillLoader;
         Agent07.todoManager = todoManager;
@@ -69,7 +67,7 @@ public class Agent07 extends ZQAgent {
      * @param toolResults 工具执行结果列表
      */
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         // ========== 待办事项提醒逻辑 ==========
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
@@ -84,19 +82,12 @@ public class Agent07 extends ZQAgent {
         // 如果超过3个回合未更新待办，添加提醒消息
         if (roundsSinceTodo >= 3) {
             String reminder = String.format("<reminder>\n您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。\n</reminder>", roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
     }
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-            .apiKey(API_KEY)
-            .baseUrl(BASE_URL)
-            .timeout(Duration.ofSeconds(TIMEOUT))
-            .maxRetries(MAX_RETRIES)
-            .build();
+        LlmProvider provider = LlmProviders.create();
 
         taskManager = new TaskManager();
         skillLoader = new SkillLoader();
@@ -120,7 +111,7 @@ public class Agent07 extends ZQAgent {
         tools.add(TaskClaimDefinition);
         tools.add(TaskCompleteDefinition);
 
-        Agent07 agent = new Agent07(client, MODEL, tools, taskManager,skillLoader,todoManager);
+        Agent07 agent = new Agent07(provider, MODEL, tools, taskManager,skillLoader,todoManager);
 
         agent.setSystemPrompt(buildSystemPrompt());
 

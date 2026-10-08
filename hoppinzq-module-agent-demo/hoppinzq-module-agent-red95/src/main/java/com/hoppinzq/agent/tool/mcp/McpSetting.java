@@ -1,6 +1,5 @@
 package com.hoppinzq.agent.tool.mcp;
 
-import com.anthropic.client.AnthropicClient;
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.client.transport.ServerParameters;

@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.recovery.RetryWrapper;
@@ -28,7 +28,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
  * <ul>
  *   <li>把 {@code AIConstants.MAX_TOKENS} 改到极小（如 64）→ 应观察到 maxTokens 升级</li>
  *   <li>让历史对话变长（多轮）→ 应触发 reactive compact</li>
- *   <li>断网测试 / 临时改 BASE_URL 到无效地址 → 应观察到指数退避重试</li>
+ *   <li>断网测试 / 临时改 OPENAI_BASE_URL 到无效地址 → 应观察到指数退避重试</li>
  * </ul>
  *
  * @author hoppinzq
@@ -39,12 +39,7 @@ public class AgentErrorRecovery {
     private static final String FALLBACK_MODEL = null;
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(ToolDefinition.BashDefinition);
@@ -53,10 +48,10 @@ public class AgentErrorRecovery {
         tools.add(ToolDefinition.EditFileDefinition);
         tools.add(ToolDefinition.ListFilesDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         // 注入重试包装器
-        agent.setRetryWrapper(new RetryWrapper(client));
+        agent.setRetryWrapper(new RetryWrapper(provider));
         agent.setFallbackModel(FALLBACK_MODEL);
 
         System.out.println("\u001b[95m[recovery]\u001b[0m 启用错误恢复：maxTokens 升级 / prompt_too_long 压缩 / 瞬态退避");

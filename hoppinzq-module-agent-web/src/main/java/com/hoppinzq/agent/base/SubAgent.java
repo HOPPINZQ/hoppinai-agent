@@ -1,11 +1,10 @@
 package com.hoppinzq.agent.base;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.schema.SubAgentInput;
 import lombok.extern.slf4j.Slf4j;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,12 +23,12 @@ public class SubAgent {
     /**
      * 执行子Agent任务
      *
-     * @param client Anthropic客户端实例，用于与AI模型交互
+     * @param provider Anthropic客户端实例，用于与AI模型交互
      * @param model  使用的AI模型名称
      * @param input  子Agent的输入参数，包含任务提示词等信息
      * @return 子Agent执行结果，如果出错则返回错误信息
      */
-    public static String executeSubAgent(AnthropicClient client, String model, SubAgentInput input) {
+    public static String executeSubAgent(LlmProvider provider, String model, SubAgentInput input) {
         try {
             if (LOG_ENABLE) {
                 log.info("--- 子Agent启动 ---");
@@ -43,7 +42,7 @@ public class SubAgent {
             subTools.add(WriteFileDefinition);   // 添加写入文件工具
 
             // 创建子Agent实例，配置客户端、模型和可用工具
-            WebZQAgent subAgent = new WebZQAgent(client, model, subTools);
+            WebZQAgent subAgent = new WebZQAgent(provider, model, subTools);
 
             // 设置系统提示词，定义子Agent的角色和行为
             if (REACT_ENABLE) {
@@ -115,13 +114,8 @@ public class SubAgent {
      * @return 子Agent执行结果，如果出错则返回错误信息
      */
     public static String executeSubAgent(SubAgentInput input) {
-        // 使用默认配置创建Anthropic客户端
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
-        return executeSubAgent(client, MODEL, input);
+        // 使用默认配置创建 Provider
+        LlmProvider provider = LlmProviders.create();
+        return executeSubAgent(provider, MODEL, input);
     }
 }

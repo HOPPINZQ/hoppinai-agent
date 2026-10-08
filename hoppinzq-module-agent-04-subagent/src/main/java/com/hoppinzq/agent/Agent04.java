@@ -1,16 +1,14 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -35,14 +33,14 @@ public class Agent04 extends ZQAgent {
     private int roundsSinceTodo = 0;
     private long lastTodoVersion = 0;
 
-    public Agent04(AnthropicClient client, String model, List<ToolDefinition> tools, TodoManager todoManager) {
-        super(client, model, tools);
+    public Agent04(LlmProvider provider, String model, List<ToolDefinition> tools, TodoManager todoManager) {
+        super(provider, model, tools);
         Agent04.todoManager = todoManager;
         this.lastTodoVersion = todoManager.getVersion();
     }
 
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
             roundsSinceTodo = 0;
@@ -63,19 +61,12 @@ public class Agent04 extends ZQAgent {
                 4. 调整任务优先级
                 </reminder>
                 """, roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
     }
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
         todoManager = new TodoManager();
 
         List<ToolDefinition> tools = new ArrayList<>();
@@ -87,7 +78,7 @@ public class Agent04 extends ZQAgent {
         tools.add(ContentSearchDefinition);
         tools.add(TodoDefinition);
         tools.add(SubAgentDefinition);
-        Agent04 mainAgent = new Agent04(client, MODEL, tools,todoManager);
+        Agent04 mainAgent = new Agent04(provider, MODEL, tools,todoManager);
         mainAgent.setSystemPrompt(buildSystemPrompt());
         mainAgent.setSessionManager(bootstrapSession(args));
         mainAgent.run();

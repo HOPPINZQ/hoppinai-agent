@@ -1,9 +1,9 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.CliAgent;
 import com.hoppinzq.agent.cli.CliRenderer;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.background.BackgroundManager;
 import com.hoppinzq.agent.tool.compact.ContextCompactor;
@@ -13,8 +13,6 @@ import com.hoppinzq.agent.tool.task.TaskManager;
 
 import java.util.List;
 
-import static com.hoppinzq.agent.constant.AIConstants.API_KEY;
-import static com.hoppinzq.agent.constant.AIConstants.BASE_URL;
 import static com.hoppinzq.agent.constant.AIConstants.MODEL;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
@@ -23,6 +21,8 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  * <p>
  * 与 web 模块区别：纯命令行，无 Spring Boot / MySQL / wybuff 业务层；
  * 输出全部经过 {@link CliRenderer} 的 ANSI 面板渲染。
+ * <p>协议中立：通过 {@link LlmProviders#create()} 按 {@code AIConstants.PROVIDER}
+ * 创建 OpenAI / Anthropic 协议实现（需设置环境变量 DEEPSEEK_API_KEY）。
  *
  * @author hoppinzq
  */
@@ -31,17 +31,12 @@ public class AgentCLI {
     public static void main(String[] args) {
         CliRenderer.banner();
 
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 初始化 5 个 manager
         BackgroundManager backgroundManager = new BackgroundManager();
         TaskManager taskManager = new TaskManager();
-        ContextCompactor compactor = new ContextCompactor(client, MODEL);
+        ContextCompactor compactor = new ContextCompactor(provider, MODEL);
         SkillLoader skillLoader = new SkillLoader();
         TodoManager todoManager = new TodoManager();
 
@@ -65,7 +60,7 @@ public class AgentCLI {
                 CheckBackgroundDefinition
         );
 
-        CliAgent agent = new CliAgent(client, MODEL, tools);
+        CliAgent agent = new CliAgent(provider, MODEL, tools);
         agent.initManagers(backgroundManager, taskManager, compactor, skillLoader, todoManager);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.run();
@@ -82,7 +77,7 @@ public class AgentCLI {
 
                 你可以使用以下工具（共 16 个）：
                 - bash: 执行 Shell 命令
-                - read_file / write_file / edit_file / glob: 文件操作
+                - read_file / write_file / edit_file / list_files: 文件操作
                 - content_search: 用 ripgrep 搜索代码
                 - sub_agent: 委托子任务给子智能体
                 - todo: 维护待办列表
@@ -101,8 +96,8 @@ public class AgentCLI {
                 你使用 ReAct 模式（Reasoning + Acting）调用工具。当需要使用工具时，**必须严格**按以下格式输出：
 
                 Thought: 思考下一步要做什么
-                Action: 工具名称（如 glob / read_file / bash 等）
-                Action Input: 工具参数的 JSON 对象，例如 {"path":"src/Main.java"}
+                Action: 工具名称（如 list_files / read_file / bash 等）
+                Action Input: 工具参数的 JSON 对象，例如 {"path":"src/main/java"}
 
                 Observation 是工具执行结果，由系统返回，**你不能自己编造 Observation**。
 
@@ -112,7 +107,7 @@ public class AgentCLI {
 
                 用户：当前目录有什么文件？
                 Thought: 我需要列出当前目录的文件。
-                Action: glob
+                Action: list_files
                 Action Input: {}
 
                 （系统返回 Observation: [{"path":"README.md",...}]）

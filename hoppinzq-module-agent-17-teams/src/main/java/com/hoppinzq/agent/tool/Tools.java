@@ -3,7 +3,7 @@ package com.hoppinzq.agent.tool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.anthropic.client.AnthropicClient;
+import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.tool.bus.MessageBus;
 import com.hoppinzq.agent.tool.bus.TeammateSpawner;
@@ -49,10 +49,10 @@ public class Tools {
     }
 
     // ========================= teams 相关依赖 =========================
-    // 这些字段由 AgentTeams.main 在启动时注入；spawn_teammate 会复用 client/model/bus，
+    // 这些字段由 AgentTeams.main 在启动时注入；spawn_teammate 会复用 provider/model/bus，
     // teammate 自己的 send_message 工具会通过 ThreadLocal 区分发送者。
 
-    private static volatile AnthropicClient LEAD_CLIENT;
+    private static volatile LlmProvider LEAD_PROVIDER;
     private static volatile String LEAD_MODEL;
     private static volatile MessageBus LEAD_BUS;
     private static volatile List<ToolDefinition> LEAD_TEAMMATE_TOOLS;
@@ -60,7 +60,7 @@ public class Tools {
     /** 当前线程所属的 teammate 名字；主线程为 null（按 "lead" 处理）。 */
     private static final ThreadLocal<String> CURRENT_TEAMMATE_NAME = new ThreadLocal<>();
 
-    public static void setLeadClient(AnthropicClient client) { LEAD_CLIENT = client; }
+    public static void setLeadProvider(LlmProvider provider) { LEAD_PROVIDER = provider; }
     public static void setLeadModel(String model) { LEAD_MODEL = model; }
     public static void setLeadBus(MessageBus bus) { LEAD_BUS = bus; }
     public static void setLeadTeammateTools(List<ToolDefinition> tools) { LEAD_TEAMMATE_TOOLS = tools; }
@@ -72,8 +72,8 @@ public class Tools {
      * spawn_teammate：启动一个 teammate 守护线程，立即返回。
      */
     public static String spawnTeammate(String input) {
-        if (LEAD_CLIENT == null || LEAD_MODEL == null || LEAD_BUS == null || LEAD_TEAMMATE_TOOLS == null) {
-            return "错误：teams 依赖未初始化（LEAD_CLIENT/LEAD_MODEL/LEAD_BUS/LEAD_TEAMMATE_TOOLS）";
+        if (LEAD_PROVIDER == null || LEAD_MODEL == null || LEAD_BUS == null || LEAD_TEAMMATE_TOOLS == null) {
+            return "错误：teams 依赖未初始化（LEAD_PROVIDER/LEAD_MODEL/LEAD_BUS/LEAD_TEAMMATE_TOOLS）";
         }
         try {
             ObjectMapper mapper = new ObjectMapper();
@@ -84,7 +84,7 @@ public class Tools {
             if (in.getPrompt() == null || in.getPrompt().isBlank()) {
                 return "错误：prompt 不能为空";
             }
-            TeammateSpawner.spawn(LEAD_CLIENT, LEAD_MODEL, in.getName(),
+            TeammateSpawner.spawn(LEAD_PROVIDER, LEAD_MODEL, in.getName(),
                     in.getRole(), in.getPrompt(), LEAD_BUS, LEAD_TEAMMATE_TOOLS);
             return "已 spawn teammate " + in.getName();
         } catch (Exception e) {

@@ -17,14 +17,4 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-    <dependencies>
-        <!-- Source: https://mvnrepository.com/artifact/com.openai/openai-java -->
-        <dependency>
-            <groupId>com.openai</groupId>
-            <artifactId>openai-java</artifactId>
-            <version>4.69.2</version>
-            <scope>compile</scope>
-        </dependency>
-    </dependencies>
-
 </project>

@@ -11,7 +11,7 @@ import static com.hoppinzq.agent.constant.AIConstants.JSON_FAIL;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * Glob工具的输入参数
+ * list_files工具的输入参数
  *
  * @author hoppinzq
  */
@@ -19,14 +19,19 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class GlobInput {
+public class ListFilesInput {
 
     /**
-     * Glob模式，支持通配符匹配
-     * 例如: *.java, 双星号/*.json, test_*.py
+     * 可选的目录路径（相对工作目录），为空时默认遍历工作目录
      */
-    @JsonProperty("pattern")
-    private String pattern;
+    @JsonProperty("path")
+    private String path;
+
+    /**
+     * 可选的文件扩展名过滤，例如：java、md
+     */
+    @JsonProperty("fileType")
+    private String fileType;
 
     @Override
     public String toString() {

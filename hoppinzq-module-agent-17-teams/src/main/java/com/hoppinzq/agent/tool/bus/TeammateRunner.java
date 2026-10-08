@@ -1,27 +1,32 @@
 package com.hoppinzq.agent.tool.bus;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+
+import static com.hoppinzq.agent.constant.AIConstants.MAX_TOKENS;
+import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
+import static com.hoppinzq.agent.constant.AIConstants.TEMPERATURE;
 
 /**
  * teammate 自己的 agent 主循环，运行在守护线程里。
  *
- * <p>每个 teammate 维护自己独立的 {@code List<MessageParam>}，与 lead 完全隔离；
+ * <p>每个 teammate 维护自己独立的 {@code List<LlmMessage>}，与 lead 完全隔离；
  * 二者之间唯一的通信通道是 {@link MessageBus}（{@code <ROOT>/.mailboxes/*.jsonl}）。
  *
  * <p>循环流程：
  * <ol>
  *   <li>读 inbox；遇到 {@code shutdown_request} 直接退出（protocols 链用，teams 模块不会触发）。</li>
  *   <li>把 lead 发来的 {@code message} 注入成新的 user 消息。</li>
- *   <li>调用 LLM；处理 {@code tool_use} 块。</li>
- *   <li>10 轮硬上限 / {@code stop_reason != tool_use} / 本轮无 tool_use → 停止。</li>
+ *   <li>调用 LLM；处理工具调用。</li>
+ *   <li>10 轮硬上限 / {@code finish_reason != tool_calls} / 本轮无 tool_use → 停止。</li>
  *   <li>停止后给 lead 发一条 {@code send_message} 收尾。</li>
  * </ol>
  *
@@ -31,23 +36,23 @@ public class TeammateRunner implements Runnable {
 
     private static final int MAX_ROUNDS = 10;
 
-    private final AnthropicClient client;
+    private final LlmProvider provider;
     private final String model;
     private final String name;
     private final String role;
     private final String initialPrompt;
     private final MessageBus bus;
     private final List<ToolDefinition> teammateTools;
-    private final List<MessageParam> messageParams = new ArrayList<>();
+    private final List<LlmMessage> messageParams = new ArrayList<>();
 
-    public TeammateRunner(AnthropicClient client,
+    public TeammateRunner(LlmProvider provider,
                           String model,
                           String name,
                           String role,
                           String initialPrompt,
                           MessageBus bus,
                           List<ToolDefinition> teammateTools) {
-        this.client = client;
+        this.provider = provider;
         this.model = model;
         this.name = name;
         this.role = role;
@@ -65,10 +70,7 @@ public class TeammateRunner implements Runnable {
 
             String systemPrompt = buildSystemPrompt(name, role);
             // 把 lead 传过来的初始 prompt 当作第一条 user 消息
-            messageParams.add(MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(initialPrompt == null ? "开始工作。" : initialPrompt)
-                    .build());
+            messageParams.add(LlmMessage.user(initialPrompt == null ? "开始工作。" : initialPrompt));
 
             boolean alreadySentFinal = false;
             String lastText = "";
@@ -83,76 +85,52 @@ public class TeammateRunner implements Runnable {
                         return;
                     }
                     if ("message".equals(m.getType())) {
-                        messageParams.add(MessageParam.builder()
-                                .role(MessageParam.Role.USER)
-                                .content("[lead message] " + m.getContent())
-                                .build());
+                        messageParams.add(LlmMessage.user("[lead message] " + m.getContent()));
                     }
                 }
 
                 // 2. 调用 LLM
-                Message message = chatMessage(systemPrompt);
-                messageParams.add(message.toParam());
+                LlmResponse response = chatMessage(systemPrompt);
+                LlmMessage message = response.getMessage();
+                if (message == null) {
+                    break;
+                }
+                messageParams.add(message);
 
-                // 3. 处理 content blocks
-                List<ContentBlockParam> toolResults = new ArrayList<>();
+                // 3. 处理文本与工具调用
+                List<LlmMessage> toolResults = new ArrayList<>();
                 boolean hasToolUse = false;
-                for (ContentBlock content : message.content()) {
-                    if (content.isText()) {
-                        String text = content.text().map(TextBlock::text).orElse("");
-                        lastText = text;
-                        if (!text.isBlank()) {
-                            System.out.printf("\u001b[95m[teammate %s]\u001b[0m %s%n", name, text);
-                        }
-                    } else if (content.isToolUse()) {
-                        hasToolUse = true;
-                        ToolUseBlock toolUse = content.asToolUse();
-                        System.out.printf("\u001b[95m[teammate %s]\u001b[0m 工具: %s(%s)%n",
-                                name, toolUse.name(), toolUse._input());
-                        String toolResult;
-                        boolean isError = false;
-                        try {
-                            toolResult = invokeTool(toolUse);
-                        } catch (Exception e) {
-                            toolResult = e.getMessage() == null ? "工具执行异常" : e.getMessage();
-                            isError = true;
-                        }
-                        System.out.printf("\u001b[95m[teammate %s]\u001b[0m 结果: %s%n", name, toolResult);
-                        // 如果 teammate 通过 send_message 给 lead 发了消息，标记避免重复发
-                        if ("send_message".equals(toolUse.name())) {
-                            alreadySentFinal = true;
-                        }
-                        toolResults.add(ContentBlockParam.ofToolResult(
-                                ToolResultBlockParam.builder()
-                                        .toolUseId(toolUse.id())
-                                        .content(toolResult)
-                                        .isError(isError)
-                                        .build()
-                        ));
+                if (message.getText() != null && !message.getText().isBlank()) {
+                    lastText = message.getText();
+                    System.out.printf("\u001b[95m[teammate %s]\u001b[0m %s%n", name, message.getText());
+                }
+                for (LlmMessage.ToolCall call : message.getToolCalls()) {
+                    hasToolUse = true;
+                    System.out.printf("\u001b[95m[teammate %s]\u001b[0m 工具: %s(%s)%n",
+                            name, call.getName(), call.getArgumentsJson());
+                    String toolResult;
+                    try {
+                        toolResult = invokeTool(call);
+                    } catch (Exception e) {
+                        toolResult = e.getMessage() == null ? "工具执行异常" : e.getMessage();
+                        toolResult = "错误: " + toolResult;
                     }
+                    System.out.printf("\u001b[95m[teammate %s]\u001b[0m 结果: %s%n", name, toolResult);
+                    // 如果 teammate 通过 send_message 给 lead 发了消息，标记避免重复发
+                    if ("send_message".equals(call.getName())) {
+                        alreadySentFinal = true;
+                    }
+                    toolResults.add(LlmMessage.tool(call.getId(), toolResult));
                 }
 
-                // 4. 判停：非 tool_use 即本轮结束
+                // 4. 判停：无工具调用即本轮结束；finish_reason 非 tool_calls 时把工具结果回灌一次再退出
                 if (!hasToolUse) {
                     break;
                 }
-                if (message.stopReason().isEmpty()
-                        || message.stopReason().get() != StopReason.TOOL_USE) {
-                    // 把 tool 结果回灌一次再退出
-                    MessageParam toolResultMessage = MessageParam.builder()
-                            .role(MessageParam.Role.USER)
-                            .content(MessageParam.Content.ofBlockParams(toolResults))
-                            .build();
-                    messageParams.add(toolResultMessage);
+                messageParams.addAll(toolResults);
+                if (response.getFinishReason() != LlmResponse.FinishReason.TOOL_CALLS) {
                     break;
                 }
-
-                // 5. 继续下一轮：把 tool 结果塞回去
-                MessageParam toolResultMessage = MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(MessageParam.Content.ofBlockParams(toolResults))
-                        .build();
-                messageParams.add(toolResultMessage);
             }
 
             // 6. 收尾：若 teammate 还没主动 send_message，补一条
@@ -178,43 +156,34 @@ public class TeammateRunner implements Runnable {
         }
     }
 
-    private String invokeTool(ToolUseBlock toolUse) throws Exception {
+    private String invokeTool(LlmMessage.ToolCall call) throws Exception {
         for (ToolDefinition tool : teammateTools) {
-            if (tool.getName().equals(toolUse.name())) {
-                JsonValue input = toolUse._input();
+            if (tool.getName().equals(call.getName())) {
+                JsonNode input = OBJECT_MAPPER.readTree(
+                        call.getArgumentsJson() == null || call.getArgumentsJson().isBlank()
+                                ? "{}" : call.getArgumentsJson());
                 if (tool.getType() == null) {
-                    return tool.getFunction().apply(
-                            com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER.writeValueAsString(
-                                    Map.of("input", input.asObject().orElse(Map.of()),
-                                            "tool_name", tool.getName())));
+                    ObjectNode root = OBJECT_MAPPER.createObjectNode();
+                    root.set("input", input);
+                    root.put("tool_name", tool.getName());
+                    return tool.getFunction().apply(root.toString());
                 }
-                return tool.getFunction().apply(
-                        java.util.Objects.requireNonNull(input.convert(tool.getType())).toString());
+                Object pojo = OBJECT_MAPPER.treeToValue(input, tool.getType());
+                return tool.getFunction().apply(OBJECT_MAPPER.writeValueAsString(pojo));
             }
         }
-        throw new IllegalStateException("teammate 找不到工具: " + toolUse.name());
+        throw new IllegalStateException("teammate 找不到工具: " + call.getName());
     }
 
-    private Message chatMessage(String systemPrompt) {
-        List<ToolUnion> anthropicTools = new ArrayList<>();
-        for (ToolDefinition tool : teammateTools) {
-            anthropicTools.add(ToolUnion.ofTool(
-                    Tool.builder()
-                            .name(tool.getName())
-                            .description(tool.getDescription())
-                            .inputSchema(tool.getInputSchema())
-                            .build()
-            ));
-        }
-        MessageCreateParams params = MessageCreateParams.builder()
+    private LlmResponse chatMessage(String systemPrompt) {
+        return provider.complete(LlmRequest.builder()
                 .model(model)
+                .systemPrompt(systemPrompt)
                 .messages(messageParams)
-                .tools(anthropicTools)
-                .system(systemPrompt)
-                .maxTokens(com.hoppinzq.agent.constant.AIConstants.MAX_TOKENS)
-                .temperature(com.hoppinzq.agent.constant.AIConstants.TEMPERATURE)
-                .build();
-        return client.messages().create(params);
+                .tools(teammateTools)
+                .maxTokens(MAX_TOKENS)
+                .temperature(TEMPERATURE)
+                .build());
     }
 
     /**

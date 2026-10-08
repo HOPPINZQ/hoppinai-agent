@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.BashInput;
 import com.hoppinzq.agent.tool.schema.ReadFileInput;
@@ -72,12 +70,13 @@ public class ToolDefinition {
 
     private String name;
     private String description;
-    private Tool.InputSchema inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
     private Class<?> type;
     private Function<String, String> function;
     private TypedToolInvoker typedInvoker;
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -86,7 +85,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -125,13 +124,13 @@ public class ToolDefinition {
         return property;
     }
 
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-        return schemaBuilder.build();
+        return schema;
     }
 }

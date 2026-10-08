@@ -1,8 +1,6 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.openai.core.JsonValue;
-import com.openai.models.FunctionParameters;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -110,13 +108,14 @@ public class ToolDefinition {
     // toolCall 或者 MCP需要用的三个字段
     private String name;
     private String description;
-    private FunctionParameters inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
     // 工具的参数类型和处理函数
     private Class<?> type;
     private Function<String, String> function;
     private TypedToolInvoker typedInvoker;
 
-    public ToolDefinition(String name, String description, FunctionParameters inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -125,7 +124,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, FunctionParameters inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -135,20 +134,17 @@ public class ToolDefinition {
     }
 
     /**
-     * 创建InputSchema
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
      */
-    public static FunctionParameters createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
-
-        FunctionParameters.Builder schemaBuilder = FunctionParameters.builder()
-                .putAdditionalProperty("type", JsonValue.from("object"))
-                .putAdditionalProperty("properties", JsonValue.fromJsonNode(propertiesNode));
-
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.putAdditionalProperty("required", JsonValue.fromJsonNode(OBJECT_MAPPER.valueToTree(required)));
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-
-        return schemaBuilder.build();
+        return schema;
     }
 
     /**

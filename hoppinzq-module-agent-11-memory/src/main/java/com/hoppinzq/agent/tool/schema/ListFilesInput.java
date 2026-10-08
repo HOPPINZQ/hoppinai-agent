@@ -1,5 +1,6 @@
 package com.hoppinzq.agent.tool.schema;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.AllArgsConstructor;
@@ -11,7 +12,7 @@ import static com.hoppinzq.agent.constant.AIConstants.JSON_FAIL;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * Glob工具的输入参数
+ * list_files 工具的输入参数
  *
  * @author hoppinzq
  */
@@ -19,14 +20,20 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class GlobInput {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class ListFilesInput {
 
     /**
-     * Glob模式，支持通配符匹配
-     * 例如: *.java, 双星号/*.json, test_*.py
+     * 要列出内容的目标目录路径（相对于工作目录；为空时默认工作目录）
      */
-    @JsonProperty("pattern")
-    private String pattern;
+    @JsonProperty("path")
+    private String path;
+
+    /**
+     * 可选的文件扩展名过滤，例如 "java"、"md"、"txt"
+     */
+    @JsonProperty("fileType")
+    private String fileType;
 
     @Override
     public String toString() {

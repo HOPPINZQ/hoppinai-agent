@@ -1,6 +1,6 @@
 package com.hoppinzq.agent.tool.bus;
 
-import com.anthropic.client.AnthropicClient;
+import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
 import java.util.List;
@@ -24,14 +24,14 @@ public class TeammateSpawner {
      *
      * @return 已启动的守护线程，调用方一般无需 join
      */
-    public static Thread spawn(AnthropicClient client,
+    public static Thread spawn(LlmProvider provider,
                                String model,
                                String name,
                                String role,
                                String prompt,
                                MessageBus bus,
                                List<ToolDefinition> teammateTools) {
-        TeammateRunner runner = new TeammateRunner(client, model, name, role, prompt, bus, teammateTools);
+        TeammateRunner runner = new TeammateRunner(provider, model, name, role, prompt, bus, teammateTools);
         Thread thread = new Thread(runner, "teammate-" + name);
         thread.setDaemon(true);
         thread.start();

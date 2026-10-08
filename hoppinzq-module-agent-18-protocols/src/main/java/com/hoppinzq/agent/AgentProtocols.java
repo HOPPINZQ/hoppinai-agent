@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
@@ -36,17 +36,12 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentProtocols {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         MessageBus bus = new MessageBus();
         CronScheduler cron = new CronScheduler();
         Tools.setCronScheduler(cron);
-        Tools.setLeadClient(client);
+        Tools.setLeadProvider(provider);
         Tools.setLeadModel(MODEL);
         Tools.setLeadBus(bus);
 
@@ -80,7 +75,7 @@ public class AgentProtocols {
         tools.add(ToolDefinition.RequestPlanDefinition);
         tools.add(ToolDefinition.ReviewPlanDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setCronScheduler(cron);
         agent.setMessageBus(bus);

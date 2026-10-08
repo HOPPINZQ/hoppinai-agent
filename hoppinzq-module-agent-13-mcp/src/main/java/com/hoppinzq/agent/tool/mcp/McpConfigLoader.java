@@ -1,6 +1,5 @@
 package com.hoppinzq.agent.tool.mcp;
 
-import com.anthropic.client.AnthropicClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.transport.ServerParameters;

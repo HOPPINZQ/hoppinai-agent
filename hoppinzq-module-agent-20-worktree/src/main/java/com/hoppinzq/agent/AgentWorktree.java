@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
@@ -39,12 +39,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentWorktree {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         CronScheduler cron = new CronScheduler();
         MessageBus bus = new MessageBus();
@@ -53,7 +48,7 @@ public class AgentWorktree {
         WorktreeManager worktreeManager = new WorktreeManager(taskManager);
 
         Tools.setCronScheduler(cron);
-        Tools.setLeadClient(client);
+        Tools.setLeadProvider(provider);
         Tools.setLeadModel(MODEL);
         Tools.setLeadBus(bus);
         Tools.setLeadRegistry(registry);
@@ -103,7 +98,7 @@ public class AgentWorktree {
         tools.add(ToolDefinition.RemoveWorktreeDefinition);
         tools.add(ToolDefinition.KeepWorktreeDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         agent.setCronScheduler(cron);
         agent.setMessageBus(bus);

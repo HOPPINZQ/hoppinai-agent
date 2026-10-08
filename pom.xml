@@ -42,6 +42,7 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <anthropic.sdk.version>2.30.0</anthropic.sdk.version>
+        <openai.sdk.version>4.69.2</openai.sdk.version>
         <lombok.version>1.18.30</lombok.version>
         <jackson.version>2.15.2</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
@@ -55,6 +56,11 @@
             <groupId>com.anthropic</groupId>
             <artifactId>anthropic-java</artifactId>
             <version>${anthropic.sdk.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+            <version>${openai.sdk.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

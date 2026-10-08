@@ -1,8 +1,8 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
@@ -16,7 +16,8 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
  * 权限系统示例（对应 Python 教程 s03_permission）。
  *
  * <p>在 module-02 工具循环的基础上，插入 {@link com.hoppinzq.agent.tool.permission.PermissionChecker}
- * 作为三重闸门（denyList → rules → askUser），所有工具执行前必须先过闸门：
+ * 作为三重闸门（denyList → rules → askUser），所有工具执行前必须先过闸门（被拒时把拒绝原因
+ * 以 "错误: " 前缀的 ToolResult 回灌给模型）：
  * <ol>
  *   <li>命中黑名单（rm -rf /、sudo、format、Windows del /f /s /q C:\ 等）→ 直接拒绝</li>
  *   <li>规则检查（write_file/edit_file/read_file 路径不能越出 ROOT）→ 拒绝</li>
@@ -36,12 +37,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 public class AgentPermission {
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 5 个工具：去掉 content_search 简化示例
         List<ToolDefinition> tools = new ArrayList<>();
@@ -51,7 +47,7 @@ public class AgentPermission {
         tools.add(ToolDefinition.EditFileDefinition);
         tools.add(ToolDefinition.ListFilesDefinition);
 
-        ZQAgent agent = new ZQAgent(client, MODEL, tools);
+        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
         // 注入权限闸门（与 scanner 共用，ASK 时通过控制台确认）
         agent.setPermissionChecker(
@@ -123,10 +119,10 @@ public class AgentPermission {
                 1) 危险命令黑名单（rm -rf /、sudo、format 等）
                 2) 路径越界规则（所有文件操作必须在工作目录内）
                 3) 破坏性命令需用户交互式确认
-                如果工具被拒绝，你会收到 isError=true 的 ToolResult，请如实告知用户并建议替代方案。
+                如果工具被拒绝，你会收到以 "错误: " 开头的 ToolResult，请如实告知用户并建议替代方案。
 
                 ## 可用工具
-                - bash / read_file / write_file / edit_file / glob
+                - bash / read_file / write_file / edit_file / list_files
 
                 ## 环境
                 - 操作系统：%s

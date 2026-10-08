@@ -10,11 +10,15 @@ import java.io.File;
  * @author hoppinzq
  */
 public class AIConstants {
-    // anthropic 地址 或者代理地址 必填
-    public static final String BASE_URL = "https://api.deepseek.com/anthropic";
-    // API KEY 必填
+    //协议实现：openai（默认）或 anthropic，见 client/LlmProviders
+    public static final String PROVIDER = "openai";
+    //OpenAI 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /chat/completions
+    public static final String OPENAI_BASE_URL = "https://api.deepseek.com";
+    //Anthropic 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /v1/messages
+    public static final String ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
+    //API KEY 必填（两个端点通用）
     public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
-    // 模型名称 必填
+    //模型名称 必填
     public static final String MODEL = "deepseek-v4-flash";
 
     // 最大 token 数量

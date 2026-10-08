@@ -1,7 +1,5 @@
 package com.hoppinzq.agent.tool;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
@@ -28,7 +26,8 @@ public class ToolDefinition {
     // toolCall 或者 MCP需要用的三个字段
     private String name;
     private String description;
-    private Tool.InputSchema inputSchema;
+    /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
+    private ObjectNode inputSchema;
 
     // 工具的参数类型和处理函数
     private Class<?> type;
@@ -45,7 +44,7 @@ public class ToolDefinition {
         String apply(Object input) throws Exception;
     }
 
-    public ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<?> type, Function<String, String> function) {
+    public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -54,7 +53,7 @@ public class ToolDefinition {
         this.typedInvoker = null;
     }
 
-    public <T> ToolDefinition(String name, String description, Tool.InputSchema inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
+    public <T> ToolDefinition(String name, String description, ObjectNode inputSchema, Class<T> type, TypedToolFunction<T> typedFunction) {
         this.name = name;
         this.description = description;
         this.inputSchema = inputSchema;
@@ -107,19 +106,35 @@ public class ToolDefinition {
     );
 
     /**
-     * 创建InputSchema
+     * 列出文件工具定义
+     * 列出指定目录下的所有文件和子目录（递归遍历），可按扩展名过滤。
      */
-    public static Tool.InputSchema createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(properties);
+    public static ToolDefinition ListFilesDefinition = new ToolDefinition(
+            "list_files",
+            "列出指定目录下的所有文件和子目录（递归遍历）。适用于查看目录结构、查找文件等场景。可通过 path 指定工作目录内的相对路径，通过 fileType 按扩展名过滤。",
+            createInputSchema(
+                    Map.of(
+                            "path", createProperty("string", "可选，工作目录中的相对路径，不传则默认列出根目录。"),
+                            "fileType", createProperty("string", "可选的文件扩展名，用于过滤结果（例如，'java'、'md'）。")
+                    ),
+                    List.of()
+            ),
+            ListFilesInput.class,
+            Tools::listFiles
+    );
 
-        Tool.InputSchema.Builder schemaBuilder = Tool.InputSchema.builder()
-                .properties(JsonValue.fromJsonNode(propertiesNode));
-
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
         if (required != null && !required.isEmpty()) {
-            schemaBuilder.required(required);
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-
-        return schemaBuilder.build();
+        return schema;
     }
 
     public static ToolDefinition EditFileDefinition = new ToolDefinition(
@@ -137,20 +152,7 @@ public class ToolDefinition {
             Tools::editFile
     );
 
-public static ToolDefinition GlobDefinition = new ToolDefinition(
-            "glob",
-            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
-            createInputSchema(
-                    Map.of(
-                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
-                    ),
-                    List.of("pattern")
-            ),
-            GlobInput.class,
-            Tools::glob
-    );
-
-    public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
+public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
             "content_search",
             "使用ripgrep (rg)搜索代码或文本。\n\n适用于查找代码库中的代码片段、函数定义、变量使用情况或任何文本内容。\n支持按正则表达式、文件类型或目录进行精准搜索。",
             createInputSchema(

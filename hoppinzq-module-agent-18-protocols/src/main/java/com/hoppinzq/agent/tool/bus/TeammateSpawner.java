@@ -1,32 +1,42 @@
 package com.hoppinzq.agent.tool.bus;
 
-import com.anthropic.client.AnthropicClient;
+import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 
 import java.util.List;
 
 /**
- * 把一个 {@link TeammateRunner} 包成 daemon 线程并启动。
+ * teammate 守护线程工厂。
+ *
+ * <p>静态方法 {@link #spawn} 构造一个 {@link TeammateRunner}，
+ * 包到命名为 {@code teammate-<name>} 的守护线程里启动，
+ * 并立即给 lead 发一条 {@code started} 消息，让 lead 知道这个 teammate 已经上线。
  *
  * @author hoppinzq
  */
 public class TeammateSpawner {
 
+    private TeammateSpawner() {
+    }
+
     /**
-     * 启动一个 teammate 线程。
+     * 启动一个 teammate。
      *
-     * @return 已启动的 daemon 线程
+     * @return 已启动的守护线程，调用方一般无需 join
      */
-    public static Thread spawn(AnthropicClient client, String model, String name, String role,
-                               String initialPrompt, MessageBus bus,
-                               List<ToolDefinition> teammateTools,
-                               ProtocolRegistry protocolRegistry) {
-        TeammateRunner runner = new TeammateRunner(client, model, name, role, initialPrompt, bus,
-                teammateTools, protocolRegistry);
-        Thread t = new Thread(runner, "teammate-" + name);
-        t.setDaemon(true);
-        t.start();
-        return t;
+    public static Thread spawn(LlmProvider provider,
+                               String model,
+                               String name,
+                               String role,
+                               String prompt,
+                               MessageBus bus,
+                               List<ToolDefinition> teammateTools) {
+        TeammateRunner runner = new TeammateRunner(provider, model, name, role, prompt, bus, teammateTools);
+        Thread thread = new Thread(runner, "teammate-" + name);
+        thread.setDaemon(true);
+        thread.start();
+        // 立即通知 lead：我上线了
+        MessageBus.send(name, "lead", "started", "message");
+        return thread;
     }
 }

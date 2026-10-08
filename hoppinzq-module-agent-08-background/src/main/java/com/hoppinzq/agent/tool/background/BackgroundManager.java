@@ -1,6 +1,6 @@
 package com.hoppinzq.agent.tool.background;
 
-import com.anthropic.models.messages.MessageParam;
+import com.hoppinzq.agent.client.LlmMessage;
 import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.tool.schema.BackgroundTaskInput;
 import lombok.Data;
@@ -63,7 +63,7 @@ public class BackgroundManager {
      *
      * 注意：此方法在每次LLM调用前被调用，确保后台任务结果能及时反馈给用户
      */
-    public static void injectBackgroundNotifications(List<MessageParam> messageParams, BackgroundManager backgroundManager) {
+    public static void injectBackgroundNotifications(List<LlmMessage> messageParams, BackgroundManager backgroundManager) {
         List<BackgroundManager.BackgroundNotification> notifications = backgroundManager.drainNotifications();
 
         if (!notifications.isEmpty()) {
@@ -80,10 +80,7 @@ public class BackgroundManager {
                     .collect(Collectors.joining("\n"));
 
             // 注入后台任务结果到LLM对话
-            messageParams.add(MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(notifText)
-                    .build());
+            messageParams.add(LlmMessage.user(notifText));
 
             System.out.println("\n[后台任务通知注入]");
             System.out.println(notifText);

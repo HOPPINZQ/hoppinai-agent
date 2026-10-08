@@ -1,9 +1,10 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.*;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.compact.ContextCompactor;
@@ -11,7 +12,6 @@ import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 
-import java.time.Duration;
 import java.util.*;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -42,8 +42,8 @@ public class Agent06 extends ZQAgent {
     /** 供 Tools.compact() 静态方法调用的压缩回调 */
     public static Runnable compactCallback;
 
-    public Agent06(AnthropicClient client, String model, List<ToolDefinition> tools, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
-        super(client, model, tools);
+    public Agent06(LlmProvider provider, String model, List<ToolDefinition> tools, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
+        super(provider, model, tools);
         Agent06.compactor = compactor;
         Agent06.skillLoader = skillLoader;
         Agent06.todoManager = todoManager;
@@ -97,7 +97,7 @@ public class Agent06 extends ZQAgent {
     /**
      * 替换消息列表
      */
-    private void replaceMessageParams(List<MessageParam> newParams) {
+    private void replaceMessageParams(List<LlmMessage> newParams) {
         this.messageParams.clear();
         this.messageParams.addAll(newParams);
     }
@@ -130,7 +130,7 @@ public class Agent06 extends ZQAgent {
 
             System.out.printf("[开始手动压缩] 消息数: %d, 估算tokens: %d%n", messageCount, estimatedTokens);
 
-            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
+            List<LlmMessage> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
 
             // 替换消息列表
             replaceMessageParams(compressed);
@@ -163,7 +163,7 @@ public class Agent06 extends ZQAgent {
      * @return LLM响应消息
      */
     @Override
-    protected Message chatMessage(List<MessageParam> messageParams) {
+    protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
         // 执行三层预处理（0 API调用，cheap first）
         // 执行顺序：budget → snip → micro（与Python s08一致）
 
@@ -171,7 +171,7 @@ public class Agent06 extends ZQAgent {
         // 需要先保存原始消息，然后逐步处理
 
         // L3: tool_result_budget — 持久化大输出
-        List<MessageParam> working = new ArrayList<>(messageParams);
+        List<LlmMessage> working = new ArrayList<>(messageParams);
         working = compactor.toolResultBudget(working);
 
         // L1: snip_compact — 裁掉中间消息
@@ -187,7 +187,7 @@ public class Agent06 extends ZQAgent {
         // L4: auto_compact — token仍超阈值时触发（1 API调用，expensive last）
         if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
-            List<MessageParam> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+            List<LlmMessage> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
 
             // 【状态同步】替换 messageParams 并同步 session
             replaceMessageParams(compactedParams);
@@ -208,7 +208,7 @@ public class Agent06 extends ZQAgent {
      * @param toolResults 工具执行结果列表
      */
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         // ========== 待办事项提醒逻辑 ==========
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
@@ -223,9 +223,7 @@ public class Agent06 extends ZQAgent {
         // 如果超过3个回合未更新待办，添加提醒消息
         if (roundsSinceTodo >= 3) {
             String reminder = String.format("<reminder>\n您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。\n</reminder>", roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
 
         // ========== 四层压缩策略 ==========
@@ -235,7 +233,7 @@ public class Agent06 extends ZQAgent {
         // 需要先保存原始消息，然后逐步处理
 
         // L3: tool_result_budget — 持久化大输出
-        List<MessageParam> working = new ArrayList<>(messageParams);
+        List<LlmMessage> working = new ArrayList<>(messageParams);
         working = compactor.toolResultBudget(working);
 
         // L1: snip_compact — 裁掉中间消息
@@ -251,7 +249,7 @@ public class Agent06 extends ZQAgent {
         // L4: auto_compact — token仍超阈值时触发
         if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
-            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+            List<LlmMessage> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
             replaceMessageParams(compressed);
         }
     }
@@ -283,12 +281,7 @@ public class Agent06 extends ZQAgent {
     }
 
     public static void main(String[] args) {
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-            .apiKey(API_KEY)
-            .baseUrl(BASE_URL)
-            .timeout(Duration.ofSeconds(TIMEOUT))
-            .maxRetries(MAX_RETRIES)
-            .build();
+        LlmProvider provider = LlmProviders.create();
 
         // 创建技能加载器
         skillLoader = new SkillLoader();
@@ -298,7 +291,7 @@ public class Agent06 extends ZQAgent {
         SessionManager sessionManager = bootstrapSession(args);
 
         // 创建 ContextCompactor，传入 SessionManager
-        compactor = new ContextCompactor(client, MODEL, sessionManager);
+        compactor = new ContextCompactor(provider, MODEL, sessionManager);
 
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
@@ -312,7 +305,7 @@ public class Agent06 extends ZQAgent {
         tools.add(SkillsDefinition);
 
         tools.add(ContentCompactDefinition);
-        Agent06 agent = new Agent06(client, MODEL, tools, compactor, skillLoader, todoManager);
+        Agent06 agent = new Agent06(provider, MODEL, tools, compactor, skillLoader, todoManager);
 
         // 使用新方法构建系统提示词
         String systemPrompt = generateSystemPrompt(ROOT, skillLoader.getDescriptions());

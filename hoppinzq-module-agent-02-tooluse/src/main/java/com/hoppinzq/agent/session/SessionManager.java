@@ -1,7 +1,6 @@
 package com.hoppinzq.agent.session;
 
-import com.openai.models.chat.completions.ChatCompletionMessageParam;
-import com.openai.models.completions.CompletionUsage;
+import com.hoppinzq.agent.client.LlmMessage;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -12,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * 会话编排器：维护当前 {@code sessionId} 与内存中的消息副本，
  * 在每条消息追加时自动持久化到 {@link SessionStore}。
- * <p>与 agent 解耦：agent 只需在添加消息时调用 {@link #onMessageAppended(ChatCompletionMessageParam)}，
+ * <p>与 agent 解耦：agent 只需在添加消息时调用 {@link #onMessageAppended(LlmMessage)}，
  * 启动时调用 {@link #populate(List)} 即可恢复历史。
  *
  * <h3>典型用法</h3>
@@ -96,17 +95,17 @@ public class SessionManager {
      * <p>由 agent 在 run 启动时调用，恢复上下文。
      * 一条 user+tool_result 的 {@link SessionMessage} 会展开为 N 条 {@code role=tool} 消息。
      */
-    public void populate(List<ChatCompletionMessageParam> out) {
+    public void populate(List<LlmMessage> out) {
         for (SessionMessage sm : sessionData.getMessages()) {
-            out.addAll(converter.toMessageParams(sm));
+            out.addAll(converter.toLlmMessages(sm));
         }
     }
 
     /**
      * 每当 agent 追加一条新消息时调用：转成 {@link SessionMessage} 并落盘。
      */
-    public void onMessageAppended(ChatCompletionMessageParam param) {
-        sessionData.getMessages().add(converter.toSessionMessage(param));
+    public void onMessageAppended(LlmMessage message) {
+        sessionData.getMessages().add(converter.toSessionMessage(message));
         sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         persist();
     }
@@ -115,26 +114,24 @@ public class SessionManager {
      * 一轮的 N 条 {@code role=tool} 结果消息合并为一条 user SessionMessage 落盘
      * （保持与旧版一致的落盘格式）。
      */
-    public void onToolMessagesAppended(List<ChatCompletionMessageParam> toolParams) {
-        sessionData.getMessages().add(converter.toMergedSessionMessage(toolParams));
+    public void onToolMessagesAppended(List<LlmMessage> toolMessages) {
+        sessionData.getMessages().add(converter.toMergedSessionMessage(toolMessages));
         sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         persist();
     }
 
     /**
-     * 每次调用 LLM 后记录 token 使用情况。
+     * 每次调用 LLM 后记录 token 使用情况（输入为协议中立的统计对象）。
      */
-    public void recordUsage(CompletionUsage usage) {
+    public void recordUsage(TokenUsage usage) {
         if (usage == null) {
             return;
         }
         TokenUsage tokenUsage = TokenUsage.builder()
-                .inputTokens(usage.promptTokens())
-                .outputTokens(usage.completionTokens())
-                .cacheReadTokens(usage.promptTokensDetails()
-                        .flatMap(CompletionUsage.PromptTokensDetails::cachedTokens).orElse(null))
-                .cacheCreationTokens(usage.promptTokensDetails()
-                        .flatMap(CompletionUsage.PromptTokensDetails::cacheWriteTokens).orElse(null))
+                .inputTokens(usage.getInputTokens())
+                .outputTokens(usage.getOutputTokens())
+                .cacheReadTokens(usage.getCacheReadTokens())
+                .cacheCreationTokens(usage.getCacheCreationTokens())
                 .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .build();
         sessionData.getUsage().add(tokenUsage);

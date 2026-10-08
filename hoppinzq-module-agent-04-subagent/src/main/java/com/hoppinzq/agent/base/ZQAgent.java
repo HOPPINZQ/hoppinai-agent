@@ -1,10 +1,11 @@
 package com.hoppinzq.agent.base;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.session.SubAgentSessionResult;
@@ -16,7 +17,10 @@ import java.util.*;
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
- * 智能体基类
+ * 智能体基类。
+ * <p>只面向协议中立的 {@link LlmProvider}/{@link LlmMessage} 编程，
+ * 协议差异（Anthropic / OpenAI）由 Provider 实现类封装。
+ *
  * @author hoppinzq
  */
 @Data
@@ -24,9 +28,9 @@ public class ZQAgent {
     private String systemPrompt;
     private final Scanner scanner;
     private final String model;
-    protected final AnthropicClient client;
+    protected final LlmProvider provider;
     private final List<ToolDefinition> tools;
-    protected final List<MessageParam> messageParams = new ArrayList<>();
+    protected final List<LlmMessage> messageParams = new ArrayList<>();
     private String taskResult;
     private boolean taskCompleted = false;
     private AgentCommandHandler commandHandler;
@@ -36,8 +40,8 @@ public class ZQAgent {
      */
     protected SessionManager sessionManager;
 
-    public ZQAgent(AnthropicClient client, String model, List<ToolDefinition> tools) {
-        this.client = client;
+    public ZQAgent(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        this.provider = provider;
         this.model = model;
         this.scanner = new Scanner(System.in);
         this.tools = tools;
@@ -76,232 +80,223 @@ public class ZQAgent {
                 continue;
             }
 
-            MessageParam userMessage = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(userInput)
-                    .build();
-            appendMessage(userMessage);
+            appendMessage(LlmMessage.user(userInput));
 
-            Message message;
+            LlmResponse response;
             try {
-                message = chatMessage(messageParams);
+                response = chatMessage(messageParams);
             } catch (Exception e) {
                 System.out.println("错误: " + e.getMessage());
                 e.printStackTrace();
                 continue;
             }
-            appendMessage(message.toParam());
-            recordUsageIfNeeded(message);
+            LlmMessage message = response.getMessage();
+            if (message == null) {
+                System.out.println("错误: 响应中没有消息");
+                continue;
+            }
+            appendMessage(message);
+            recordUsageIfNeeded(response);
             printText(message);
 
-            while (isToolUse(message)) {
-                MessageParam toolResultMessage = executeToolCalls(message);
-                appendMessage(toolResultMessage);
+            // canonical agentic loop：以 finish_reason == tool_calls 为循环条件
+            // 见 https://platform.openai.com/docs/guides/function-calling
+            while (hasPendingToolCalls(response)) {
+                List<LlmMessage> toolResults = executeToolCalls(message);
+                if (toolResults.isEmpty()) {
+                    // 防御：本轮没有任何有效工具调用，继续请求只会死循环
+                    break;
+                }
+                messageParams.addAll(toolResults);
+                if (sessionManager != null) {
+                    sessionManager.onToolMessagesAppended(toolResults);
+                }
+
                 try {
-                    message = chatMessage(messageParams);
+                    response = chatMessage(messageParams);
                 } catch (Exception e) {
                     System.out.println("错误: " + e.getMessage());
                     break;
                 }
-                appendMessage(message.toParam());
-                recordUsageIfNeeded(message);
+                message = response.getMessage();
+                if (message == null) {
+                    System.out.println("错误: 响应中没有消息");
+                    break;
+                }
+                appendMessage(message);
+                recordUsageIfNeeded(response);
                 printText(message);
             }
-            warnIfTruncated(message);
+            // 非 tool_calls 退出：检查是否被截断
+            warnIfTruncated(response);
         }
     }
 
-    private void printText(Message message) {
-        for (ContentBlock content : message.content()) {
-            if (content.isText()) {
-                String text = content.text().map(TextBlock::text).orElse("");
-                if (!text.isBlank()) {
-                    System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
-                }
-            }
+    /**
+     * 打印 assistant 消息中的文本。空文本跳过。
+     * <p>DeepSeek 等后端返回 tool_calls 时文本常为 null。
+     */
+    private void printText(LlmMessage message) {
+        String text = message.getText();
+        if (text != null && !text.isBlank()) {
+            System.out.printf("\u001b[93mAI\u001b[0m: %s%n", text);
         }
     }
 
-    private boolean isToolUse(Message message) {
-        return message.stopReason()
-                .map(StopReason.TOOL_USE::equals)
-                .orElse(false);
+    /**
+     * 判断是否需要继续工具循环。
+     * <p>以 {@code finish_reason == tool_calls} 为主判据；个别 OpenAI 兼容后端
+     * 返回 tool_calls 时 finish_reason 可能仍是 stop，故兜底检查 toolCalls 非空。
+     */
+    private boolean hasPendingToolCalls(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.TOOL_CALLS) {
+            return true;
+        }
+        LlmMessage message = response.getMessage();
+        return message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty();
     }
 
-    private void warnIfTruncated(Message message) {
-        boolean maxTokens = message.stopReason()
-                .map(StopReason.MAX_TOKENS::equals)
-                .orElse(false);
-        if (maxTokens) {
+    /** 命中 LENGTH 时打印警告，避免静默截断工具调用导致死循环。 */
+    private void warnIfTruncated(LlmResponse response) {
+        if (response.getFinishReason() == LlmResponse.FinishReason.LENGTH) {
             System.out.printf("\u001b[91m[警告]\u001b[0m 本轮回复被 max_tokens=%d 截断，工具调用可能不完整。建议调大 MAX_TOKENS。%n",
                     MAX_TOKENS);
         }
     }
 
-    private MessageParam executeToolCalls(Message message) {
-        List<ContentBlockParam> toolResults = new ArrayList<>();
-        for (ContentBlock content : message.content()) {
-            if (!content.isToolUse()) {
-                continue;
-            }
-            ToolUseBlock toolUse = content.asToolUse();
-            System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+    /**
+     * 执行一轮 assistant 回复中的所有工具调用，每个调用对应一条 {@code role=tool} 消息。
+     * <p>文本已由 {@link #printText(LlmMessage)} 处理，这里只负责工具；
+     * 找不到工具或执行抛异常都以普通文本回灌（协议没有 isError 标记）。
+     * <p>协议要求每个 tool_call_id 必须有且仅有一条应答消息（含失败），否则下次请求 400。
+     */
+    private List<LlmMessage> executeToolCalls(LlmMessage message) {
+        List<LlmMessage> toolMessages = new ArrayList<>();
+        for (LlmMessage.ToolCall call : message.getToolCalls()) {
+            String callId = call.getId();
+            String toolName = call.getName();
+            String arguments = call.getArgumentsJson();
+            System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
-            String toolResult = null;
-            Exception toolError = null;
-            ToolDefinition matched = null;
-            for (ToolDefinition tool : tools) {
-                if (tool.getName().equals(toolUse.name())) {
-                    matched = tool;
-                    break;
+            String result;
+            try {
+                ToolDefinition matched = null;
+                for (ToolDefinition tool : tools) {
+                    if (tool.getName().equals(toolName)) {
+                        matched = tool;
+                        break;
+                    }
                 }
-            }
-            if (matched == null) {
-                toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
-                System.out.printf("\u001b[91m错误\u001b[0m: %s%n", toolError.getMessage());
-            } else {
-                try {
-                    toolResult = invokeTool(matched, toolUse._input());
-                    System.out.printf("\u001b[92m结果\u001b[0m: %s%n", toolResult);
-                } catch (Exception e) {
-                    toolError = e;
-                    System.out.printf("\u001b[91m错误\u001b[0m: %s%n", e.getMessage());
-                    e.printStackTrace();
+                if (matched == null) {
+                    throw new IllegalArgumentException("工具 '" + toolName + "' 没有找到");
                 }
+                result = invokeTool(matched, arguments);
+            } catch (Exception e) {
+                result = "错误: " + e.getMessage();
+                System.out.printf("\u001b[91m错误\u001b[0m: %s%n", e.getMessage());
+                e.printStackTrace();
             }
+            System.out.printf("\u001b[92m结果\u001b[0m: %s%n", result);
 
-            toolResults.add(ContentBlockParam.ofToolResult(
-                    ToolResultBlockParam.builder()
-                            .toolUseId(toolUse.id())
-                            .content(toolError != null ? toolError.getMessage() : toolResult)
-                            .isError(toolError != null)
-                            .build()
-            ));
+            toolMessages.add(LlmMessage.tool(callId, result));
         }
-        return MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(MessageParam.Content.ofBlockParams(toolResults))
-                .build();
+        return toolMessages;
     }
 
     /** 子类（如 Agent04）可重写此钩子，在工具执行后做额外处理（如待办提醒）。 */
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
     }
 
     /**
      * 记录本次 LLM 调用的 token 使用情况（若设置了 SessionManager）。
      */
-    private void recordUsageIfNeeded(Message message) {
-        if (sessionManager != null && message.usage() != null) {
-            sessionManager.recordUsage(message.usage());
+    private void recordUsageIfNeeded(LlmResponse response) {
+        if (sessionManager != null && response.getUsage() != null) {
+            sessionManager.recordUsage(response.getUsage());
         }
     }
 
     /**
      * 向 messageParams 追加一条消息；若设置了 {@link SessionManager}，
      * 同步持久化。所有需要记录历史的追加都应走此方法。
+     * <p>注意：一轮的多条 {@code role=tool} 结果不走此方法，
+     * 由 {@link SessionManager#onToolMessagesAppended(List)} 合并落盘。
      */
-    protected void appendMessage(MessageParam param) {
-        messageParams.add(param);
+    protected void appendMessage(LlmMessage message) {
+        messageParams.add(message);
         if (sessionManager != null) {
-            sessionManager.onMessageAppended(param);
+            sessionManager.onMessageAppended(message);
         }
     }
 
-    private String invokeTool(ToolDefinition tool, JsonValue input) {
+    private String invokeTool(ToolDefinition tool, String arguments) throws Exception {
+        JsonNode input = OBJECT_MAPPER.readTree(arguments == null || arguments.isBlank() ? "{}" : arguments);
         if (tool.getType() == null) {
-            if (input.asObject().isEmpty()) {
+            if (!input.isObject()) {
                 throw new IllegalArgumentException("工具 '" + tool.getName() + "' 参数不是 JSON 对象");
             }
+            // 保持旧的包装格式：{"input": {...}, "tool_name": "..."}
             ObjectNode root = OBJECT_MAPPER.createObjectNode();
-            root.set("input", input.convert(JsonNode.class));
+            root.set("input", input);
             root.put("tool_name", tool.getName());
             return tool.getFunction().apply(root.toString());
         } else {
-            return tool.getFunction().apply(Objects.requireNonNull(input.convert(tool.getType())).toString());
+            // 工具自定义了入参 POJO 类型：先规整化再序列化，与旧实现行为一致
+            Object pojo = OBJECT_MAPPER.treeToValue(input, tool.getType());
+            return tool.getFunction().apply(OBJECT_MAPPER.writeValueAsString(pojo));
         }
     }
 
-    protected Message chatMessage(List<MessageParam> messageParams){
-        // 准备工具配置
-        List<ToolUnion> anthropicTools = new ArrayList<>();
-        for (ToolDefinition tool : tools) {
-            anthropicTools.add(ToolUnion.ofTool(
-                    Tool.builder()
-                            .name(tool.getName())
-                            .description(tool.getDescription())
-                            .inputSchema(tool.getInputSchema())
-                            .build()
-            ));
-        }
-        MessageCreateParams.Builder messageBuilder = MessageCreateParams.builder()
+    protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
+        return provider.complete(LlmRequest.builder()
                 .model(model)
+                .systemPrompt(systemPrompt)
                 .messages(messageParams)
-                .tools(anthropicTools);
-
-        if(systemPrompt != null && !systemPrompt.isEmpty()){
-            messageBuilder.system(systemPrompt);
-        }
-
-        messageBuilder.maxTokens(MAX_TOKENS);
-
-        MessageCreateParams params = messageBuilder.build();
-        return client.messages().create(params);
+                .tools(tools)
+                .maxTokens(MAX_TOKENS)
+                .build());
     }
 
     public String runTask(String prompt) {
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(prompt)
-                .build();
-        messageParams.add(userMessage);
+        messageParams.add(LlmMessage.user(prompt));
 
         while (true) {
-            Message message;
+            LlmResponse response;
             try {
-                message = chatMessage(messageParams);
+                response = chatMessage(messageParams);
             } catch (Exception e) {
                 return "Error: " + e.getMessage();
             }
-            messageParams.add(message.toParam());
+            LlmMessage message = response.getMessage();
+            if (message == null) {
+                return "Error: 响应中没有消息";
+            }
+            messageParams.add(message);
 
-            for (ContentBlock content : message.content()) {
-                if (content.isText()) {
-                    Optional<TextBlock> text = content.text();
-                    String result = text.map(TextBlock::text).orElse("");
-                    if (!result.isBlank()) {
-                        System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", result);
-                    }
-                }
+            String text = message.getText();
+            if (text != null && !text.isBlank()) {
+                System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", text);
             }
 
-            // 没有工具调用：把文本拼接后作为任务结果返回
-            if (!isToolUse(message)) {
-                warnIfTruncated(message);
-                return message.content().stream()
-                        .filter(ContentBlock::isText)
-                        .map(cb -> cb.text().get().text())
-                        .reduce("", (a, b) -> a + b);
+            // 没有工具调用：把文本作为任务结果返回
+            if (!hasPendingToolCalls(response)) {
+                warnIfTruncated(response);
+                return text == null ? "" : text;
             }
 
             // 处理本轮全部工具调用；其中 task_completed 直接短路返回
-            List<ContentBlockParam> toolResults = new ArrayList<>();
-            for (ContentBlock content : message.content()) {
-                if (!content.isToolUse()) {
-                    continue;
-                }
-                ToolUseBlock toolUse = content.asToolUse();
-                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+            List<LlmMessage> toolResults = new ArrayList<>();
+            for (LlmMessage.ToolCall call : message.getToolCalls()) {
+                String toolName = call.getName();
+                String arguments = call.getArgumentsJson();
+                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
-                if ("task_completed".equals(toolUse.name())) {
+                if ("task_completed".equals(toolName)) {
                     try {
-                        JsonValue input = toolUse._input();
-                        Optional<Map<String, JsonValue>> object = input.asObject();
-                        if (object.isPresent()) {
-                            JsonValue res = object.get().get("result");
-                            if (res != null && res.asString().isPresent()) {
-                                return res.asString().get().toString();
-                            }
+                        JsonNode input = OBJECT_MAPPER.readTree(arguments == null || arguments.isBlank() ? "{}" : arguments);
+                        JsonNode res = input.get("result");
+                        if (res != null && res.isTextual()) {
+                            return res.asText();
                         }
                         return "Task completed.";
                     } catch (Exception e) {
@@ -309,43 +304,34 @@ public class ZQAgent {
                     }
                 }
 
-                String toolResult = null;
-                Exception toolError = null;
-                ToolDefinition matched = null;
-                for (ToolDefinition tool : tools) {
-                    if (tool.getName().equals(toolUse.name())) {
-                        matched = tool;
-                        break;
+                String result;
+                try {
+                    ToolDefinition matched = null;
+                    for (ToolDefinition tool : tools) {
+                        if (tool.getName().equals(toolName)) {
+                            matched = tool;
+                            break;
+                        }
                     }
-                }
-                if (matched == null) {
-                    toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
-                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", toolError.getMessage());
-                } else {
-                    try {
-                        toolResult = invokeTool(matched, toolUse._input());
-                        System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", toolResult);
-                    } catch (Exception e) {
-                        toolError = e;
-                        System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
-                        e.printStackTrace();
+                    if (matched == null) {
+                        throw new IllegalArgumentException("工具 '" + toolName + "' 没有找到");
                     }
+                    result = invokeTool(matched, arguments);
+                    System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", result);
+                } catch (Exception e) {
+                    result = "错误: " + e.getMessage();
+                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
+                    e.printStackTrace();
                 }
 
-                toolResults.add(ContentBlockParam.ofToolResult(
-                        ToolResultBlockParam.builder()
-                                .toolUseId(toolUse.id())
-                                .content(toolError != null ? toolError.getMessage() : toolResult)
-                                .isError(toolError != null)
-                                .build()
-                ));
+                toolResults.add(LlmMessage.tool(call.getId(), result));
             }
 
-            MessageParam toolResultMessage = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(MessageParam.Content.ofBlockParams(toolResults))
-                    .build();
-            messageParams.add(toolResultMessage);
+            if (toolResults.isEmpty()) {
+                // 防御：本轮没有任何有效工具调用，继续请求只会死循环
+                return "Error: 没有可执行的工具调用";
+            }
+            messageParams.addAll(toolResults);
         }
     }
 
@@ -359,68 +345,55 @@ public class ZQAgent {
         long totalInputTokens = 0;
         long totalOutputTokens = 0;
 
-        MessageParam userMessage = MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(prompt)
-                .build();
-        messageParams.add(userMessage);
+        messageParams.add(LlmMessage.user(prompt));
 
         while (true) {
-            Message message;
+            LlmResponse response;
             try {
-                message = chatMessage(messageParams);
+                response = chatMessage(messageParams);
             } catch (Exception e) {
                 return SubAgentSessionResult.error("Error: " + e.getMessage());
             }
-            messageParams.add(message.toParam());
+            LlmMessage message = response.getMessage();
+            if (message == null) {
+                return SubAgentSessionResult.error("Error: 响应中没有消息");
+            }
+            messageParams.add(message);
 
             // 累积 token 使用情况
-            if (message.usage() != null) {
-                totalInputTokens += message.usage().inputTokens();
-                totalOutputTokens += message.usage().outputTokens();
-            }
-
-            for (ContentBlock content : message.content()) {
-                if (content.isText()) {
-                    Optional<TextBlock> text = content.text();
-                    String result = text.map(TextBlock::text).orElse("");
-                    if (!result.isBlank()) {
-                        System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", result);
-                    }
+            if (response.getUsage() != null) {
+                if (response.getUsage().getInputTokens() != null) {
+                    totalInputTokens += response.getUsage().getInputTokens();
+                }
+                if (response.getUsage().getOutputTokens() != null) {
+                    totalOutputTokens += response.getUsage().getOutputTokens();
                 }
             }
 
-            // 没有工具调用：把文本拼接后作为任务结果返回
-            if (!isToolUse(message)) {
-                warnIfTruncated(message);
-                String result = message.content().stream()
-                        .filter(ContentBlock::isText)
-                        .map(cb -> cb.text().get().text())
-                        .reduce("", (a, b) -> a + b);
-                return SubAgentSessionResult.success(result, totalInputTokens, totalOutputTokens);
+            String text = message.getText();
+            if (text != null && !text.isBlank()) {
+                System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", text);
+            }
+
+            // 没有工具调用：把文本作为任务结果返回
+            if (!hasPendingToolCalls(response)) {
+                warnIfTruncated(response);
+                return SubAgentSessionResult.success(text == null ? "" : text, totalInputTokens, totalOutputTokens);
             }
 
             // 处理本轮全部工具调用；其中 task_completed 直接短路返回
-            List<ContentBlockParam> toolResults = new ArrayList<>();
-            for (ContentBlock content : message.content()) {
-                if (!content.isToolUse()) {
-                    continue;
-                }
-                ToolUseBlock toolUse = content.asToolUse();
-                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolUse.name(), toolUse._input());
+            List<LlmMessage> toolResults = new ArrayList<>();
+            for (LlmMessage.ToolCall call : message.getToolCalls()) {
+                String toolName = call.getName();
+                String arguments = call.getArgumentsJson();
+                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
-                if ("task_completed".equals(toolUse.name())) {
+                if ("task_completed".equals(toolName)) {
                     try {
-                        JsonValue input = toolUse._input();
-                        Optional<Map<String, JsonValue>> object = input.asObject();
-                        if (object.isPresent()) {
-                            JsonValue res = object.get().get("result");
-                            if (res != null && res.asString().isPresent()) {
-                                return SubAgentSessionResult.success(
-                                        res.asString().get().toString(),
-                                        totalInputTokens,
-                                        totalOutputTokens);
-                            }
+                        JsonNode input = OBJECT_MAPPER.readTree(arguments == null || arguments.isBlank() ? "{}" : arguments);
+                        JsonNode res = input.get("result");
+                        if (res != null && res.isTextual()) {
+                            return SubAgentSessionResult.success(res.asText(), totalInputTokens, totalOutputTokens);
                         }
                         return SubAgentSessionResult.success("Task completed.", totalInputTokens, totalOutputTokens);
                     } catch (Exception e) {
@@ -428,43 +401,34 @@ public class ZQAgent {
                     }
                 }
 
-                String toolResult = null;
-                Exception toolError = null;
-                ToolDefinition matched = null;
-                for (ToolDefinition tool : tools) {
-                    if (tool.getName().equals(toolUse.name())) {
-                        matched = tool;
-                        break;
+                String result;
+                try {
+                    ToolDefinition matched = null;
+                    for (ToolDefinition tool : tools) {
+                        if (tool.getName().equals(toolName)) {
+                            matched = tool;
+                            break;
+                        }
                     }
-                }
-                if (matched == null) {
-                    toolError = new Exception("工具 '" + toolUse.name() + "' 没有找到");
-                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", toolError.getMessage());
-                } else {
-                    try {
-                        toolResult = invokeTool(matched, toolUse._input());
-                        System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", toolResult);
-                    } catch (Exception e) {
-                        toolError = e;
-                        System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
-                        e.printStackTrace();
+                    if (matched == null) {
+                        throw new IllegalArgumentException("工具 '" + toolName + "' 没有找到");
                     }
+                    result = invokeTool(matched, arguments);
+                    System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", result);
+                } catch (Exception e) {
+                    result = "错误: " + e.getMessage();
+                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
+                    e.printStackTrace();
                 }
 
-                toolResults.add(ContentBlockParam.ofToolResult(
-                        ToolResultBlockParam.builder()
-                                .toolUseId(toolUse.id())
-                                .content(toolError != null ? toolError.getMessage() : toolResult)
-                                .isError(toolError != null)
-                                .build()
-                ));
+                toolResults.add(LlmMessage.tool(call.getId(), result));
             }
 
-            MessageParam toolResultMessage = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(MessageParam.Content.ofBlockParams(toolResults))
-                    .build();
-            messageParams.add(toolResultMessage);
+            if (toolResults.isEmpty()) {
+                // 防御：本轮没有任何有效工具调用，继续请求只会死循环
+                return SubAgentSessionResult.error("Error: 没有可执行的工具调用");
+            }
+            messageParams.addAll(toolResults);
         }
     }
 }

@@ -1,12 +1,10 @@
 package com.hoppinzq.agent;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.ContentBlockParam;
-import com.anthropic.models.messages.Message;
-import com.anthropic.models.messages.MessageParam;
-import com.anthropic.models.messages.TextBlockParam;
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmProviders;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
@@ -18,7 +16,6 @@ import com.hoppinzq.agent.tool.mcp.McpLoader;
 import com.hoppinzq.agent.tool.mcp.McpSetting;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -27,7 +24,7 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
- * Agent13 - MCP工具集成智能体
+ * AgentRed95 - 红警95游戏智能体（MCP工具集成）
  *
  * 集成Model Context Protocol (MCP)服务器，扩展AI能力边界
  *
@@ -36,6 +33,8 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
  * - 自动加载和注册MCP服务器提供的工具
  * - 统一的工具调用接口和错误处理
  * - 支持同步和异步MCP客户端
+ * - 自动游戏循环引擎（runGameLoop）
+ * - 四层上下文压缩 + 待办事项管理 + 策略技能加载
  *
  * 使用MCP服务器的场景：
  * - 需要访问外部数据源或API
@@ -50,6 +49,19 @@ public class AgentRed95 extends ZQAgent {
     private int roundsSinceTodo = 0;
     private long lastTodoVersion = 0;
     public static SkillLoader skillLoader;
+
+    /** 供 Tools.compact() 静态方法调用的压缩回调 */
+    public static Runnable compactCallback;
+
+    public AgentRed95(LlmProvider provider, String model, List<ToolDefinition> tools, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
+        super(provider, model, tools);
+        AgentRed95.compactor = compactor;
+        AgentRed95.skillLoader = skillLoader;
+        AgentRed95.todoManager = todoManager;
+        this.lastTodoVersion = todoManager.getVersion();
+        // 注册回调，让 Tools.compact 可以触发实例的 manualCompact
+        AgentRed95.compactCallback = this::manualCompact;
+    }
 
     /**
      * 重写createCommandHandler方法，添加tokens命令和compact命令支持
@@ -96,7 +108,7 @@ public class AgentRed95 extends ZQAgent {
     /**
      * 替换消息列表
      */
-    private void replaceMessageParams(List<MessageParam> newParams) {
+    private void replaceMessageParams(List<LlmMessage> newParams) {
         this.messageParams.clear();
         this.messageParams.addAll(newParams);
     }
@@ -129,7 +141,7 @@ public class AgentRed95 extends ZQAgent {
 
             System.out.printf("[开始手动压缩] 消息数: %d, 估算tokens: %d%n", messageCount, estimatedTokens);
 
-            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
+            List<LlmMessage> compressed = compactor.autoCompact(new ArrayList<>(this.messageParams), "manual");
 
             // 替换消息列表
             replaceMessageParams(compressed);
@@ -162,7 +174,7 @@ public class AgentRed95 extends ZQAgent {
      * @return LLM响应消息
      */
     @Override
-    protected Message chatMessage(List<MessageParam> messageParams) {
+    protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
         // 执行三层预处理（0 API调用，cheap first）
         // 执行顺序：budget → snip → micro（与Python s08一致）
 
@@ -170,7 +182,7 @@ public class AgentRed95 extends ZQAgent {
         // 需要先保存原始消息，然后逐步处理
 
         // L3: tool_result_budget — 持久化大输出
-        List<MessageParam> working = new ArrayList<>(messageParams);
+        List<LlmMessage> working = new ArrayList<>(messageParams);
         working = compactor.toolResultBudget(working);
 
         // L1: snip_compact — 裁掉中间消息
@@ -186,7 +198,7 @@ public class AgentRed95 extends ZQAgent {
         // L4: auto_compact — token仍超阈值时触发（1 API调用，expensive last）
         if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
-            List<MessageParam> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+            List<LlmMessage> compactedParams = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
 
             // 【状态同步】替换 messageParams 并同步 session
             replaceMessageParams(compactedParams);
@@ -207,7 +219,7 @@ public class AgentRed95 extends ZQAgent {
      * @param toolResults 工具执行结果列表
      */
     @Override
-    protected void onToolExecution(List<ContentBlockParam> toolResults) {
+    protected void onToolExecution(List<LlmMessage> toolResults) {
         // ========== 待办事项提醒逻辑 ==========
         long currentVersion = todoManager.getVersion();
         if (currentVersion > lastTodoVersion) {
@@ -222,9 +234,7 @@ public class AgentRed95 extends ZQAgent {
         // 如果超过3个回合未更新待办，添加提醒消息
         if (roundsSinceTodo >= 3) {
             String reminder = String.format("<reminder>\n您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。\n</reminder>", roundsSinceTodo);
-            toolResults.add(ContentBlockParam.ofText(TextBlockParam.builder()
-                    .text(reminder)
-                    .build()));
+            toolResults.add(LlmMessage.user(reminder));
         }
 
         // ========== 四层压缩策略 ==========
@@ -234,7 +244,7 @@ public class AgentRed95 extends ZQAgent {
         // 需要先保存原始消息，然后逐步处理
 
         // L3: tool_result_budget — 持久化大输出
-        List<MessageParam> working = new ArrayList<>(messageParams);
+        List<LlmMessage> working = new ArrayList<>(messageParams);
         working = compactor.toolResultBudget(working);
 
         // L1: snip_compact — 裁掉中间消息
@@ -250,21 +260,9 @@ public class AgentRed95 extends ZQAgent {
         // L4: auto_compact — token仍超阈值时触发
         if (compactor.countTokens(messageParams) > TOKEN_THRESHOLD) {
             System.out.println("[自动 LLM 摘要压缩已触发]");
-            List<MessageParam> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
+            List<LlmMessage> compressed = compactor.autoCompact(new ArrayList<>(messageParams), "auto");
             replaceMessageParams(compressed);
         }
-    }
-
-    /** 供 Tools.compact() 静态方法调用的压缩回调 */
-    public static Runnable compactCallback;
-    public AgentRed95(AnthropicClient client, String model, List<ToolDefinition> tools, ContextCompactor compactor, SkillLoader skillLoader, TodoManager todoManager) {
-        super(client, model, tools);
-        AgentRed95.compactor = compactor;
-        AgentRed95.skillLoader = skillLoader;
-        AgentRed95.todoManager = todoManager;
-        this.lastTodoVersion = todoManager.getVersion();
-        // 注册回调，让 Tools.compact 可以触发实例的 manualCompact
-        AgentRed95.compactCallback = this::manualCompact;
     }
 
     public static void main(String[] args) {
@@ -279,12 +277,8 @@ public class AgentRed95 extends ZQAgent {
                     : new String[0];
         }
 
-        AnthropicClient client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .baseUrl(BASE_URL)
-                .timeout(Duration.ofSeconds(TIMEOUT))
-                .maxRetries(MAX_RETRIES)
-                .build();
+        // 协议中立 Provider：由 AIConstants.PROVIDER 切换 openai / anthropic
+        LlmProvider provider = LlmProviders.create();
 
         // 配置MCP服务器
         List<McpSetting> settings = new McpConfigLoader().loadMcpSettings();
@@ -303,7 +297,7 @@ public class AgentRed95 extends ZQAgent {
         SessionManager sessionManager = bootstrapSession(sessionArgs);
 
         // 创建 ContextCompactor，传入 SessionManager
-        compactor = new ContextCompactor(client, MODEL, sessionManager);
+        compactor = new ContextCompactor(provider, MODEL, sessionManager);
         List<ToolDefinition> tools = new ArrayList<>();
         tools.add(BashDefinition);
         tools.add(ReadFileDefinition);
@@ -318,7 +312,7 @@ public class AgentRed95 extends ZQAgent {
         tools.addAll(mcpLoader.loadTools());
 
         // 修复：使用 AgentRed95 而非 ZQAgent，确保压缩和待办功能生效
-        AgentRed95 agent = new AgentRed95(client, MODEL, tools, compactor, skillLoader, todoManager);
+        AgentRed95 agent = new AgentRed95(provider, MODEL, tools, compactor, skillLoader, todoManager);
 
         // 构建系统提示
         String systemPrompt = buildSystemPrompt(mcpLoader);
@@ -350,7 +344,7 @@ public class AgentRed95 extends ZQAgent {
     /**
      * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
      * <ul>
-     *   <li>{@code java Agent13 <sessionId>} —— 直接恢复指定会话</li>
+     *   <li>{@code java AgentXX <sessionId>} —— 直接恢复指定会话</li>
      *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
      * </ul>
      */
@@ -415,7 +409,7 @@ public class AgentRed95 extends ZQAgent {
 
                 你是红警95游戏指挥官AI，由hoppinzq创建。你的唯一使命：**摧毁所有敌方势力，取得胜利**。
                 你只需要执行游戏动作，不需要编写代码或处理编程任务。
-                
+
                 ## 敌人在哪
                 敌人在地图右上方！！！
 

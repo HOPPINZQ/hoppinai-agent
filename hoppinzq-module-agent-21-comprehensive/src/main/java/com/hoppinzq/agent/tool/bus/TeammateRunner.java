@@ -1,16 +1,18 @@
 package com.hoppinzq.agent.tool.bus;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.*;
-import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.client.LlmProvider;
+import com.hoppinzq.agent.client.LlmRequest;
+import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+
+import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
  * 一个 teammate 的独立运行循环（自己的 LLM 会话 + 自己的 mailbox）。
@@ -22,6 +24,7 @@ import java.util.Optional;
  *   <li>{@code message} 类型消息作为 user 输入注入会话</li>
  *   <li>允许 teammate 自行发出 {@code plan_approval_request}（用 send_message 工具触发）</li>
  * </ul>
+ * <p>只面向协议中立的 {@link LlmProvider}/{@link LlmMessage} 编程。
  *
  * @author hoppinzq
  */
@@ -29,8 +32,11 @@ public class TeammateRunner implements Runnable {
 
     private static final int MAX_ITERATIONS = 50;
     private static final long IDLE_SLEEP_MS = 500L;
+    /** 单轮内最多 10 次工具往返 */
+    private static final int MAX_TOOL_ROUNDS = 10;
+    private static final double TEMPERATURE = 0.5D;
 
-    private final AnthropicClient client;
+    private final LlmProvider provider;
     private final String model;
     private final String name;
     private final String role;
@@ -40,13 +46,13 @@ public class TeammateRunner implements Runnable {
     /** lead 的协议注册表引用，teammate 发 plan_approval_request 时用其生成 requestId */
     private final ProtocolRegistry protocolRegistry;
 
-    private final List<MessageParam> messages = new ArrayList<>();
+    private final List<LlmMessage> messages = new ArrayList<>();
 
-    public TeammateRunner(AnthropicClient client, String model, String name, String role,
+    public TeammateRunner(LlmProvider provider, String model, String name, String role,
                           String initialPrompt, MessageBus bus,
                           List<ToolDefinition> teammateTools,
                           ProtocolRegistry protocolRegistry) {
-        this.client = client;
+        this.provider = provider;
         this.model = model;
         this.name = name;
         this.role = role;
@@ -58,204 +64,180 @@ public class TeammateRunner implements Runnable {
 
     @Override
     public void run() {
-        System.out.printf("\u001b[95m[team]\u001b[0m teammate %s 上线，角色=%s%n", name, role);
-        // 第一轮把 initialPrompt 当作用户输入
-        messages.add(MessageParam.builder()
-                .role(MessageParam.Role.USER)
-                .content(initialPrompt == null ? ("你好，你是 " + name + "，角色：" + role) : initialPrompt)
-                .build());
+        // 标记当前线程的 teammate 名字，供 Tools.sendMessage 区分发送者
+        com.hoppinzq.agent.tool.Tools.setCurrentTeammateName(name);
+        try {
+            System.out.printf("\u001b[95m[team]\u001b[0m teammate %s 上线，角色=%s%n", name, role);
+            // 第一轮把 initialPrompt 当作用户输入
+            messages.add(LlmMessage.user(initialPrompt == null
+                    ? ("你好，你是 " + name + "，角色：" + role) : initialPrompt));
 
-        for (int i = 0; i < MAX_ITERATIONS; i++) {
-            // 1) 先 poll 自己的 inbox
-            List<MailboxMessage> inbox = bus.readInbox(name);
-            boolean shutdownRequested = false;
-            List<String> userInputs = new ArrayList<>();
-            for (MailboxMessage m : inbox) {
-                String t = m.getType() == null ? "message" : m.getType();
-                if ("shutdown_request".equals(t)) {
-                    String requestId = extractRequestId(m.getContent());
-                    // 回 shutdown_response
-                    String ackPayload = "{\"requestId\":\"" + (requestId == null ? "" : requestId)
-                            + "\",\"ack\":\"bye\"}";
-                    bus.send(name, "lead", ackPayload, "shutdown_response");
-                    System.out.printf("\u001b[95m[team]\u001b[0m %s 收到 shutdown_request，已回执并准备退出%n", name);
-                    shutdownRequested = true;
-                    break;
-                } else if ("plan_approval_response".equals(t)) {
-                    userInputs.add("[plan_approval_response] " + m.getFrom() + " -> " + m.getContent());
-                } else {
-                    // message
-                    userInputs.add(m.getFrom() + ": " + m.getContent());
+            for (int i = 0; i < MAX_ITERATIONS; i++) {
+                // 1) 先 poll 自己的 inbox
+                List<MailboxMessage> inbox = bus.readInbox(name);
+                boolean shutdownRequested = false;
+                List<String> userInputs = new ArrayList<>();
+                for (MailboxMessage m : inbox) {
+                    String t = m.getType() == null ? "message" : m.getType();
+                    if ("shutdown_request".equals(t)) {
+                        String requestId = extractRequestId(m.getContent());
+                        // 回 shutdown_response
+                        String ackPayload = "{\"requestId\":\"" + (requestId == null ? "" : requestId)
+                                + "\",\"ack\":\"bye\"}";
+                        bus.send(name, "lead", ackPayload, "shutdown_response");
+                        System.out.printf("\u001b[95m[team]\u001b[0m %s 收到 shutdown_request，已回执并准备退出%n", name);
+                        shutdownRequested = true;
+                        break;
+                    } else if ("plan_approval_response".equals(t)) {
+                        userInputs.add("[plan_approval_response] " + m.getFrom() + " -> " + m.getContent());
+                    } else {
+                        // message
+                        userInputs.add(m.getFrom() + ": " + m.getContent());
+                    }
                 }
-            }
-            if (shutdownRequested) {
-                break;
-            }
+                if (shutdownRequested) {
+                    break;
+                }
 
-            // 2) 没有任何待响应的消息，且第一轮已经处理完 → 进入 idle 睡眠
-            if (i > 0 && messages.isEmpty() == false && userInputs.isEmpty()) {
-                // 检查上一轮是否还有未完成的工具循环；如果没有，则 sleep
-                // 简化版：直接 sleep 后继续 poll
+                // 2) 没有任何待响应的消息，且第一轮已经处理完 → 进入 idle 睡眠
+                if (i > 0 && !messages.isEmpty() && userInputs.isEmpty()) {
+                    // 检查上一轮是否还有未完成的工具循环；如果没有，则 sleep
+                    // 简化版：直接 sleep 后继续 poll
+                    try {
+                        Thread.sleep(IDLE_SLEEP_MS);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    // sleep 后清空历史最后一轮用户消息标记，避免无限 LLM 调用
+                    // 这里仅继续轮询 inbox，不强制发起新 LLM 调用
+                    continue;
+                }
+
+                // 把 inbox 里收到的 message 作为新一轮 user 消息注入
+                for (String ui : userInputs) {
+                    messages.add(LlmMessage.user(ui));
+                }
+
+                // 3) 执行一轮 LLM 调用 + 工具循环
                 try {
-                    Thread.sleep(IDLE_SLEEP_MS);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
+                    runOneLlmRound();
+                } catch (Exception e) {
+                    System.err.printf("[team] %s LLM 调用异常：%s%n", name, e.getMessage());
                     break;
                 }
-                // sleep 后清空历史最后一轮用户消息标记，避免无限 LLM 调用
-                // 这里仅继续轮询 inbox，不强制发起新 LLM 调用
-                continue;
             }
-
-            // 把 inbox 里收到的 message 作为新一轮 user 消息注入
-            for (String ui : userInputs) {
-                messages.add(MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(ui)
-                        .build());
-            }
-
-            // 3) 执行一轮 LLM 调用 + 工具循环
-            try {
-                runOneLlmRound();
-            } catch (Exception e) {
-                System.err.printf("[team] %s LLM 调用异常：%s%n", name, e.getMessage());
-                break;
-            }
+            System.out.printf("\u001b[95m[team]\u001b[0m teammate %s 下线%n", name);
+        } finally {
+            com.hoppinzq.agent.tool.Tools.clearCurrentTeammateName();
         }
-        System.out.printf("\u001b[95m[team]\u001b[0m teammate %s 下线%n", name);
     }
 
     /** 一轮完整的 LLM + 工具循环，内部最多 10 次工具往返。 */
     private void runOneLlmRound() {
-        Message message;
+        LlmResponse response;
         try {
-            message = chatMessage();
+            response = chatMessage();
         } catch (Exception e) {
             System.err.printf("[team] %s 首次 LLM 调用失败：%s%n", name, e.getMessage());
             return;
         }
-        messages.add(message.toParam());
+        LlmMessage message = response.getMessage();
+        if (message == null) {
+            return;
+        }
+        messages.add(message);
 
         int toolRound = 0;
-        while (toolRound++ < 10) {
-            List<ContentBlockParam> toolResults = new ArrayList<>();
-            boolean hasToolUse = false;
+        while (toolRound++ < MAX_TOOL_ROUNDS) {
+            List<LlmMessage> toolResults = new ArrayList<>();
 
-            for (ContentBlock content : message.content()) {
-                if (content.isText()) {
-                    Optional<TextBlock> text = content.text();
-                    String result = text.map(TextBlock::text).orElse("");
-                    System.out.printf("\u001b[93m[%s]\u001b[0m %s%n", name, result);
-                } else if (content.isToolUse()) {
-                    hasToolUse = true;
-                    ToolUseBlock toolUse = content.asToolUse();
-                    System.out.printf("\u001b[96m[%s 工具]\u001b[0m %s(%s)%n", name, toolUse.name(), toolUse._input());
+            // 文本输出（DeepSeek 等后端返回 tool_calls 时文本常为 null）
+            String text = message.getText();
+            if (text != null && !text.isBlank()) {
+                System.out.printf("\u001b[93m[%s]\u001b[0m %s%n", name, text);
+            }
 
-                    String toolResult = null;
-                    Exception toolError = null;
-                    boolean found = false;
+            for (LlmMessage.ToolCall call : message.getToolCalls()) {
+                System.out.printf("\u001b[96m[%s 工具]\u001b[0m %s(%s)%n",
+                        name, call.getName(), call.getArgumentsJson());
+
+                String toolResult;
+                try {
+                    ToolDefinition matched = null;
                     for (ToolDefinition tool : teammateTools) {
-                        if (tool.getName().equals(toolUse.name())) {
-                            found = true;
-                            try {
-                                toolResult = invokeTeammateTool(tool, toolUse);
-                                System.out.printf("\u001b[92m[%s 结果]\u001b[0m %s%n", name, toolResult);
-                            } catch (Exception e) {
-                                toolError = e;
-                                System.err.printf("[team] %s 工具 %s 异常：%s%n", name, toolUse.name(), e.getMessage());
-                            }
+                        if (tool.getName().equals(call.getName())) {
+                            matched = tool;
                             break;
                         }
                     }
-                    if (!found) {
-                        toolError = new Exception("工具 " + toolUse.name() + " 不在 teammate 可用列表");
+                    if (matched == null) {
+                        throw new IllegalStateException("工具 " + call.getName() + " 不在 teammate 可用列表");
                     }
-                    if (toolError != null) {
-                        toolResults.add(ContentBlockParam.ofToolResult(
-                                ToolResultBlockParam.builder()
-                                        .toolUseId(toolUse.id())
-                                        .content(toolError.getMessage())
-                                        .isError(true)
-                                        .build()));
-                    } else {
-                        toolResults.add(ContentBlockParam.ofToolResult(
-                                ToolResultBlockParam.builder()
-                                        .toolUseId(toolUse.id())
-                                        .content(toolResult)
-                                        .isError(false)
-                                        .build()));
-                    }
+                    toolResult = invokeTeammateTool(matched, call.getArgumentsJson());
+                    System.out.printf("\u001b[92m[%s 结果]\u001b[0m %s%n", name, toolResult);
+                } catch (Exception e) {
+                    toolResult = "错误: " + e.getMessage();
+                    System.err.printf("[team] %s 工具 %s 异常：%s%n", name, call.getName(), e.getMessage());
                 }
+                toolResults.add(LlmMessage.tool(call.getId(), toolResult));
             }
-            if (!hasToolUse) break;
+            if (toolResults.isEmpty()) {
+                break;
+            }
 
-            MessageParam.Content content = MessageParam.Content.ofBlockParams(toolResults);
-            MessageParam toolResultMessage = MessageParam.builder()
-                    .role(MessageParam.Role.USER)
-                    .content(content)
-                    .build();
-            messages.add(toolResultMessage);
+            messages.addAll(toolResults);
             try {
-                message = chatMessage();
+                response = chatMessage();
             } catch (Exception e) {
                 System.err.printf("[team] %s 工具后 LLM 调用失败：%s%n", name, e.getMessage());
                 return;
             }
-            messages.add(message.toParam());
+            message = response.getMessage();
+            if (message == null) {
+                return;
+            }
+            messages.add(message);
         }
     }
 
-    private Message chatMessage() {
-        List<ToolUnion> anthropicTools = new ArrayList<>();
-        for (ToolDefinition tool : teammateTools) {
-            anthropicTools.add(ToolUnion.ofTool(
-                    Tool.builder()
-                            .name(tool.getName())
-                            .description(tool.getDescription())
-                            .inputSchema(tool.getInputSchema())
-                            .build()
-            ));
-        }
-        MessageCreateParams.Builder b = MessageCreateParams.builder()
+    private LlmResponse chatMessage() {
+        return provider.complete(LlmRequest.builder()
                 .model(model)
                 .messages(messages)
+                .tools(teammateTools)
                 .maxTokens(2048)
-                .temperature(0.5D);
-        if (!anthropicTools.isEmpty()) {
-            b.tools(anthropicTools);
-        }
-        b.system("你是 teammate " + name + "，角色：" + role
-                + "。你可以用 send_message 工具向 lead 发消息（to=lead），"
-                + "如果需要 lead 审批方案，type 用 plan_approval_request，并把 requestId/plan 放进 content JSON。"
-                + "收到 shutdown_request 时请立即退出。");
-        return client.messages().create(b.build());
+                .temperature(TEMPERATURE)
+                .systemPrompt("你是 teammate " + name + "，角色：" + role
+                        + "。你可以用 send_message 工具向 lead 发消息（to=lead），"
+                        + "如果需要 lead 审批方案，type 用 plan_approval_request，并把 requestId/plan 放进 content JSON。"
+                        + "收到 shutdown_request 时请立即退出。")
+                .build());
     }
 
-    private String invokeTeammateTool(ToolDefinition tool, ToolUseBlock toolUse) throws Exception {
-        JsonValue input = toolUse._input();
+    private String invokeTeammateTool(ToolDefinition tool, String argumentsJson) throws Exception {
+        JsonNode input = OBJECT_MAPPER.readTree(
+                argumentsJson == null || argumentsJson.isBlank() ? "{}" : argumentsJson);
         if (tool.getType() == null) {
-            Optional<Map<String, JsonValue>> object = input.asObject();
-            if (object.isPresent()) {
-                Map<String, Object> callTool = new HashMap<>();
-                callTool.put("input", object.get());
-                callTool.put("tool_name", tool.getName());
-                // teammate 自己的名字通过 ThreadLocal 传入
-                callTool.put("__from", name);
-                return tool.getFunction().apply(
-                        com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER.writeValueAsString(callTool));
+            if (!input.isObject()) {
+                throw new IllegalArgumentException("工具 " + tool.getName() + " 参数不是 JSON 对象");
             }
-            throw new IllegalArgumentException("工具 " + tool.getName() + " 参数转换失败");
+            ObjectNode root = OBJECT_MAPPER.createObjectNode();
+            root.set("input", input);
+            root.put("tool_name", tool.getName());
+            // teammate 自己的名字通过包装入参传给 Tools.sendMessage
+            root.put("__from", name);
+            return tool.getFunction().apply(root.toString());
         }
-        return tool.getFunction().apply(
-                java.util.Objects.requireNonNull(input.convert(tool.getType())).toString());
+        Object pojo = OBJECT_MAPPER.treeToValue(input, tool.getType());
+        return tool.getFunction().apply(OBJECT_MAPPER.writeValueAsString(pojo));
     }
 
     private static String extractRequestId(String content) {
         if (content == null || content.isBlank()) return null;
         try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> map = com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER.readValue(content, Map.class);
+            java.util.Map<String, Object> map = OBJECT_MAPPER.readValue(content, java.util.Map.class);
             Object v = map.get("requestId");
             return v == null ? null : v.toString();
         } catch (Exception e) {
