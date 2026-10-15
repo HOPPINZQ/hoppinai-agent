@@ -30,6 +30,8 @@
         <module>hoppinzq-module-agent-21-comprehensive</module>
         <module>hoppinzq-module-agent-22-multimodal</module>
         <module>hoppinzq-module-agent-23-sandbox</module>
+        <module>hoppinzq-module-agent-24-harness</module>
+        <module>hoppinzq-module-agent-25-goaloop</module>
         <module>hoppinzq-module-agent-web</module>
         <module>hoppinzq-module-agent-cli</module>
         <module>hoppinzq-module-agent-demo</module>

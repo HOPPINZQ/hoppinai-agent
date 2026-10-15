@@ -39,3 +39,5 @@ web/out/
 **/.claude/
 **/.transcripts/
 **/.transcripts/*.jsonl
+
+**/.sessions/
