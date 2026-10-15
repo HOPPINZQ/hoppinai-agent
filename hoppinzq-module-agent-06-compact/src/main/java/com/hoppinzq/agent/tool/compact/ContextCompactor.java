@@ -67,6 +67,62 @@ public class ContextCompactor {
         this(provider, model, null);
     }
 
+    // ============================== 编排入口 ==============================
+
+    /**
+     * 手动压缩钩子：compact 工具（静态定义，见 {@code Tools.compact}）通过它
+     * 触发当前 Agent 的手动压缩。Agent 启动时注册，避免工具层反向依赖 Agent 类。
+     */
+    public static Runnable manualCompactHook;
+
+    /**
+     * 每次调用 LLM 前的完整压缩管线（Agent 每轮只需调用这一个方法）。
+     *
+     * <p>执行顺序：budget → snip → micro → auto（cheap first, expensive last）：
+     * 前三层均为本地变换（0 API 调用），token 仍超阈值时才触发 LLM 摘要（1 API 调用）。
+     *
+     * @param messages 原始消息列表（不会被修改）
+     * @return 压缩后的消息列表；调用方应以返回值替换自身上下文
+     */
+    public List<LlmMessage> compactIfNeeded(List<LlmMessage> messages) {
+        List<LlmMessage> working = new ArrayList<>(messages);
+        working = toolResultBudget(working);
+        working = snipCompact(working);
+        working = microCompact(working);
+
+        if (countTokens(working) > TOKEN_THRESHOLD) {
+            System.out.println("[自动 LLM 摘要压缩已触发]");
+            working = autoCompact(working, "auto");
+        }
+        return working;
+    }
+
+    /**
+     * 生成当前上下文的 token 使用统计报告（/tokens 命令展示用）。
+     *
+     * @param messages 当前消息列表
+     * @return 多行报告文本（含结尾空行），直接打印即可
+     */
+    public String formatTokenStats(List<LlmMessage> messages) {
+        int currentTokens = countTokens(messages);
+        int threshold = TOKEN_THRESHOLD;
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n[90m========== 当前 Token 统计 ==========[0m\n");
+        sb.append("当前消息数: ").append(messages.size()).append('\n');
+        sb.append("估算 tokens: ").append(currentTokens).append('\n');
+        sb.append("压缩阈值: ").append(threshold).append('\n');
+        sb.append("使用率: ").append(String.format("%.1f%%", currentTokens * 100.0 / threshold)).append('\n');
+        if (currentTokens >= threshold) {
+            sb.append("[91m状态: 已超过阈值，建议执行压缩[0m\n");
+        } else if (currentTokens >= threshold * 0.8) {
+            sb.append("[93m状态: 接近阈值（80%），建议关注[0m\n");
+        } else {
+            sb.append("[92m状态: 正常[0m\n");
+        }
+        sb.append('\n');
+        return sb.toString();
+    }
+
     // ============================== 列表形态转换 ==============================
 
     private List<SessionMessage> toSessionMessages(List<LlmMessage> messages) {
@@ -548,12 +604,39 @@ public class ContextCompactor {
                     newMessages.add(msg);
                 }
             } else {
-                newMessages.add(msg);
+                newMessages.add(clearOldThinking(msg, currentResultIndex, thresholdIndex));
             }
         }
 
         return toLlmMessages(newMessages);
     }
+
+    /**
+     * 压缩窗口外的 assistant 原生思考块替换为占位符。
+     * <p>依据：DeepSeek 禁止回传 reasoning_content（恢复时本就被剥离）、Claude 只认最后一轮思考，
+     * 旧轮次思考留在内存只会虚增 token 估算，无任何上下文价值。
+     */
+    private SessionMessage clearOldThinking(SessionMessage msg, int currentResultIndex, int thresholdIndex) {
+        if (!"assistant".equals(msg.getRole()) || msg.getBlocks() == null
+                || currentResultIndex >= thresholdIndex) {
+            return msg;
+        }
+        boolean changed = false;
+        List<SessionBlock> newBlocks = new ArrayList<>();
+        for (SessionBlock block : msg.getBlocks()) {
+            if ("thinking".equals(block.getType()) && block.getText() != null && !block.getText().isBlank()) {
+                newBlocks.add(SessionBlock.builder().type("thinking").text("[已省略思考]").build());
+                changed = true;
+            } else {
+                newBlocks.add(block);
+            }
+        }
+        if (!changed) {
+            return msg;
+        }
+        return SessionMessage.builder().role("assistant").text(msg.getText()).blocks(newBlocks).build();
+    }
+
 
     /**
      * L4: 自动压缩 - 完整对话压缩

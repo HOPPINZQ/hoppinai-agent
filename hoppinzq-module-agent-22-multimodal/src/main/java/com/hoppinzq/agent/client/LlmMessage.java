@@ -39,6 +39,13 @@ public class LlmMessage {
     /** role=assistant 时的工具调用列表 */
     @Builder.Default
     private List<ToolCall> toolCalls = new ArrayList<>();
+    /**
+     * role=assistant 时的模型原生思考链（DeepSeek reasoning_content / Claude thinking）。
+     * <p>仅用于展示与审计：请求构建时天然不回传（OpenAI 协议请求模型无此字段），
+     * DeepSeek 官方也要求多轮对话必须剥离历史 reasoning_content，否则报 400。
+     */
+    @Builder.Default
+    private String reasoningContent = "";
     /** 多模态内容块（仅 user 消息使用；非空时优先于 text，由 Provider 映射为各自协议的图片/文本块） */
     private List<ContentPart> parts;
 
@@ -47,7 +54,13 @@ public class LlmMessage {
     }
 
     public static LlmMessage assistant(String text, List<ToolCall> toolCalls) {
-        return LlmMessage.builder().role(ROLE_ASSISTANT).text(text).toolCalls(toolCalls).build();
+        // toolCalls 为 null 时兜底为空列表：@Builder.Default 只对 builder 未显式设值时生效，
+        // 显式传 null 会绕过默认值，导致下游遍历 NPE
+        return LlmMessage.builder()
+                .role(ROLE_ASSISTANT)
+                .text(text)
+                .toolCalls(toolCalls == null ? new ArrayList<>() : toolCalls)
+                .build();
     }
 
     public static LlmMessage tool(String toolCallId, String content) {

@@ -1,6 +1,9 @@
 package com.hoppinzq.agent.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoppinzq.agent.tool.schema.*;
+import com.hoppinzq.agent.tool.search.JavaContentSearcher;
+import com.hoppinzq.agent.tool.search.RipgrepLocator;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -568,9 +571,19 @@ public class Tools {
      * - 失败时返回错误信息
      * - 无匹配时返回"没有找到匹配的内容"
      */
+    /**
+     * 在指定路径下搜索代码内容。
+     * <p>引擎选择：ripgrep（自动定位：内置二进制 → 环境变量 RG_PATH → PATH）优先，
+     * 不可用时自动降级为纯 Java 实现，输出格式统一为 {@code 路径:行号:内容}。
+     * 支持正则表达式匹配、大小写敏感控制、文件类型过滤。
+     *
+     * @param input JSON格式的输入参数
+     * @return 搜索结果字符串（最多 50 行）；失败时返回错误信息（含 stderr 片段）
+     */
     public static String searchContent(String input) {
         try {
-            ContentSearchInput searchInput = OBJECT_MAPPER.readValue(input, ContentSearchInput.class);
+            ObjectMapper mapper = new ObjectMapper();
+            ContentSearchInput searchInput = mapper.readValue(input, ContentSearchInput.class);
 
             String pattern = searchInput.getPattern();
             String path = searchInput.getPath() != null ? searchInput.getPath() : ".";
@@ -578,89 +591,109 @@ public class Tools {
             boolean caseSensitive = searchInput.getCaseSensitive() != null ? searchInput.getCaseSensitive() : false;
 
             if (pattern == null || pattern.isEmpty()) {
-                if (LOG_ENABLE) {
-                    log.error("pattern不能为空");
-                }
                 return "错误: pattern不能为空";
             }
 
-            if (LOG_ENABLE) {
-                log.info("搜索内容: {}", pattern);
-            }
+            Path rg = RipgrepLocator.locate();
+            String result = rg != null
+                    ? ripgrepSearch(rg, pattern, path, fileType, caseSensitive)
+                    : JavaContentSearcher.search(pattern, path, fileType, caseSensitive);
 
-            // 构建 ripgrep 命令
-            List<String> args = new ArrayList<>();
-            args.add(RG_PATH);
-//            args.add("rg");
-            args.add("--line-number");
-            args.add("--with-filename");
-            args.add("--color=never");
-
-            // 是否忽略大小写
-            if (!caseSensitive) {
-                args.add("--ignore-case");
-            }
-
-            // 文件类型限制
-            if (fileType != null && !fileType.isEmpty()) {
-                args.add("--type");
-                args.add(fileType);
-            }
-
-            // 搜索内容，支持正则表达式
-            args.add(pattern);
-
-            // 搜索的文件路径
-            args.add(path);
-
-            if (LOG_ENABLE) {
-                // rg --line-number --with-filename --color=never --ignore-case What D:\myProject\github\hoppin-ai\hoppinzq-module-openai
-                log.info("执行 ripgrep 的参数: {}", args);
-            }
-
-            ProcessBuilder pb = new ProcessBuilder(args);
-            Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder output = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
-            }
-            int exitCode = process.waitFor();
-
-            if (exitCode == 1) {
-                if (LOG_ENABLE) {
-                    log.info("没有找到匹配的内容: {}", pattern);
-                }
-                return "没有找到匹配的内容";
-            } else if (exitCode != 0) {
-                if (LOG_ENABLE) {
-                    log.error("Ripgrep 命令执行失败: {}", exitCode);
-                }
-                return "错误: 搜索失败，尝试一下绝对路径";
-            }
-
-            String result = output.toString().trim();
             String[] lines = result.split("\n");
-
-            if (LOG_ENABLE) {
-                log.info("找到 {} 处匹配的结果: {}", lines.length, pattern);
-            }
-
-            // 限制输出以防止响应过多
-            if (lines.length > 50) {
+            if (lines.length > 50 && !result.contains("仅展示前")) {
                 result = String.join("\n", Arrays.copyOf(lines, 50)) +
                         String.format("\n... (展示前 50 个匹配的内容 %d)", lines.length);
             }
-
             return result;
         } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("搜索内容错误: {}", e.getMessage());
-            }
+            log.error("搜索内容错误", e);
             return "搜索内容错误: " + e.getMessage();
         }
     }
+
+    /**
+     * ripgrep 引擎：进程调用加固版（stderr 独立消费防挂死 / 30 秒超时 / 64KB 边读边截断）。
+     */
+    private static String ripgrepSearch(Path rg, String pattern, String path, String fileType, boolean caseSensitive) {
+        List<String> args = new ArrayList<>();
+        args.add(rg.toString());
+        args.add("--line-number");
+        args.add("--with-filename");
+        args.add("--color=never");
+        if (!caseSensitive) {
+            args.add("--ignore-case");
+        }
+        if (fileType != null && !fileType.isEmpty()) {
+            args.add("--type");
+            args.add(fileType);
+        }
+        args.add(pattern);
+        args.add(path);
+
+        StringBuilder stdoutBuf = new StringBuilder();
+        StringBuilder stderrBuf = new StringBuilder();
+        final int MAX_RESULT_CHARS = 64 * 1024;
+        final int MAX_STDERR_CHARS = 2000;
+
+        try {
+            ProcessBuilder pb = new ProcessBuilder(args);
+            Process process = pb.start();
+
+            Thread errThread = new Thread(() -> {
+                try (BufferedReader errReader = new BufferedReader(
+                        new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+                    char[] buf = new char[1024];
+                    int n;
+                    while ((n = errReader.read(buf)) != -1 && stderrBuf.length() < MAX_STDERR_CHARS) {
+                        stderrBuf.append(buf, 0, n);
+                    }
+                } catch (Exception ignored) {
+                }
+            }, "rg-stderr-reader");
+            errThread.setDaemon(true);
+            errThread.start();
+
+            boolean truncated = false;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                char[] buf = new char[4096];
+                int n;
+                while ((n = reader.read(buf)) != -1) {
+                    stdoutBuf.append(buf, 0, n);
+                    if (stdoutBuf.length() >= MAX_RESULT_CHARS) {
+                        truncated = true;
+                        break;
+                    }
+                }
+            }
+
+            if (truncated) {
+                process.destroyForcibly();
+                process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+                return stdoutBuf.toString().trim() + "\n... (结果过大已截断)";
+            }
+
+            if (!process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                return "错误: 搜索超时（30秒），请尝试缩小搜索路径范围或收紧匹配条件";
+            }
+
+            errThread.join(1000);
+            int exitCode = process.exitValue();
+            if (exitCode == 1) {
+                return "没有找到匹配的内容";
+            }
+            if (exitCode != 0) {
+                String stderrSnippet = stderrBuf.length() > 500 ? stderrBuf.substring(0, 500) : stderrBuf.toString();
+                return "错误: 搜索失败 (exit code=" + exitCode + ") " + stderrSnippet.trim();
+            }
+            return stdoutBuf.toString().trim();
+        } catch (Exception e) {
+            // rg 异常时兜底走纯 Java 实现，保证工具可用
+            return JavaContentSearcher.search(pattern, path, fileType, caseSensitive);
+        }
+    }
+
 
     /**
      * 统计子字符串在主字符串中出现的次数

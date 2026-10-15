@@ -33,9 +33,6 @@ public class AIConstants {
     //是否开启打印日志，MCP stdio不允许打印日志，如果你拿去改造为MCP，请注意！
     public static final Boolean LOG_ENABLE = false;
 
-    // ripgrep路径，如果你配置了系统环境变量，将其修改为rg。一般这种集成到应用里的，可以不配置到系统环境变量，直接全路径即可
-    // 你可以使用指令`where rg.exe`查看你的rg路径
-    public static final String RG_PATH = "C:\\ProgramData\\chocolatey\\bin\\rg.exe";
 
     //是否开启ReAct模式
     public static final Boolean REACT_ENABLE = true;

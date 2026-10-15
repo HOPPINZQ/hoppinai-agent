@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent06 · 上下文压缩智能体</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet" />
+    <style>
+        /* ===== Reset ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f5f0ff 0%, #e8f0fe 40%, #fce4ec 70%, #fff3e0 100%);
+            color: #1a1a2e;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* ===== Animated background blobs ===== */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+            animation: blobFloat 20s ease-in-out infinite alternate;
+        }
+
+        .blob-1 {
+            width: 500px;
+            height: 500px;
+            background: linear-gradient(135deg, #a78bfa, #818cf8);
+            top: -150px;
+            left: -100px;
+        }
+
+        .blob-2 {
+            width: 400px;
+            height: 400px;
+            background: linear-gradient(135deg, #f472b6, #fb923c);
+            bottom: -100px;
+            right: -80px;
+            animation-delay: -7s;
+        }
+
+        .blob-3 {
+            width: 350px;
+            height: 350px;
+            background: linear-gradient(135deg, #34d399, #38bdf8);
+            top: 40%;
+            right: -50px;
+            animation-delay: -14s;
+        }
+
+        @keyframes blobFloat {
+            0% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -40px) scale(1.1); }
+            66% { transform: translate(-20px, 30px) scale(0.9); }
+            100% { transform: translate(40px, -20px) scale(1.05); }
+        }
+
+        /* ===== Layout ===== */
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px 80px;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            text-align: center;
+            padding: 60px 0 20px;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 100px;
+            padding: 6px 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #7c3aed;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(124, 58, 237, 0.08);
+        }
+
+        .header-badge .live-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #7c3aed;
+            display: inline-block;
+            animation: livePulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.6); }
+        }
+
+        .header h1 {
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 800;
+            letter-spacing: -2px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 30%, #ec4899 70%, #f59e0b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.1;
+            margin-bottom: 16px;
+        }
+
+        .header .subtitle {
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            color: #4b5563;
+            max-width: 680px;
+            margin: 0 auto 32px;
+            font-weight: 400;
+            line-height: 1.8;
+        }
+
+        .header .subtitle strong {
+            color: #7c3aed;
+            font-weight: 600;
+        }
+
+        /* ===== Hero Stats ===== */
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .hero-stats .stat-chip {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 100px;
+            padding: 8px 20px;
+            font-size: 14px;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        }
+
+        .hero-stats .stat-chip .num {
+            font-weight: 700;
+            color: #7c3aed;
+            font-size: 16px;
+        }
+
+        /* ===== Glass Card ===== */
+        .glass {
+            background: rgba(255, 255, 255, 0.55);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
+            padding: 32px;
+            transition: transform 0.2s, box-shadow 0.3s;
+        }
+
+        .glass:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.06);
+        }
+
+        .glass-sm {
+            padding: 20px 24px;
+        }
+
+        /* ===== Section ===== */
+        .section {
+            margin-bottom: 48px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .section-header .icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            flex-shrink: 0;
+        }
+
+        .section-header h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .section-header .tagline {
+            font-size: 0.88rem;
+            color: #6b7280;
+            font-weight: 400;
+            margin-left: auto;
+        }
+
+        /* ===== Grids ===== */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        /* ===== Compact Card ===== */
+        .compact-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .compact-card:hover {
+            background: rgba(255, 255, 255, 0.7);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+        }
+
+        .compact-card .card-icon {
+            font-size: 1.6rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .compact-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .compact-card p {
+            font-size: 0.82rem;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .compact-card .meta {
+            font-size: 0.72rem;
+            color: #9ca3af;
+            margin-top: 8px;
+            font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.4);
+            padding: 2px 8px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+
+        /* ===== Compression Layers (Timeline style) ===== */
+        .layers-timeline {
+            position: relative;
+            padding-left: 40px;
+        }
+
+        .layers-timeline::before {
+            content: '';
+            position: absolute;
+            left: 16px;
+            top: 8px;
+            bottom: 8px;
+            width: 2px;
+            background: linear-gradient(180deg, #a78bfa, #f472b6, #34d399, #fbbf24);
+            border-radius: 2px;
+        }
+
+        .layer-item {
+            position: relative;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 20px 24px;
+            transition: all 0.2s;
+        }
+
+        .layer-item:hover {
+            background: rgba(255, 255, 255, 0.7);
+            transform: translateX(4px);
+        }
+
+        .layer-item::before {
+            content: attr(data-level);
+            position: absolute;
+            left: -34px;
+            top: 18px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+            color: #fff;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .layer-item[data-level="L1"]::before { background: #a78bfa; }
+        .layer-item[data-level="L2"]::before { background: #f472b6; }
+        .layer-item[data-level="L3"]::before { background: #34d399; }
+        .layer-item[data-level="L4"]::before { background: #fbbf24; }
+
+        .layer-item .layer-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .layer-item .layer-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+
+        .layer-item .layer-cost {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 12px;
+            border-radius: 100px;
+        }
+
+        .cost-free {
+            background: rgba(52, 211, 153, 0.15);
+            color: #059669;
+        }
+
+        .cost-paid {
+            background: rgba(251, 191, 36, 0.15);
+            color: #d97706;
+        }
+
+        .layer-item p {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .layer-item .layer-detail {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: #9ca3af;
+            background: rgba(255, 255, 255, 0.4);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        /* ===== Tool Grid ===== */
+        .tool-item {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 14px;
+            padding: 16px 18px;
+            transition: all 0.2s;
+        }
+
+        .tool-item:hover {
+            background: rgba(255, 255, 255, 0.65);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .tool-item .name {
+            font-weight: 600;
+            font-size: 0.88rem;
+            color: #7c3aed;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .tool-item .desc {
+            font-size: 0.78rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        /* ===== Flow ===== */
+        .flow-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            flex-wrap: wrap;
+            padding: 24px 8px;
+        }
+
+        .flow-step {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 0.8rem;
+            color: #374151;
+            text-align: center;
+            min-width: 70px;
+            font-weight: 500;
+        }
+
+        .flow-step.highlight {
+            background: rgba(124, 58, 237, 0.1);
+            border-color: rgba(124, 58, 237, 0.2);
+            color: #7c3aed;
+        }
+
+        .flow-arrow {
+            font-size: 1rem;
+            color: #c4b5fd;
+        }
+
+        /* ===== Code ===== */
+        .code-box {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 14px;
+            padding: 16px 20px;
+            font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+            line-height: 1.7;
+            overflow-x: auto;
+            color: #374151;
+        }
+
+        .code-box .cm { color: #9ca3af; }  /* comment */
+        .code-box .kw { color: #7c3aed; font-weight: 600; }  /* keyword */
+        .code-box .st { color: #0891b2; }  /* string */
+        .code-box .num { color: #d97706; } /* number */
+
+        /* ===== Divider ===== */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(124, 58, 237, 0.15), transparent);
+            margin: 40px 0;
+        }
+
+        /* ===== Quote ===== */
+        .quote-box {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            padding: 20px 24px;
+            font-size: 0.9rem;
+            color: #4b5563;
+            line-height: 1.7;
+            position: relative;
+            padding-left: 60px;
+        }
+
+        .quote-box::before {
+            content: '"';
+            position: absolute;
+            left: 20px;
+            top: 12px;
+            font-size: 2.4rem;
+            color: #c4b5fd;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .quote-box strong {
+            color: #7c3aed;
+        }
+
+        /* ===== Tags ===== */
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .tag {
+            background: rgba(255, 255, 255, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 5px 14px;
+            font-size: 0.8rem;
+            color: #4b5563;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tag:hover {
+            background: rgba(255, 255, 255, 0.65);
+        }
+
+        /* ===== Footer ===== */
+        .footer {
+            text-align: center;
+            padding: 32px 0;
+            color: #9ca3af;
+            font-size: 0.8rem;
+        }
+
+        .footer span {
+            color: #7c3aed;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 640px) {
+            .page { padding: 24px 16px 60px; }
+            .header { padding: 40px 0 12px; }
+            .glass { padding: 20px; }
+            .layers-timeline { padding-left: 32px; }
+            .layer-item { padding: 16px 16px; }
+            .layer-item::before { left: -26px; width: 22px; height: 22px; font-size: 10px; top: 16px; }
+            .quote-box { padding: 16px 16px 16px 44px; }
+            .quote-box::before { left: 14px; font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== Decorative Blobs ===== -->
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<!-- ===== Page ===== -->
+<div class="page">
+
+    <!-- ====== Header ====== -->
+    <header class="header">
+        <div class="header-badge">
+            <span class="live-dot"></span>
+            HoppinAI · Agent 系列 #06
+        </div>
+        <h1>Agent06</h1>
+        <p class="subtitle">
+            一个会「<strong>压缩</strong>」上下文、会「<strong>调用</strong>」工具、会「<strong>管理</strong>」会话的智能体。<br>
+            四层渐进式压缩，让大模型在超长对话中保持清醒头脑 🧠
+        </p>
+        <div class="hero-stats">
+            <span class="stat-chip">🔧 <span class="num">10</span> 个内置工具</span>
+            <span class="stat-chip">🗜️ <span class="num">4</span> 层渐进压缩</span>
+            <span class="stat-chip">💰 <span class="num">3</span> 层免费</span>
+            <span class="stat-chip">🎮 <span class="num">6</span> 个管理命令</span>
+            <span class="stat-chip">📁 <span class="num">29</span> 个源文件</span>
+        </div>
+    </header>
+
+    <!-- ====== 项目简介 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🧠</span>
+            <h2>项目简介</h2>
+            <span class="tagline">Project Overview</span>
+        </div>
+        <div class="glass">
+            <p style="font-size: 0.95rem; color: #4b5563; line-height: 1.8; margin-bottom: 16px;">
+                Agent06 是 <strong>HoppinAI Agent 系列</strong> 第六号模块，专注解决 LLM 长对话中的
+                <strong>上下文窗口溢出</strong> 问题。基于 Java 17 + Anthropic 消息协议构建，
+                核心是一套精巧的 <strong>四层渐进式压缩策略</strong>（L1→L4），层层递进、按需触发。
+            </p>
+            <div class="quote-box">
+                核心设计哲学：<strong>"Cheap First, Expensive Last"</strong> —— 先用免费手段压缩，
+                万不得已才调用 LLM 生成摘要。在保证对话质量的前提下，最大限度地降低 Token 消耗。
+            </div>
+            <div class="grid-4" style="margin-top: 20px;">
+                <div class="compact-card" style="text-align: center; padding: 16px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">L1→L4</div>
+                    <p style="font-size: 0.78rem;">渐进压缩层次</p>
+                </div>
+                <div class="compact-card" style="text-align: center; padding: 16px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">💰</div>
+                    <p style="font-size: 0.78rem;">前三层完全免费</p>
+                </div>
+                <div class="compact-card" style="text-align: center; padding: 16px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">🤖</div>
+                    <p style="font-size: 0.78rem;">DeepSeek 驱动</p>
+                </div>
+                <div class="compact-card" style="text-align: center; padding: 16px;">
+                    <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">📦</div>
+                    <p style="font-size: 0.78rem;">Maven 单模块</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 工作流程 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🔄</span>
+            <h2>一次消息循环的完整旅程</h2>
+            <span class="tagline">Message Loop</span>
+        </div>
+        <div class="glass">
+            <div class="flow-row">
+                <div class="flow-step">💬 用户输入</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step highlight">📏 上下文检测</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step highlight">🗜️ 四层压缩</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">🧠 LLM 推理</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step highlight">🔧 工具路由</div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">📝 结果处理</div>
+                <span class="flow-arrow">↻</span>
+                <div class="flow-step">🔄 循环继续</div>
+            </div>
+            <div class="grid-3" style="margin-top: 16px;">
+                <div class="compact-card">
+                    <span class="card-icon">📏</span>
+                    <h3>上下文检测</h3>
+                    <p>每次循环前自动计算 Token，与阈值比较决定是否压缩。</p>
+                </div>
+                <div class="compact-card">
+                    <span class="card-icon">🗜️</span>
+                    <h3>压缩决策</h3>
+                    <p>按 L1→L4 顺序执行，满足条件即停，避免过度压缩。</p>
+                </div>
+                <div class="compact-card">
+                    <span class="card-icon">🧠</span>
+                    <h3>LLM 推理</h3>
+                    <p>将消息发给 DeepSeek 模型，获取回复或工具调用指令。</p>
+                </div>
+                <div class="compact-card">
+                    <span class="card-icon">🔧</span>
+                    <h3>工具执行</h3>
+                    <p>根据模型返回的调用请求，执行对应工具并收集结果。</p>
+                </div>
+                <div class="compact-card">
+                    <span class="card-icon">📝</span>
+                    <h3>结果反馈</h3>
+                    <p>将工具结果返回模型，继续推理直到给出最终回复。</p>
+                </div>
+                <div class="compact-card">
+                    <span class="card-icon">💾</span>
+                    <h3>状态同步</h3>
+                    <p>更新会话状态、Token 统计，记录压缩信息到 Transcript。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 四层压缩（时间线） ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🗜️</span>
+            <h2>四层渐进式压缩</h2>
+            <span class="tagline">Core Innovation</span>
+        </div>
+
+        <div class="layers-timeline">
+            <!-- L1 -->
+            <div class="layer-item" data-level="L1">
+                <div class="layer-top">
+                    <span class="layer-name">✂️ snipCompact · 中间裁剪</span>
+                    <span class="layer-cost cost-free">免费</span>
+                </div>
+                <p>裁剪中间不重要的消息，只保留头部（系统提示）和尾部（最近交互）。</p>
+                <div class="layer-detail">策略：保留 System + 最近的 User/Assistant 交互，删除中间冗余轮次。snipRatio 默认 0.6。</div>
+            </div>
+
+            <!-- L2 -->
+            <div class="layer-item" data-level="L2">
+                <div class="layer-top">
+                    <span class="layer-name">🔇 microCompact · 工具结果精简</span>
+                    <span class="layer-cost cost-free">免费</span>
+                </div>
+                <p>将旧的工具执行结果替换为精简的占位符标记，大幅减少文本量。</p>
+                <div class="layer-detail">策略：冗长输出替换为 <code>[已执行: 工具名]</code>。保留最后 2 条原始结果。</div>
+            </div>
+
+            <!-- L3 -->
+            <div class="layer-item" data-level="L3">
+                <div class="layer-top">
+                    <span class="layer-name">💾 toolResultBudget · 超大结果转磁盘</span>
+                    <span class="layer-cost cost-free">免费</span>
+                </div>
+                <p>超大工具结果写入本地磁盘文件，仅保留文件引用在上下文中。</p>
+                <div class="layer-detail">策略：超过 2000 token 的结果写入 <code>compact_tool_results/</code> 目录。</div>
+            </div>
+
+            <!-- L4 -->
+            <div class="layer-item" data-level="L4">
+                <div class="layer-top">
+                    <span class="layer-name">🤖 autoCompact · LLM 智能摘要</span>
+                    <span class="layer-cost cost-paid">1 次调用</span>
+                </div>
+                <p>调用 LLM 自动生成对话摘要，替换历史对话内容。最后一道防线。</p>
+                <div class="layer-detail">策略：用 <code>&lt;compacted&gt;&lt;/compacted&gt;</code> 标签生成结构化摘要，压缩率极高。</div>
+            </div>
+        </div>
+
+        <div class="quote-box" style="margin-top: 16px;">
+            压缩触发机制：每次消息循环前自动检测上下文长度，按超出程度决定执行哪一层。
+            支持 <code>/compact</code> 命令或 <code>compact</code> 工具手动触发。
+            所有压缩记录存储在 <code>TranscriptRecord</code> 中，可通过 <code>/transcripts</code> 查看。
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 10 个工具 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🔧</span>
+            <h2>10 个内置工具</h2>
+            <span class="tagline">Tools</span>
+        </div>
+        <div class="glass">
+            <div class="grid-3">
+                <div class="tool-item"><span class="name">bash</span><div class="desc">执行 Shell / CMD / PowerShell 命令</div></div>
+                <div class="tool-item"><span class="name">read_file</span><div class="desc">读取文本文件内容</div></div>
+                <div class="tool-item"><span class="name">write_file</span><div class="desc">写入内容到文件（自动创建）</div></div>
+                <div class="tool-item"><span class="name">edit_file</span><div class="desc">搜索替换模式编辑文件</div></div>
+                <div class="tool-item"><span class="name">glob</span><div class="desc">通配符匹配查找文件/目录</div></div>
+                <div class="tool-item"><span class="name">content_search</span><div class="desc">基于 ripgrep 的文本/代码搜索</div></div>
+                <div class="tool-item"><span class="name">sub_agent</span><div class="desc">委托子任务给子智能体</div></div>
+                <div class="tool-item"><span class="name">todo</span><div class="desc">待办事项管理（增/改/完成）</div></div>
+                <div class="tool-item"><span class="name">load_skill</span><div class="desc">加载专业技能（code-review/git/test）</div></div>
+                <div class="tool-item"><span class="name">compact</span><div class="desc">⭐ 手动触发上下文压缩</div></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 架构 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🏗️</span>
+            <h2>核心架构</h2>
+            <span class="tagline">Architecture</span>
+        </div>
+        <div class="grid-2">
+            <div class="glass">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">📦 模块组成</h3>
+                <div class="code-box">
+                    <span class="cm">src/main/java/com/hoppinzq/agent/</span>
+                    ├── <span class="kw">Agent06.java</span>          <span class="cm">// 主类</span>
+                    ├── <span class="kw">base/</span>
+                    │   ├── ZQAgent.java     <span class="cm">// 抽象基类</span>
+                    │   └── SubAgent.java    <span class="cm">// 子智能体</span>
+                    ├── <span class="kw">session/</span>
+                    │   ├── SessionManager.java
+                    │   ├── SessionData.java
+                    │   ├── SessionBlock.java
+                    │   ├── MessageConverter.java
+                    │   ├── SessionStore.java
+                    │   ├── TokenUsage.java
+                    │   └── TranscriptRecord.java
+                    ├── <span class="kw">tool/</span>
+                    │   ├── ToolDefinition.java
+                    │   ├── Tools.java
+                    │   ├── <span class="kw">compact/</span>
+                    │   │   └── ContextCompactor.java  <span class="cm">// ⭐ 核心</span>
+                    │   ├── <span class="kw">manager/</span>
+                    │   │   └── TodoManager.java
+                    │   ├── <span class="kw">schema/</span>
+                    │   │   └── (10个工具输入模型)
+                    │   └── <span class="kw">skill/</span>
+                    │       └── SkillLoader.java
+                    ├── <span class="kw">command/</span>
+                    │   └── AgentCommandHandler.java
+                    └── <span class="kw">constant/</span>
+                        └── AIConstants.java
+                </div>
+            </div>
+            <div class="glass">
+                <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">🔗 架构流程</h3>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="background: rgba(255,255,255,0.4); border-radius: 10px; padding: 10px 14px; font-size: 0.85rem;">
+                        <span style="font-weight: 600; color: #7c3aed;">Agent06</span> — 主调度入口
+                    </div>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; padding-left: 10px;">
+                        <span style="background: rgba(124,58,237,0.08); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; border: 1px solid rgba(124,58,237,0.1);">SessionManager<br><small>消息管理</small></span>
+                        <span style="background: rgba(124,58,237,0.08); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; border: 1px solid rgba(124,58,237,0.1);">ContextCompactor<br><small>四层压缩</small></span>
+                        <span style="background: rgba(124,58,237,0.08); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; border: 1px solid rgba(124,58,237,0.1);">ToolDefinition<br><small>10 工具定义</small></span>
+                        <span style="background: rgba(124,58,237,0.08); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; border: 1px solid rgba(124,58,237,0.1);">AgentCommandHandler<br><small>6 命令处理</small></span>
+                        <span style="background: rgba(124,58,237,0.08); border-radius: 8px; padding: 6px 12px; font-size: 0.78rem; border: 1px solid rgba(124,58,237,0.1);">SessionStore<br><small>持久化</small></span>
+                    </div>
+                    <div style="margin-top: 4px; font-size: 0.78rem; color: #9ca3af; padding-left: 10px;">
+                        Agent06 继承自 ZQAgent，通过 SessionManager 管理对话，<br>
+                        ContextCompactor 执行压缩，Tools 提供工具执行能力。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 会话管理 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">💬</span>
+            <h2>会话管理组件</h2>
+            <span class="tagline">Session Components</span>
+        </div>
+        <div class="grid-3">
+            <div class="compact-card">
+                <span class="card-icon">📦</span>
+                <h3>SessionBlock</h3>
+                <p>消息块，将对话按逻辑分组管理，是压缩的最小单元。</p>
+                <span class="meta">session/SessionBlock.java</span>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🔄</span>
+                <h3>MessageConverter</h3>
+                <p>内部消息 ↔ Anthropic 协议格式转换，支持 4 种角色。</p>
+                <span class="meta">session/MessageConverter.java</span>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">💾</span>
+                <h3>SessionStore</h3>
+                <p>持久化存储，支持对话保存和重启恢复。</p>
+                <span class="meta">session/SessionStore.java</span>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📊</span>
+                <h3>TokenUsage</h3>
+                <p>实时 Token 消耗追踪，为压缩决策提供数据支撑。</p>
+                <span class="meta">session/TokenUsage.java</span>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📜</span>
+                <h3>TranscriptRecord</h3>
+                <p>压缩历史记录，记录时间/层级/压缩前后 Token 量。</p>
+                <span class="meta">session/TranscriptRecord.java</span>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📁</span>
+                <h3>SessionData</h3>
+                <p>核心数据结构，管理消息块增删改查和压缩重组。</p>
+                <span class="meta">session/SessionData.java</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 6 个命令 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🎮</span>
+            <h2>6 个管理命令</h2>
+            <span class="tagline">Commands</span>
+        </div>
+        <div class="grid-2">
+            <div class="compact-card">
+                <span class="card-icon">📊</span>
+                <h3>/stats</h3>
+                <p>查看当前对话统计：消息数量、Token 使用量、压缩次数等。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📈</span>
+                <h3>/usage</h3>
+                <p>详细使用情况报告：API 调用次数和 Token 消耗明细。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🧰</span>
+                <h3>/skills</h3>
+                <p>列出当前已加载的所有专业技能及其状态。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🔢</span>
+                <h3>/tokens</h3>
+                <p>实时 Token 统计：输入/输出/总消耗。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📋</span>
+                <h3>/transcripts</h3>
+                <p>查看所有历史压缩记录的具体情况。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🚪</span>
+                <h3>/exit</h3>
+                <p>安全退出当前会话，自动保存状态。</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 技术栈 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">⚙️</span>
+            <h2>技术栈</h2>
+            <span class="tagline">Tech Stack</span>
+        </div>
+        <div class="glass">
+            <div class="tags">
+                <span class="tag">☕ Java 17</span>
+                <span class="tag">📦 Maven</span>
+                <span class="tag">🤖 Anthropic Messages API</span>
+                <span class="tag">🧠 DeepSeek 模型</span>
+                <span class="tag">📄 Jackson JSON</span>
+                <span class="tag">🌐 OkHttp</span>
+                <span class="tag">🔍 ripgrep</span>
+                <span class="tag">🖥️ Shell / CMD / PowerShell</span>
+            </div>
+            <div class="code-box" style="margin-top: 16px;">
+                <span class="cm">&lt;!-- pom.xml --&gt;</span>
+                &lt;parent&gt;
+                    &lt;groupId&gt;com.hoppinzq&lt;/groupId&gt;
+                    &lt;artifactId&gt;hoppinzq-agent&lt;/artifactId&gt;
+                    &lt;version&gt;1.0-SNAPSHOT&lt;/version&gt;
+                &lt;/parent&gt;
+                &lt;artifactId&gt;<span class="st">hoppinzq-module-agent-06-compact</span>&lt;/artifactId&gt;
+                &lt;properties&gt;
+                    &lt;maven.compiler.source&gt;<span class="num">17</span>&lt;/maven.compiler.source&gt;
+                    &lt;maven.compiler.target&gt;<span class="num">17</span>&lt;/maven.compiler.target&gt;
+                &lt;/properties&gt;
+            </div>
+        </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ====== 总结 ====== -->
+    <section class="section">
+        <div class="section-header">
+            <span class="icon">🎯</span>
+            <h2>六大优势</h2>
+            <span class="tagline">Why Agent06?</span>
+        </div>
+        <div class="grid-2">
+            <div class="compact-card">
+                <span class="card-icon">💰</span>
+                <h3>降低成本</h3>
+                <p>三层免费压缩策略，大幅减少 LLM 调用和 Token 消耗。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📏</span>
+                <h3>支持超长对话</h3>
+                <p>四层渐进式压缩确保对话可持续数千轮而不溢出。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🧠</span>
+                <h3>智能决策</h3>
+                <p>根据超出程度自动选择最优策略，平衡信息完整性与 Token 节省。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">📦</span>
+                <h3>开箱即用</h3>
+                <p>10 工具 + 6 命令 + 3 技能，覆盖编码/调试/搜索/管理全场景。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">👁️</span>
+                <h3>可观测性</h3>
+                <p>完整的统计、记录和追踪机制，每一步压缩都有据可查。</p>
+            </div>
+            <div class="compact-card">
+                <span class="card-icon">🏗️</span>
+                <h3>架构优雅</h3>
+                <p>Java 17 + Maven 模块化设计，面向接口，易于扩展集成。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- ====== Footer ====== -->
+    <footer class="footer">
+        <p>Agent06 · 上下文压缩智能体 · <span>HoppinAI</span> Agent Series</p>
+        <p style="margin-top: 4px; font-size: 0.75rem;">基于 Java 17 + Anthropic Messages API 构建 · Made with ❤️</p>
+    </footer>
+
+</div>
+
+</body>
+</html>

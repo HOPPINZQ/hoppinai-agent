@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoppinAI Agent 04 - 主智能体+子智能体模块</title>
+    <style>
+        /* ===== CSS Reset & 基础设置 ===== */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0b0e1a;
+            --bg-secondary: #111628;
+            --bg-card: #161d35;
+            --bg-card-hover: #1c2550;
+            --border-color: #2a3560;
+            --border-glow: #4f7aff;
+            --text-primary: #e8edff;
+            --text-secondary: #9aa8d4;
+            --text-muted: #6a7ab5;
+            --accent-blue: #4f7aff;
+            --accent-cyan: #00d4ff;
+            --accent-purple: #8b5cf6;
+            --accent-green: #34d399;
+            --accent-orange: #fb923c;
+            --accent-pink: #f472b6;
+            --accent-red: #ef4444;
+            --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --radius-sm: 8px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+                'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.7;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ===== 背景粒子效果 ===== */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background:
+                radial-gradient(ellipse at 20% 50%, rgba(79, 122, 255, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(0, 212, 255, 0.04) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ===== 滚动条 ===== */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--accent-blue);
+        }
+
+        /* ===== 容器 ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== 导航栏 ===== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(11, 14, 26, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(42, 53, 96, 0.4);
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .navbar .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .navbar-brand .logo-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .navbar-links {
+            display: flex;
+            gap: 8px;
+            list-style: none;
+        }
+
+        .navbar-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 6px 16px;
+            border-radius: 20px;
+            transition: var(--transition);
+        }
+
+        .navbar-links a:hover {
+            color: var(--text-primary);
+            background: rgba(79, 122, 255, 0.1);
+        }
+
+        /* ===== Hero 区域 ===== */
+        .hero {
+            padding: 140px 0 80px;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(79, 122, 255, 0.12);
+            border: 1px solid rgba(79, 122, 255, 0.25);
+            border-radius: 20px;
+            padding: 6px 18px;
+            font-size: 13px;
+            color: var(--accent-cyan);
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+        }
+
+        .hero-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-cyan);
+            border-radius: 50%;
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(0.8);
+            }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 6vw, 4.2rem);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #e8edff 0%, #4f7aff 50%, #00d4ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--text-secondary);
+            max-width: 720px;
+            margin: 0 auto 32px;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(79, 122, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(79, 122, 255, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--accent-blue);
+            background: rgba(79, 122, 255, 0.08);
+            transform: translateY(-2px);
+        }
+
+        /* ===== 通用 section 标题 ===== */
+        .section-title {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        .section-title .label {
+            display: inline-block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 12px;
+        }
+
+        .section-title h2 {
+            font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 12px;
+        }
+
+        .section-title p {
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            font-size: 15px;
+        }
+
+        /* ===== Section 通用 ===== */
+        section {
+            padding: 80px 0;
+        }
+
+        /* ===== 架构概览 ===== */
+        .architecture-overview {
+            background: var(--bg-secondary);
+            border-top: 1px solid rgba(42, 53, 96, 0.3);
+            border-bottom: 1px solid rgba(42, 53, 96, 0.3);
+        }
+
+        .arch-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            padding: 20px 0;
+        }
+
+        .arch-node {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 28px 32px;
+            min-width: 200px;
+            text-align: center;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .arch-node::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .arch-node.main::before {
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+        }
+        .arch-node.sub::before {
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+        }
+        .arch-node.base::before {
+            background: linear-gradient(90deg, var(--accent-orange), var(--accent-pink));
+        }
+
+        .arch-node:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .arch-node .icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+
+        .arch-node h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .arch-node .role {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .arch-node.main h3 {
+            color: var(--accent-blue);
+        }
+        .arch-node.sub h3 {
+            color: var(--accent-green);
+        }
+        .arch-node.base h3 {
+            color: var(--accent-orange);
+        }
+
+        .arch-arrow {
+            font-size: 28px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+        }
+
+        .arch-arrow .arrow-down {
+            display: none;
+        }
+
+        /* ===== 核心组件 ===== */
+        .components-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+        }
+
+        .component-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 32px;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .component-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            border-radius: var(--radius-md) var(--radius-md) 0 0;
+        }
+
+        .component-card:nth-child(1)::after {
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+        }
+        .component-card:nth-child(2)::after {
+            background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+        }
+        .component-card:nth-child(3)::after {
+            background: linear-gradient(90deg, var(--accent-orange), var(--accent-pink));
+        }
+
+        .component-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card);
+            background: var(--bg-card-hover);
+        }
+
+        .component-card .card-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .component-card .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+
+        .component-card:nth-child(1) .card-icon {
+            background: rgba(79, 122, 255, 0.15);
+        }
+        .component-card:nth-child(2) .card-icon {
+            background: rgba(52, 211, 153, 0.15);
+        }
+        .component-card:nth-child(3) .card-icon {
+            background: rgba(251, 146, 60, 0.15);
+        }
+
+        .component-card .card-title {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .component-card:nth-child(1) .card-title {
+            color: var(--accent-blue);
+        }
+        .component-card:nth-child(2) .card-title {
+            color: var(--accent-green);
+        }
+        .component-card:nth-child(3) .card-title {
+            color: var(--accent-orange);
+        }
+
+        .component-card .card-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .component-card .card-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .component-card .tool-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .tool-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(79, 122, 255, 0.08);
+            border: 1px solid rgba(79, 122, 255, 0.15);
+            border-radius: 6px;
+            padding: 4px 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            transition: var(--transition);
+        }
+
+        .tool-tag:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            background: rgba(79, 122, 255, 0.15);
+        }
+
+        .tool-tag .tag-icon {
+            font-size: 10px;
+        }
+
+        .feature-dots {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .feature-dots li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            list-style: none;
+        }
+
+        .feature-dots li .dot-icon {
+            color: var(--accent-cyan);
+            flex-shrink: 0;
+            margin-top: 3px;
+        }
+
+        /* ===== 工作流程 ===== */
+        .workflow {
+            background: var(--bg-secondary);
+            border-top: 1px solid rgba(42, 53, 96, 0.3);
+            border-bottom: 1px solid rgba(42, 53, 96, 0.3);
+        }
+
+        .workflow-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            counter-reset: step;
+        }
+
+        .step-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 32px 24px;
+            text-align: center;
+            transition: var(--transition);
+            position: relative;
+            counter-increment: step;
+        }
+
+        .step-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .step-number {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 800;
+            color: #fff;
+            margin: 0 auto 16px;
+            box-shadow: 0 4px 20px rgba(79, 122, 255, 0.3);
+        }
+
+        .step-card h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .step-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .step-card .step-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+
+        /* ===== 工具列表 ===== */
+        .tools-table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .tools-table-wrap:hover {
+            border-color: var(--border-glow);
+            box-shadow: var(--shadow-card);
+        }
+
+        .tools-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .tools-table thead {
+            background: rgba(79, 122, 255, 0.08);
+        }
+
+        .tools-table th {
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--accent-cyan);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .tools-table td {
+            padding: 14px 20px;
+            color: var(--text-secondary);
+            border-bottom: 1px solid rgba(42, 53, 96, 0.3);
+        }
+
+        .tools-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .tools-table tr:hover td {
+            background: rgba(79, 122, 255, 0.04);
+        }
+
+        .tools-table .tool-name {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .tools-table .tool-for {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            padding: 2px 10px;
+            border-radius: 4px;
+            background: rgba(79, 122, 255, 0.1);
+            color: var(--accent-cyan);
+        }
+
+        .tools-table .tool-for.main {
+            background: rgba(79, 122, 255, 0.12);
+            color: var(--accent-blue);
+        }
+        .tools-table .tool-for.sub {
+            background: rgba(52, 211, 153, 0.12);
+            color: var(--accent-green);
+        }
+        .tools-table .tool-for.both {
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--accent-purple);
+        }
+
+        /* ===== 技术亮点 ===== */
+        .highlights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .highlight-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            transition: var(--transition);
+        }
+
+        .highlight-item:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card);
+            background: var(--bg-card-hover);
+        }
+
+        .highlight-item .hl-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(79, 122, 255, 0.08);
+            border-radius: 10px;
+        }
+
+        .highlight-item .hl-content h4 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .highlight-item .hl-content p {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* ===== 底部 ===== */
+        footer {
+            border-top: 1px solid rgba(42, 53, 96, 0.3);
+            padding: 40px 0;
+            text-align: center;
+        }
+
+        footer p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        footer .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        footer .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            transition: var(--transition);
+        }
+
+        footer .footer-links a:hover {
+            color: var(--accent-blue);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 768px) {
+            .navbar-links {
+                display: none;
+            }
+
+            .hero {
+                padding: 120px 0 60px;
+            }
+
+            section {
+                padding: 60px 0;
+            }
+
+            .arch-diagram {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .arch-arrow {
+                transform: rotate(90deg);
+            }
+            .arch-arrow .arrow-right {
+                display: none;
+            }
+            .arch-arrow .arrow-down {
+                display: inline;
+            }
+
+            .components-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .workflow-steps {
+                grid-template-columns: 1fr;
+            }
+
+            .tools-table-wrap {
+                overflow-x: auto;
+            }
+
+            .tools-table {
+                min-width: 600px;
+            }
+
+            .highlights-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .arch-arrow .arrow-down {
+                display: none;
+            }
+        }
+
+        /* ===== 动画 ===== */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.8s ease, transform 0.8s ease;
+        }
+
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ===== 交互装饰 ===== */
+        .glow-line {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+            opacity: 0.3;
+            margin: 0 auto;
+            max-width: 600px;
+        }
+
+        /* 工具列表中的小标签动画 */
+        @keyframes shimmer {
+            0% {
+                background-position: -200% center;
+            }
+            100% {
+                background-position: 200% center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 导航栏 ===== -->
+    <nav class="navbar">
+        <div class="container">
+            <a href="#" class="navbar-brand">
+                <span class="logo-icon">AI</span>
+                <span>HoppinAI Agent 04</span>
+            </a>
+            <ul class="navbar-links">
+                <li><a href="#overview">架构概览</a></li>
+                <li><a href="#components">核心组件</a></li>
+                <li><a href="#workflow">工作流程</a></li>
+                <li><a href="#tools">工具列表</a></li>
+                <li><a href="#highlights">技术亮点</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- ===== Hero ===== -->
+    <section class="hero" id="home">
+        <div class="container">
+            <div class="hero-badge">
+                <span class="dot"></span>
+                基于 Anthropic Claude API · 层级智能体架构
+            </div>
+            <h1>主智能体 + 子智能体<br>协同工作模块</h1>
+            <p>
+                HoppinAI Agent 04 采用创新的主从智能体层级架构，让复杂任务得以智能分解、
+                高效执行。主智能体统筹全局，子智能体专注执行，共同打造强大的自动化解决方案。
+            </p>
+            <div class="hero-actions">
+                <a href="#overview" class="btn btn-primary">
+                    📖 了解架构
+                </a>
+                <a href="#components" class="btn btn-outline">
+                    ⚙️ 查看组件
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 架构概览 ===== -->
+    <section class="architecture-overview" id="overview">
+        <div class="container">
+            <div class="section-title fade-in">
+                <div class="label">System Architecture</div>
+                <h2>系统架构概览</h2>
+                <p>三层架构设计，各司其职，协同运作</p>
+            </div>
+
+            <div class="arch-diagram fade-in">
+                <div class="arch-node main">
+                    <div class="icon">🧠</div>
+                    <h3>Agent04</h3>
+                    <div class="role">主智能体 · 任务协调者</div>
+                </div>
+                <div class="arch-arrow">
+                    <span class="arrow-right">➡️</span>
+                    <span class="arrow-down">⬇️</span>
+                </div>
+                <div class="arch-node sub">
+                    <div class="icon">⚡</div>
+                    <h3>SubAgent</h3>
+                    <div class="role">子智能体 · 任务执行者</div>
+                </div>
+                <div class="arch-arrow">
+                    <span class="arrow-right">➡️</span>
+                    <span class="arrow-down">⬇️</span>
+                </div>
+                <div class="arch-node base">
+                    <div class="icon">🏗️</div>
+                    <h3>ZQAgent</h3>
+                    <div class="role">基类 · 基础设施</div>
+                </div>
+            </div>
+
+            <div class="glow-line" style="margin-top: 40px;"></div>
+        </div>
+    </section>
+
+    <!-- ===== 核心组件 ===== -->
+    <section id="components">
+        <div class="container">
+            <div class="section-title fade-in">
+                <div class="label">Core Components</div>
+                <h2>核心组件</h2>
+                <p>三大组件构成强大的智能体系统</p>
+            </div>
+
+            <div class="components-grid">
+                <!-- 主智能体 -->
+                <div class="component-card fade-in">
+                    <div class="card-header">
+                        <div class="card-icon">🧠</div>
+                        <div>
+                            <div class="card-title">Agent04（主智能体）</div>
+                            <div class="card-subtitle">任务协调者 &amp; 管理者</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">
+                        作为系统的核心大脑，负责理解用户需求、分析任务复杂度，
+                        并通过强大的工具集协调整个工作流程。
+                    </p>
+                    <div class="tool-list">
+                        <span class="tool-tag"><span class="tag-icon">🛠️</span> bash</span>
+                        <span class="tool-tag"><span class="tag-icon">📄</span> read_file</span>
+                        <span class="tool-tag"><span class="tag-icon">✏️</span> write_file</span>
+                        <span class="tool-tag"><span class="tag-icon">📝</span> edit_file</span>
+                        <span class="tool-tag"><span class="tag-icon">📂</span> glob</span>
+                        <span class="tool-tag"><span class="tag-icon">🔍</span> content_search</span>
+                        <span class="tool-tag"><span class="tag-icon">✅</span> todo</span>
+                        <span class="tool-tag"><span class="tag-icon">🤖</span> sub_agent</span>
+                    </div>
+                    <ul class="feature-dots">
+                        <li><span class="dot-icon">✦</span> 管理最多 <strong>20</strong> 个待办事项，同时仅 <strong>1</strong> 个进行中</li>
+                        <li><span class="dot-icon">✦</span> 可将复杂任务委托给子智能体处理</li>
+                        <li><span class="dot-icon">✦</span> 3 回合未更新待办事项会收到提醒</li>
+                    </ul>
+                </div>
+
+                <!-- 子智能体 -->
+                <div class="component-card fade-in">
+                    <div class="card-header">
+                        <div class="card-icon">⚡</div>
+                        <div>
+                            <div class="card-title">SubAgent（子智能体）</div>
+                            <div class="card-subtitle">具体任务的执行者</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">
+                        专注于执行主智能体分配的具体任务，轻量化设计，
+                        从空上下文开始独立运行，高效完成目标。
+                    </p>
+                    <div class="tool-list">
+                        <span class="tool-tag"><span class="tag-icon">📄</span> read_file</span>
+                        <span class="tool-tag"><span class="tag-icon">✏️</span> write_file</span>
+                        <span class="tool-tag"><span class="tag-icon">📝</span> edit_file</span>
+                    </div>
+                    <ul class="feature-dots">
+                        <li><span class="dot-icon">✦</span> 仅有 <strong>3</strong> 个文件操作工具，专注执行</li>
+                        <li><span class="dot-icon">✦</span> 无 <code>sub_agent</code> 工具，防止递归委托</li>
+                        <li><span class="dot-icon">✦</span> 从空的 <code>messages[]</code> 开始独立消息循环</li>
+                        <li><span class="dot-icon">✦</span> 仅返回摘要文本 + Token 使用统计</li>
+                    </ul>
+                </div>
+
+                <!-- 基类 -->
+                <div class="component-card fade-in">
+                    <div class="card-header">
+                        <div class="card-icon">🏗️</div>
+                        <div>
+                            <div class="card-title">ZQAgent（基类）</div>
+                            <div class="card-subtitle">所有智能体的基类</div>
+                        </div>
+                    </div>
+                    <p class="card-desc">
+                        提供所有智能体共享的基础设施，封装了消息循环、
+                        工具调用和会话管理等核心能力。
+                    </p>
+                    <ul class="feature-dots">
+                        <li><span class="dot-icon">✦</span> 处理消息循环 &amp; 工具调用</li>
+                        <li><span class="dot-icon">✦</span> 支持会话持久化（JSON 格式存储）</li>
+                        <li><span class="dot-icon">✦</span> 支持历史会话恢复</li>
+                        <li><span class="dot-icon">✦</span> 提供 <code>runTask()</code> 和 <code>runTaskWithTokenUsage()</code> 方法</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 工作流程 ===== -->
+    <section class="workflow" id="workflow">
+        <div class="container">
+            <div class="section-title fade-in">
+                <div class="label">How It Works</div>
+                <h2>工作流程</h2>
+                <p>从任务接收到底层执行，环环相扣的自动化流水线</p>
+            </div>
+
+            <div class="workflow-steps">
+                <div class="step-card fade-in">
+                    <div class="step-number">1</div>
+                    <div class="step-icon">📥</div>
+                    <h3>任务接收与分析</h3>
+                    <p>主智能体仔细理解用户需求，深入分析任务复杂度，制定最佳执行策略。</p>
+                </div>
+                <div class="step-card fade-in">
+                    <div class="step-number">2</div>
+                    <div class="step-icon">📋</div>
+                    <h3>待办事项管理</h3>
+                    <p>创建或更新任务列表，为每个子任务设置合理状态：<strong>pending</strong>、<strong>in_progress</strong>、<strong>completed</strong>。</p>
+                </div>
+                <div class="step-card fade-in">
+                    <div class="step-number">3</div>
+                    <div class="step-icon">⚖️</div>
+                    <h3>任务执行策略</h3>
+                    <p><strong>简单任务</strong>：主智能体直接使用工具完成。<br><strong>复杂任务</strong>：分解为子任务，使用 <code>sub_agent</code> 委托给子智能体。</p>
+                </div>
+                <div class="step-card fade-in">
+                    <div class="step-number">4</div>
+                    <div class="step-icon">📊</div>
+                    <h3>进度跟踪</h3>
+                    <p>定期更新待办事项状态，任务完成后标记为 <strong>completed</strong>，3回合未更新则提醒。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 工具列表 ===== -->
+    <section id="tools">
+        <div class="container">
+            <div class="section-title fade-in">
+                <div class="label">Tools Reference</div>
+                <h2>工具列表</h2>
+                <p>主智能体与子智能体各自拥有的工具能力</p>
+            </div>
+
+            <div class="tools-table-wrap fade-in">
+                <table class="tools-table">
+                    <thead>
+                        <tr>
+                            <th>工具名称</th>
+                            <th>描述</th>
+                            <th>所属</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="tool-name">bash</span></td>
+                            <td>执行 Shell 命令，与操作系统交互</td>
+                            <td><span class="tool-for main">🧠 主智能体</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">read_file</span></td>
+                            <td>读取指定文件的完整内容</td>
+                            <td><span class="tool-for both">🤝 通用</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">write_file</span></td>
+                            <td>创建或覆盖写入文件内容</td>
+                            <td><span class="tool-for both">🤝 通用</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">edit_file</span></td>
+                            <td>基于搜索替换方式编辑文本文件</td>
+                            <td><span class="tool-for both">🤝 通用</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">glob</span></td>
+                            <td>列出指定目录下的文件和子目录</td>
+                            <td><span class="tool-for main">🧠 主智能体</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">content_search</span></td>
+                            <td>使用 ripgrep 在文件中搜索内容</td>
+                            <td><span class="tool-for main">🧠 主智能体</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">todo</span></td>
+                            <td>待办事项管理（创建/更新/查询）</td>
+                            <td><span class="tool-for main">🧠 主智能体</span></td>
+                        </tr>
+                        <tr>
+                            <td><span class="tool-name">sub_agent</span></td>
+                            <td>将复杂任务委托给子智能体执行</td>
+                            <td><span class="tool-for main">🧠 主智能体</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 技术亮点 ===== -->
+    <section id="highlights" style="background: var(--bg-secondary); border-top: 1px solid rgba(42,53,96,0.3); border-bottom: 1px solid rgba(42,53,96,0.3);">
+        <div class="container">
+            <div class="section-title fade-in">
+                <div class="label">Tech Highlights</div>
+                <h2>技术亮点</h2>
+                <p>驱动智能体系统的高性能技术栈</p>
+            </div>
+
+            <div class="highlights-grid">
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">☕</div>
+                    <div class="hl-content">
+                        <h4>Java 21 + Maven</h4>
+                        <p>基于最新的 Java 21 长期支持版本开发，使用 Maven 进行依赖管理与构建</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">🤖</div>
+                    <div class="hl-content">
+                        <h4>Anthropic Claude SDK</h4>
+                        <p>深度集成 Claude API，充分发挥大语言模型的智能推理与对话能力</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">💾</div>
+                    <div class="hl-content">
+                        <h4>会话持久化与恢复</h4>
+                        <p>使用 JSON 格式存储会话数据，支持历史会话的完整恢复与继续</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">🔍</div>
+                    <div class="hl-content">
+                        <h4>ripgrep 高性能搜索</h4>
+                        <p>集成 ripgrep 引擎，实现毫秒级的内容搜索体验</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">📝</div>
+                    <div class="hl-content">
+                        <h4>智能化文件编辑</h4>
+                        <p>支持换行符归一化、制表符处理，确保跨平台文件操作的一致性</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">📊</div>
+                    <div class="hl-content">
+                        <h4>完善的 Token 统计</h4>
+                        <p>精确追踪每次 API 调用的 Token 使用量，助力成本优化与分析</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">🛡️</div>
+                    <div class="hl-content">
+                        <h4>安全沙箱机制</h4>
+                        <p>路径限制模式可配置，有效隔离文件系统访问，保障系统安全</p>
+                    </div>
+                </div>
+                <div class="highlight-item fade-in">
+                    <div class="hl-icon">🧩</div>
+                    <div class="hl-content">
+                        <h4>层级智能体架构</h4>
+                        <p>主智能体统筹 + 子智能体执行，职责清晰，扩展性强</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 底部 ===== -->
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="#home">首页</a>
+                <a href="#overview">架构概览</a>
+                <a href="#components">核心组件</a>
+                <a href="#workflow">工作流程</a>
+                <a href="#tools">工具列表</a>
+                <a href="#highlights">技术亮点</a>
+            </div>
+            <p>© 2025 HoppinAI Agent 04 — 主智能体 + 子智能体模块 · 基于 Anthropic Claude API</p>
+        </div>
+    </footer>
+
+    <!-- ===== JavaScript ===== -->
+    <script>
+        // ===== 滚动淡入动画 =====
+        (function() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            });
+
+            document.querySelectorAll('.fade-in').forEach(el => {
+                observer.observe(el);
+            });
+        })();
+
+        // ===== 平滑滚动 (兼容) =====
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    const navbarHeight = 64;
+                    const targetPosition = target.getBoundingClientRect().top + window.pageYOffset - navbarHeight;
+                    window.scrollTo({
+                        top: targetPosition,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // ===== 导航栏透明效果 =====
+        (function() {
+            const navbar = document.querySelector('.navbar');
+            let lastScroll = 0;
+
+            window.addEventListener('scroll', () => {
+                const currentScroll = window.pageYOffset;
+                if (currentScroll > 80) {
+                    navbar.style.background = 'rgba(11, 14, 26, 0.95)';
+                    navbar.style.borderBottomColor = 'rgba(79, 122, 255, 0.15)';
+                } else {
+                    navbar.style.background = 'rgba(11, 14, 26, 0.85)';
+                    navbar.style.borderBottomColor = 'rgba(42, 53, 96, 0.4)';
+                }
+                lastScroll = currentScroll;
+            });
+        })();
+
+        // ===== 控制台彩蛋 =====
+        console.log('%c🧠 HoppinAI Agent 04', 'font-size: 24px; font-weight: bold; color: #4f7aff;');
+        console.log('%c主智能体 + 子智能体 层级架构', 'font-size: 14px; color: #9aa8d4;');
+        console.log('%c基于 Anthropic Claude API · Java 21', 'font-size: 12px; color: #6a7ab5;');
+    </script>
+
+</body>
+</html>

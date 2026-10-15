@@ -362,6 +362,20 @@ public class AgentChatController {
     }
 
     /**
+     * 本轮结束：把已累积的原生思考链以 {@code <!--THINKING:{...}-->} 注释形式插入本轮内容起始处
+     * （与 TOOL 注释同一模式，思考先于文本产生所以落位在最前），并重置累积缓冲。
+     */
+    private void endRoundThinking(StringBuilder assistantResponse, int roundStartIdx, StringBuilder roundThinking) {
+        if (roundThinking.length() > 0) {
+            Map<String, Object> thinking = new java.util.HashMap<>();
+            thinking.put("type", "thinking");
+            thinking.put("text", roundThinking.toString());
+            assistantResponse.insert(roundStartIdx, "\n<!--THINKING:" + JSON.toJSONString(thinking) + "-->\n");
+            roundThinking.setLength(0);
+        }
+    }
+
+    /**
      * 流式处理：把协议中立的 {@link LlmProvider.StreamListener} 回调翻译为 SSE 事件
      * （事件 JSON 形状与旧版保持一致，前端无需改动）。
      */
@@ -370,6 +384,9 @@ public class AgentChatController {
                                     AtomicLong totalInputTokens, AtomicLong totalOutputTokens) {
         StringBuilder fullTextResponse = new StringBuilder();
         AtomicBoolean done = new AtomicBoolean(false);
+        // 本轮（一次 LLM 调用）的起始位置与原生思考链累积：思考先于文本产生，轮结束时插到起始处
+        final int roundStartIdx = assistantResponse.length();
+        final StringBuilder roundThinking = new StringBuilder();
 
         LlmProvider.StreamListener listener = new LlmProvider.StreamListener() {
             @Override
@@ -390,10 +407,27 @@ public class AgentChatController {
             }
 
             @Override
+            public void onThinkingDelta(String delta) {
+                if (emitter.isCancelled()) {
+                    throw new RuntimeException("Client disconnected");
+                }
+                if (done.get()) {
+                    return;
+                }
+                roundThinking.append(delta);
+                emitter.next(JSON.toJSONString(Map.of(
+                        "type", "thinking_delta",
+                        "text", delta
+                )));
+            }
+
+            @Override
             public void onToolUse(String toolId, String toolName, String argumentsJson) {
                 if (done.get()) {
                     return;
                 }
+                // 思考链先于工具调用产生且已流完，本轮结束时落位
+                endRoundThinking(assistantResponse, roundStartIdx, roundThinking);
                 try {
                     Object parsedInput;
                     try {
@@ -489,6 +523,8 @@ public class AgentChatController {
 
             @Override
             public void onComplete(LlmResponse.FinishReason finishReason, com.hoppinzq.agent.session.TokenUsage usage) {
+                // 本轮流式已结束，思考链落位（若 onToolUse 已处理过此处为空，天然幂等）
+                endRoundThinking(assistantResponse, roundStartIdx, roundThinking);
                 if (usage != null) {
                     totalInputTokens.addAndGet(usage.getInputTokens() != null ? usage.getInputTokens() : 0);
                     totalOutputTokens.addAndGet(usage.getOutputTokens() != null ? usage.getOutputTokens() : 0);

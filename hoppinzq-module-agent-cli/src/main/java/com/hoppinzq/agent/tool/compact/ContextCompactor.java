@@ -192,12 +192,39 @@ public class ContextCompactor {
                     newMessages.add(msg);
                 }
             } else {
-                newMessages.add(msg);
+                newMessages.add(clearOldThinking(msg, currentResultIndex, thresholdIndex));
             }
         }
 
         return toLlmMessages(newMessages);
     }
+
+    /**
+     * 压缩窗口外的 assistant 原生思考块替换为占位符。
+     * <p>依据：DeepSeek 禁止回传 reasoning_content（恢复时本就被剥离）、Claude 只认最后一轮思考，
+     * 旧轮次思考留在内存只会虚增 token 估算，无任何上下文价值。
+     */
+    private SessionMessage clearOldThinking(SessionMessage msg, int currentResultIndex, int thresholdIndex) {
+        if (!"assistant".equals(msg.getRole()) || msg.getBlocks() == null
+                || currentResultIndex >= thresholdIndex) {
+            return msg;
+        }
+        boolean changed = false;
+        List<SessionBlock> newBlocks = new ArrayList<>();
+        for (SessionBlock block : msg.getBlocks()) {
+            if ("thinking".equals(block.getType()) && block.getText() != null && !block.getText().isBlank()) {
+                newBlocks.add(SessionBlock.builder().type("thinking").text("[已省略思考]").build());
+                changed = true;
+            } else {
+                newBlocks.add(block);
+            }
+        }
+        if (!changed) {
+            return msg;
+        }
+        return SessionMessage.builder().role("assistant").text(msg.getText()).blocks(newBlocks).build();
+    }
+
 
     /**
      * Layer 2: 自动压缩 - 完整对话压缩

@@ -94,7 +94,9 @@ public class OpenAIProvider implements LlmProvider {
                 if (chunk.usage().isPresent()) {
                     usage = toTokenUsage(chunk.usage().get());
                 }
-                if (chunk.choices().isEmpty()) {
+                // 兼容端点的 usage 尾包可能直接省略 choices 字段（OpenAI 官方协议为空数组），
+                // SDK 对必填字段缺失会抛 OpenAIInvalidDataException，此处用原始字段判断跳过
+                if (chunk._choices().isMissing() || chunk.choices().isEmpty()) {
                     continue;
                 }
                 ChatCompletionChunk.Choice choice = chunk.choices().get(0);
@@ -102,6 +104,8 @@ public class OpenAIProvider implements LlmProvider {
                     finishReason = mapChunkFinishReason(choice.finishReason().get());
                 }
                 choice.delta().content().filter(c -> !c.isEmpty()).ifPresent(listener::onTextDelta);
+                // DeepSeek 思考模型扩展字段：reasoning_content 以 additionalProperty 形式存在（SDK 强类型无此字段）
+                extractReasoningDelta(choice.delta()).ifPresent(listener::onThinkingDelta);
                 choice.delta().toolCalls().ifPresent(calls -> {
                     for (ChatCompletionChunk.Choice.Delta.ToolCall call : calls) {
                         LlmMessage.ToolCall acc = pendingCalls.computeIfAbsent(call.index(),
@@ -254,7 +258,41 @@ public class OpenAIProvider implements LlmProvider {
                     .argumentsJson(fn.function().arguments())
                     .build());
         }
-        return LlmMessage.assistant(text, calls);
+        LlmMessage neutral = LlmMessage.assistant(text, calls);
+        neutral.setReasoningContent(extractReasoningText(message).orElse(""));
+        return neutral;
+    }
+
+
+    /**
+     * 从流式 delta 提取 DeepSeek 思考链增量（reasoning_content 扩展字段）。
+     */
+    private java.util.Optional<String> extractReasoningDelta(ChatCompletionChunk.Choice.Delta delta) {
+        return extractReasoning(delta._additionalProperties());
+    }
+
+    /**
+     * 从阻塞响应消息提取完整思考链。
+     */
+    private java.util.Optional<String> extractReasoningText(com.openai.models.chat.completions.ChatCompletionMessage message) {
+        return extractReasoning(message._additionalProperties());
+    }
+
+    private java.util.Optional<String> extractReasoning(java.util.Map<String, com.openai.core.JsonValue> additionalProperties) {
+        if (additionalProperties == null) {
+            return java.util.Optional.empty();
+        }
+        com.openai.core.JsonValue value = additionalProperties.get("reasoning_content");
+        if (value == null) {
+            return java.util.Optional.empty();
+        }
+        try {
+            String reasoning = value.convert(String.class);
+            return (reasoning == null || reasoning.isEmpty())
+                    ? java.util.Optional.empty() : java.util.Optional.of(reasoning);
+        } catch (Exception e) {
+            return java.util.Optional.empty();
+        }
     }
 
     private FunctionParameters toFunctionParameters(com.fasterxml.jackson.databind.node.ObjectNode schema) {
@@ -294,8 +332,8 @@ public class OpenAIProvider implements LlmProvider {
                 .outputTokens(usage.completionTokens())
                 .cacheReadTokens(usage.promptTokensDetails()
                         .flatMap(CompletionUsage.PromptTokensDetails::cachedTokens).orElse(null))
-                .cacheCreationTokens(usage.promptTokensDetails()
-                        .flatMap(CompletionUsage.PromptTokensDetails::cacheWriteTokens).orElse(null))
+                // OpenAI 协议无缓存写入概念（cache write 为 Anthropic 专有），恒为 null
+                .cacheCreationTokens(null)
                 .timestamp(LocalDateTime.now().format(TS_FMT))
                 .build();
     }

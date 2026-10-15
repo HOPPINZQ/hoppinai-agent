@@ -7,9 +7,10 @@ import lombok.NoArgsConstructor;
 
 /**
  * 单个内容块的可序列化表示。
- * <p>支持三种类型：
+ * <p>支持四种类型：
  * <ul>
  *   <li>{@code text} —— 纯文本块，使用 {@link #text}</li>
+ *   <li>{@code thinking} —— 模型原生思考块，使用 {@link #text}；恢复上下文时被剥离（不回传给模型）</li>
  *   <li>{@code tool_use} —— 工具调用块，使用 {@link #toolUseId}/{@link #toolName}/{@link #toolInputJson}</li>
  *   <li>{@code tool_result} —— 工具结果块，使用 {@link #toolUseId}/{@link #toolResultContent}/{@link #isError}</li>
  * </ul>

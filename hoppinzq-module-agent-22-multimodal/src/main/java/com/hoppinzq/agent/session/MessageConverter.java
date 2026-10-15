@@ -51,7 +51,15 @@ public final class MessageConverter {
             b.text(m.getText());
         }
         List<SessionBlock> blocks = new ArrayList<>();
-        for (LlmMessage.ToolCall call : m.getToolCalls()) {
+        // 原生思考链放首位（思考先于文本产生）；恢复上下文时会被剥离，仅作展示/审计留存
+        if (m.getReasoningContent() != null && !m.getReasoningContent().isBlank()) {
+            blocks.add(SessionBlock.builder()
+                    .type("thinking")
+                    .text(m.getReasoningContent())
+                    .build());
+        }
+        // 防御：toolCalls 理论上不为 null（工厂方法已兜底），Jackson 反序列化等旁路仍可能为 null
+        for (LlmMessage.ToolCall call : m.getToolCalls() == null ? List.<LlmMessage.ToolCall>of() : m.getToolCalls()) {
             blocks.add(SessionBlock.builder()
                     .type("tool_use")
                     .toolUseId(call.getId())
@@ -128,6 +136,11 @@ public final class MessageConverter {
         StringBuilder blockText = null;
         if (sm.getBlocks() != null) {
             for (SessionBlock sb : sm.getBlocks()) {
+                // thinking 块恢复时剥离：思考不回传给模型（DeepSeek 禁止回传 reasoning_content；
+                // Claude 也只认最后一轮），仅保留在 DB 中做展示/审计
+                if ("thinking".equals(sb.getType())) {
+                    continue;
+                }
                 if ("tool_use".equals(sb.getType())) {
                     calls.add(LlmMessage.ToolCall.builder()
                             .id(sb.getToolUseId())

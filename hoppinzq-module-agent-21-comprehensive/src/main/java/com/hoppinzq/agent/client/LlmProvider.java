@@ -44,6 +44,10 @@ public interface LlmProvider {
         default void onTextDelta(String delta) {
         }
 
+        /** 模型原生思考链增量（DeepSeek reasoning_content / Claude thinking），仅用于展示 */
+        default void onThinkingDelta(String delta) {
+        }
+
         /** 工具调用块结束：argumentsJson 为累积后的完整入参 JSON */
         default void onToolUse(String id, String name, String argumentsJson) {
         }

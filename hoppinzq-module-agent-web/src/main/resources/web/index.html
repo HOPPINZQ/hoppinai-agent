@@ -306,6 +306,26 @@
             }
         }
 
+        /** 模型原生思考链折叠块 */
+        function appendThinkingBlock(botMsgDiv) {
+            const div = document.createElement('div');
+            div.className = 'thought-container';
+            div.innerHTML = `
+                <div class="thought-header" onclick="toggleThought(this)">
+                    <svg class="thought-icon" viewBox="0 0 24 24"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7zm2.85 11.1l-.85.6V16h-4v-1.3l-.85-.6C7.8 13.16 7 11.63 7 9c0-2.76 2.24-5 5-5s5 2.24 5 5c0 2.63-.8 4.16-2.15 5.1z"/></svg>
+                    <span>思考过程</span>
+                </div>
+                <div class="thought-content"></div>`;
+            botMsgDiv.appendChild(div);
+            return div;
+        }
+
+        function escapeHtml(text) {
+            return String(text == null ? '' : text)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
         function toggleThought(element) {
             const content = element.nextElementSibling;
             if (content.classList.contains('show')) {
@@ -414,6 +434,8 @@
 
             const botMsgDiv = appendMessage('', 'bot');
             let currentTextSegment = '';
+            let currentThinkingDiv = null;   // 本轮思考折叠块
+            let currentThinkingText = '';
             
             currentAbortController = new AbortController();
 
@@ -458,8 +480,20 @@
                                 currentTextSegment += data.delta.text;
                                 const textDiv = ensureLatestTextDiv(botMsgDiv);
                                 textDiv.innerHTML = formatMessageContent(currentTextSegment);
+                            } else if (data.type === 'thinking_delta') {
+                                // 模型原生思考链：本轮一个折叠块，实时增长
+                                if (!currentThinkingDiv) {
+                                    currentThinkingDiv = appendThinkingBlock(botMsgDiv);
+                                    currentThinkingText = '';
+                                }
+                                currentThinkingText += data.text;
+                                currentThinkingDiv.querySelector('.thought-content').innerHTML =
+                                    escapeHtml(currentThinkingText).replace(/
+/g, '<br>');
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
                             } else if (data.type === 'tool_status') {
                                 currentTextSegment = ''; 
+                                currentThinkingDiv = null; // 下一轮新建思考块
                                 if (data.tool_id) {
                                     updateToolCall(botMsgDiv, data.tool_id, data);
                                 }

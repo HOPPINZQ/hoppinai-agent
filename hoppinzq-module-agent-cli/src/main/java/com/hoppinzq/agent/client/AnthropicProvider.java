@@ -112,6 +112,12 @@ public class AnthropicProvider implements LlmProvider {
                         if (text != null && !text.isEmpty()) {
                             listener.onTextDelta(text);
                         }
+                    } else if (delta.delta().isThinking()) {
+                        // 扩展思考块增量（Anthropic thinking / DeepSeek anthropic 兼容端点）
+                        String thinking = delta.delta().asThinking().thinking();
+                        if (thinking != null && !thinking.isEmpty()) {
+                            listener.onThinkingDelta(thinking);
+                        }
                     } else if (delta.delta().isInputJson()) {
                         toolArgs.append(delta.delta().asInputJson().partialJson());
                     }
@@ -286,10 +292,13 @@ public class AnthropicProvider implements LlmProvider {
     private LlmMessage toNeutralMessage(Message message) {
         StringBuilder text = new StringBuilder();
         List<LlmMessage.ToolCall> calls = new ArrayList<>();
+        StringBuilder thinking = new StringBuilder();
         for (ContentBlock block : message.content()) {
             if (block.isText()) {
                 block.text().map(com.anthropic.models.messages.TextBlock::text).filter(t -> !t.isBlank())
                         .ifPresent(t -> text.append(text.length() > 0 ? "\n" : "").append(t));
+            } else if (block.isThinking()) {
+                thinking.append(block.asThinking().thinking());
             } else if (block.isToolUse()) {
                 ToolUseBlock toolUse = block.asToolUse();
                 calls.add(LlmMessage.ToolCall.builder()
@@ -299,7 +308,9 @@ public class AnthropicProvider implements LlmProvider {
                         .build());
             }
         }
-        return LlmMessage.assistant(text.length() > 0 ? text.toString() : null, calls);
+        LlmMessage neutral = LlmMessage.assistant(text.length() > 0 ? text.toString() : null, calls);
+        neutral.setReasoningContent(thinking.toString());
+        return neutral;
     }
 
     private String inputToJson(ToolUseBlock toolUse) {
