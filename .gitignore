@@ -36,6 +36,8 @@ web/out/
 
 # Claude AI related files
 .claude/
+.agents/
+.codegraph/
 **/.claude/
 **/.transcripts/
 **/.transcripts/*.jsonl
