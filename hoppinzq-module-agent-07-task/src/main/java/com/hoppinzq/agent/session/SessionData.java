@@ -12,6 +12,7 @@ import java.util.List;
 /**
  * 会话持久化数据：消息列表 + token 使用统计。
  * <p>这是 {@code .sessions/<id>.json} 的根结构，便于扩展更多元数据。
+ * 压缩历史（transcripts）由 compact 能力自持存储，不进内核会话文件。
  *
  * @author hoppinzq
  */

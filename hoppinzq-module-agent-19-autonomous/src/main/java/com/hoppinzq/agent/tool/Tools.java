@@ -13,7 +13,6 @@ import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
-import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.util.FileExclusionHelper;
 import com.hoppinzq.agent.client.LlmProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -82,9 +81,6 @@ public class Tools {
     public static void setLeadRegistry(ProtocolRegistry registry) { LEAD_REGISTRY = registry; }
 
     /** 任务管理器单例 */
-    private static volatile TaskManager TASK_MANAGER;
-    public static void setTaskManager(TaskManager tm) { TASK_MANAGER = tm; }
-    public static TaskManager getTaskManager() { return TASK_MANAGER; }
 
     /**
      * schedule_cron：注册一个 cron 任务。
@@ -951,51 +947,4 @@ public class Tools {
         }
     }
 
-    // ========================= task 工具 =========================
-
-    public static String createTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskCreateInput in = new ObjectMapper().readValue(input, TaskCreateInput.class);
-            if (in.getSubject() == null || in.getSubject().isBlank()) return "错误：subject 不能为空";
-            return TASK_MANAGER.createTask(in.getSubject(), in.getDescription());
-        } catch (Exception e) {
-            return "create_task 错误: " + e.getMessage();
-        }
-    }
-
-    public static String listTasks(String input) {
-        if (TASK_MANAGER == null) return "暂无任务（任务管理器未初始化）";
-        try { return TASK_MANAGER.listAllTasks(); }
-        catch (Exception e) { return "list_tasks 错误: " + e.getMessage(); }
-    }
-
-    public static String getTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskGetInput in = new ObjectMapper().readValue(input, TaskGetInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            return TASK_MANAGER.getTask(in.getTaskId());
-        } catch (Exception e) { return "get_task 错误: " + e.getMessage(); }
-    }
-
-    public static String claimTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskClaimInput in = new ObjectMapper().readValue(input, TaskClaimInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            String owner = CURRENT_TEAMMATE_NAME.get();
-            if (owner == null || owner.isEmpty()) return "错误：claim_task 只能由 teammate 调用";
-            return TASK_MANAGER.claimTask(in.getTaskId(), owner);
-        } catch (Exception e) { return "claim_task 错误: " + e.getMessage(); }
-    }
-
-    public static String completeTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskClaimInput in = new ObjectMapper().readValue(input, TaskClaimInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            return TASK_MANAGER.completeTask(in.getTaskId());
-        } catch (Exception e) { return "complete_task 错误: " + e.getMessage(); }
-    }
 }

@@ -20,9 +20,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -35,22 +35,19 @@ public class Tools {
 
     /**
      * 读取指定文件内容，支持./../相对路径
+     *
      * @param input
      * @return
      */
     public static String readFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            ReadFileInput readFileInput = mapper.readValue(input, ReadFileInput.class);
+            ReadFileInput readFileInput = OBJECT_MAPPER.readValue(input, ReadFileInput.class);
 
             if (LOG_ENABLE) {
                 log.info("读取文件: {}", readFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            if (LOG_ENABLE) {
-                log.info("当前工作目录: {}", currentPath);
-            }
-            Path fullPath = currentPath.resolve(readFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(readFileInput.getPath());
             byte[] bytes = Files.readAllBytes(fullPath);
             String content = new String(bytes);
 
@@ -69,19 +66,19 @@ public class Tools {
 
     /**
      * 写入内容到指定文件，支持./../相对路径
+     *
      * @param input
      * @return
      */
     public static String writeFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            WriteFileInput writeFileInput = mapper.readValue(input, WriteFileInput.class);
+            WriteFileInput writeFileInput = OBJECT_MAPPER.readValue(input, WriteFileInput.class);
 
             if (LOG_ENABLE) {
                 log.info("写入文件: {}", writeFileInput.getPath());
             }
-            Path currentPath = Path.of(ROOT);
-            Path fullPath = currentPath.resolve(writeFileInput.getPath()).normalize();
+
+            Path fullPath = resolvePath(writeFileInput.getPath());
 
             // Ensure parent directories exist
             if (fullPath.getParent() != null) {
@@ -108,12 +105,12 @@ public class Tools {
      * 该函数接收一个JSON格式的输入字符串，解析出要执行的命令和命令类型，
      * 根据指定的类型（cmd/powershell/bash）使用不同的方式执行命令，
      * 并捕获命令的标准输出和错误输出。
-     *
+     * <p>
      * 支持的命令类型：
      * - cmd: Windows CMD 命令提示符
      * - powershell: Windows PowerShell
      * - bash: Linux/Mac Bash shell（或 Windows Git Bash）
-     *
+     * <p>
      * 如果不指定类型，则根据操作系统自动选择：
      * - Windows: 默认使用 cmd
      * - Linux/Mac: 默认使用 bash
@@ -125,8 +122,7 @@ public class Tools {
      */
     public static String executeBash(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            BashInput bashInput = mapper.readValue(input, BashInput.class);
+            BashInput bashInput = OBJECT_MAPPER.readValue(input, BashInput.class);
 
             if (LOG_ENABLE) {
                 log.info("执行指令: {}, 类型: {}", bashInput.getCommand(), bashInput.getType());
@@ -160,11 +156,21 @@ public class Tools {
                 }
             }
 
+            // 根据命令类型和操作系统动态选择编码
+            String charsetName;
+            if ("bash".equalsIgnoreCase(type) ||
+                    (!System.getProperty("os.name").toLowerCase().contains("win") &&
+                            (type == null || type.isEmpty()))) {
+                charsetName = "UTF-8";
+            } else {
+                charsetName = "GBK";
+            }
+
             Process process = processBuilder.start();
 
             StringBuilder output = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), "GBK"))) {
+                    new InputStreamReader(process.getInputStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
@@ -173,7 +179,7 @@ public class Tools {
 
             StringBuilder error = new StringBuilder();
             try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getErrorStream(), "GBK"))) {
+                    new InputStreamReader(process.getErrorStream(), charsetName))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     error.append(line).append("\n");
@@ -214,9 +220,9 @@ public class Tools {
      * 2. 验证输入参数有效性（路径非空且新旧字符串不同）
      * 3. 读取目标文件内容，处理文件不存在的情况
      * 4. 执行替换或追加操作：
-     *    - 当oldStr为空时直接追加newStr
-     *    - 当oldStr存在且唯一时执行替换
-     *    - 当oldStr不存在或出现多次时报错
+     * - 当oldStr为空时直接追加newStr
+     * - 当oldStr存在且唯一时执行替换
+     * - 当oldStr不存在或出现多次时报错
      * 5. 将修改后的内容写回文件
      *
      * @param input JSON格式的输入字符串，包含：
@@ -224,19 +230,27 @@ public class Tools {
      *              - oldStr: 要被替换的字符串（可选）
      *              - newStr: 要写入的新字符串（必填）
      * @return 操作结果字符串：
-     *         - "OK" 表示成功
-     *         - 错误信息字符串（如参数无效、文件读取错误等）
+     * - "OK" 表示成功
+     * - 错误信息字符串（如参数无效、文件读取错误等）
      */
     public static String editFile(String input) {
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            EditFileInput editFileInput = mapper.readValue(input, EditFileInput.class);
-            if (editFileInput.getPath() == null || editFileInput.getPath().isEmpty() ||
-                    editFileInput.getOldStr().equals(editFileInput.getNewStr())) {
+            EditFileInput editFileInput = OBJECT_MAPPER.readValue(input, EditFileInput.class);
+
+            // [修复] 第一步：校验路径
+            if (editFileInput.getPath() == null || editFileInput.getPath().isEmpty()) {
                 if (LOG_ENABLE) {
-                    log.error("编辑文件失败: 无效的入参");
+                    log.error("编辑文件失败: 路径不能为空");
                 }
-                return "错误: 无效的入参";
+                return "错误: 路径不能为空";
+            }
+
+            // [修复] 第二步：仅在 oldStr 不为 null 时检查是否与 newStr 相同
+            if (editFileInput.getOldStr() != null && editFileInput.getOldStr().equals(editFileInput.getNewStr())) {
+                if (LOG_ENABLE) {
+                    log.error("编辑文件失败: oldStr 和 newStr 不能相同");
+                }
+                return "错误: oldStr 和 newStr 不能相同";
             }
 
             if (LOG_ENABLE) {
@@ -244,7 +258,7 @@ public class Tools {
                         editFileInput.getPath(), editFileInput.getOldStr(), editFileInput.getNewStr());
             }
 
-            Path filePath = Paths.get(ROOT+File.separator+editFileInput.getPath());
+            Path filePath = resolvePath(editFileInput.getPath());
             String oldContent;
 
             try {
@@ -312,6 +326,65 @@ public class Tools {
             }
             return "编辑文件失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 智能路径解析：支持绝对路径和相对路径
+     * <p>
+     * - 绝对路径：直接使用（当 ROOT="*" 时无限制；否则需在 ROOT 范围内）
+     * - 相对路径：从 ROOT 解析
+     *
+     * @param inputPath 用户输入的路径
+     * @return 解析后的完整路径
+     * @throws IllegalArgumentException 当路径超出 ROOT 限制时抛出
+     */
+    private static Path resolvePath(String inputPath) {
+        if (inputPath == null || inputPath.isEmpty()) {
+            throw new IllegalArgumentException("路径不能为空");
+        }
+
+        Path input = Paths.get(inputPath);
+
+        // 绝对路径处理
+        if (input.isAbsolute()) {
+            // UNRESTRICTED_PATH_MODE=true 表示无限制模式
+            if (UNRESTRICTED_PATH_MODE) {
+                if (LOG_ENABLE) {
+                    log.info("UNRESTRICTED_PATH_MODE=true，允许任意绝对路径: {}", inputPath);
+                }
+                return input.normalize();
+            }
+
+            // 普通模式：检查绝对路径是否在 ROOT 范围内
+            Path rootPath = Paths.get(ROOT).toAbsolutePath();
+            Path resolved = input.normalize();
+
+            // 检查 resolved 是否以 rootPath 开头（安全沙箱）
+            if (!resolved.startsWith(rootPath)) {
+                throw new IllegalArgumentException(
+                        "路径必须在项目目录内。ROOT=" + ROOT + "，尝试访问: " + inputPath);
+            }
+
+            if (LOG_ENABLE) {
+                log.info("绝对路径（已验证在 ROOT 范围内）: {} -> {}", inputPath, resolved);
+            }
+            return resolved;
+        }
+
+        // 相对路径：从 ROOT 解析
+        Path rootPath = Paths.get(ROOT).toAbsolutePath();
+        Path resolved = rootPath.resolve(inputPath).normalize();
+
+        // 再次检查（防止 ../ 跳出，除非在非限制模式）
+        if (!UNRESTRICTED_PATH_MODE && !resolved.startsWith(rootPath)) {
+            throw new IllegalArgumentException(
+                    "相对路径解析后超出项目目录。ROOT=" + ROOT + "，输入: " + inputPath);
+        }
+
+        if (LOG_ENABLE) {
+            log.info("相对路径解析: {} -> {}", inputPath, resolved);
+        }
+        return resolved;
     }
 
     /**
@@ -432,9 +505,9 @@ public class Tools {
      *              - fileType: 可选，文件类型过滤
      *              - caseSensitive: 可选，是否区分大小写（默认为false）
      * @return 搜索结果字符串：
-     *         - 成功时返回匹配的代码行（最多显示前50条）
-     *         - 失败时返回错误信息
-     *         - 无匹配时返回"没有找到匹配的内容"
+     * - 成功时返回匹配的代码行（最多显示前50条）
+     * - 失败时返回错误信息
+     * - 无匹配时返回"没有找到匹配的内容"
      */
     /**
      * 在指定路径下搜索代码内容。

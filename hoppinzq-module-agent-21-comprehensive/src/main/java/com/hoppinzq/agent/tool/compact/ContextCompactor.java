@@ -9,7 +9,6 @@ import com.hoppinzq.agent.session.MessageConverter;
 import com.hoppinzq.agent.session.SessionBlock;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.session.SessionMessage;
-import com.hoppinzq.agent.session.TranscriptRecord;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedWriter;
@@ -641,22 +640,9 @@ public class ContextCompactor {
 
             String summary = completeText(summaryPrompt, 2000);
 
-            // 【步骤3】将压缩记录保存到 SessionManager（如果可用）
-            if (sessionManager != null) {
-                try {
-                    TranscriptRecord record = TranscriptRecord.builder()
-                            .timestamp(timestamp)
-                            .messageCount(messageCount)
-                            .estimatedTokens(estimatedTokens)
-                            .summary(summary)
-                            .reason(reason)
-                            .build();
-                    sessionManager.recordTranscript(record);
-                    System.out.println("[压缩记录已保存到会话]");
-                } catch (Exception e) {
-                    System.err.println("[压缩记录保存失败] " + e.getMessage());
-                }
-            }
+            // 【步骤3】压缩记录：内核 SessionManager 已不再持久化压缩历史（改由能力自持存储），
+            // 本模块暂未拆分 compact 能力，故跳过落盘，仅在控制台提示
+            System.out.println("[压缩记录] 内核已移除 transcripts 持久化，压缩历史改由能力自持存储");
 
             // 【步骤4】构建压缩后的新消息列表
             List<LlmMessage> newHistory = new ArrayList<>();

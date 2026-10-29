@@ -1,14 +1,13 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hoppinzq.agent.Agent07;
 import com.hoppinzq.agent.base.SubAgent;
 import com.hoppinzq.agent.constant.AIConstants;
+import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
 import com.hoppinzq.agent.tool.skill.SkillLoader;
-
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -27,12 +26,6 @@ import java.util.stream.Stream;
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
- * 工具方法集合类
- * <p>
- * 提供各种工具的具体实现方法，包括文件操作、命令执行、内容搜索、任务管理等。
- * 每个方法都对应一个工具定义，接收JSON格式的输入参数，返回执行结果。
- * </p>
- *
  * @author hoppinzq
  */
 @Slf4j
@@ -710,7 +703,10 @@ public class Tools {
         try {
             ObjectMapper mapper = new ObjectMapper();
             SubAgentInput subAgentInput = mapper.readValue(input, SubAgentInput.class);
-            return SubAgent.executeSubAgent(subAgentInput);
+            // 使用带 Token 统计的方法
+            SubAgentSessionResult result = SubAgent.executeSubAgentWithTokenUsage(subAgentInput);
+            // 返回结果，附加 Token 使用信息
+            return result.getResult() + "\n\n" + result.formatTokenUsage();
         } catch (Exception e) {
             if (AIConstants.LOG_ENABLE) {
                 log.error("调用子代理错误: {}", e.getMessage());
@@ -733,113 +729,6 @@ public class Tools {
             return skillContent;
         } catch (Exception e) {
             return "加载Skills错误: " + e.getMessage();
-        }
-    }
-
-    // ==================== 任务管理工具方法 ====================
-
-    /**
-     * 创建新任务
-     */
-    public static String createTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskCreateInput taskInput = mapper.readValue(input, TaskCreateInput.class);
-
-            if (taskInput.getSubject() == null || taskInput.getSubject().isEmpty()) {
-                return "错误: 任务标题(subject)不能为空";
-            }
-
-            return Agent07.taskManager.createTask(
-                taskInput.getSubject(),
-                taskInput.getDescription(),
-                taskInput.getBlockedBy()
-            );
-        } catch (Exception e) {
-            return "创建任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 更新任务
-     */
-    public static String updateTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskUpdateInput taskInput = mapper.readValue(input, TaskUpdateInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            return Agent07.taskManager.updateTask(
-                taskInput.getTaskId(),
-                taskInput.getStatus(),
-                taskInput.getAddBlockedBy(),
-                taskInput.getAddBlocks()
-            );
-        } catch (Exception e) {
-            return "更新任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 列出所有任务
-     */
-    public static String listTasks(String input) {
-        try {
-            return Agent07.taskManager.listAllTasks();
-        } catch (Exception e) {
-            return "列出任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 获取任务详情
-     */
-    public static String getTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskGetInput taskInput = mapper.readValue(input, TaskGetInput.class);
-            return Agent07.taskManager.getTask(taskInput.getTaskId());
-        } catch (Exception e) {
-            return "获取任务详情失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 认领任务
-     */
-    public static String claimTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskClaimInput taskInput = mapper.readValue(input, TaskClaimInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            return Agent07.taskManager.claimTask(taskInput.getTaskId(), taskInput.getOwner());
-        } catch (Exception e) {
-            return "认领任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 完成任务
-     */
-    public static String completeTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskCompleteInput taskInput = mapper.readValue(input, TaskCompleteInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            return Agent07.taskManager.completeTask(taskInput.getTaskId());
-        } catch (Exception e) {
-            return "完成任务失败: " + e.getMessage();
         }
     }
 

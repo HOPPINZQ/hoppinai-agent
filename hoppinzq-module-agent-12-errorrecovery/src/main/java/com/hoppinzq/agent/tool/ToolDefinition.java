@@ -1,5 +1,6 @@
 package com.hoppinzq.agent.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
@@ -62,23 +63,18 @@ public class ToolDefinition {
         this.typedInvoker = input -> typedFunction.apply(type.cast(input));
     }
 
-    /**
-     * Bash 命令执行工具定义
-     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
-     */
-    public static ToolDefinition BashDefinition = new ToolDefinition(
-            "bash",
-            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
-            createInputSchema(
-                    Map.of(
-                            "command", createProperty("string", "要执行的命令字符串。"),
-                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
-                    ),
-                    List.of("command", "type")
-            ),
-            BashInput.class,
-            Tools::executeBash
-    );
+    public String invoke(Object convertedInput) throws Exception {
+        if (typedInvoker != null) {
+            return typedInvoker.apply(convertedInput);
+        }
+        if (function != null) {
+            if (convertedInput instanceof String) {
+                return function.apply((String) convertedInput);
+            }
+            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
+        }
+        throw new IllegalStateException("没有该工具的处理方法: " + name);
+    }
 
     public static ToolDefinition ReadFileDefinition = new ToolDefinition(
             "read_file",
@@ -106,18 +102,24 @@ public class ToolDefinition {
     );
 
     /**
-     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
-     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     * Bash 命令执行工具定义
+     * <p>
+     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
+     * </p>
      */
-    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
-        if (required != null && !required.isEmpty()) {
-            schema.set("required", OBJECT_MAPPER.valueToTree(required));
-        }
-        return schema;
-    }
+    public static ToolDefinition BashDefinition = new ToolDefinition(
+            "bash",
+            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
+            createInputSchema(
+                    Map.of(
+                            "command", createProperty("string", "要执行的命令字符串。"),
+                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
+                    ),
+                    List.of("command","type")
+            ),
+            BashInput.class,
+            Tools::executeBash
+    );
 
     public static ToolDefinition EditFileDefinition = new ToolDefinition(
             "edit_file",
@@ -132,6 +134,22 @@ public class ToolDefinition {
             ),
             EditFileInput.class,
             Tools::editFile
+    );
+
+    public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
+            "content_search",
+            "使用ripgrep (rg)搜索代码或文本。\n\n适用于查找代码库中的代码片段、函数定义、变量使用情况或任何文本内容。\n支持按正则表达式、文件类型或目录进行精准搜索。",
+            createInputSchema(
+                    Map.of(
+                            "pattern", createProperty("string", "要查找的文本内容或内容的正则表达式。"),
+                            "path", createProperty("string", "可选搜索路径（文件或目录）。"),
+                            "fileType", createProperty("string", "可选的文件扩展名，用于限制搜索范围（例如，'md'、'java'、'txt'）。"),
+                            "caseSensitive", createProperty("boolean", "搜索是否应区分大小写（默认值：false）。")
+                    ),
+                    List.of("pattern")
+            ),
+            ContentSearchInput.class,
+            Tools::searchContent
     );
 
     /**
@@ -152,22 +170,6 @@ public class ToolDefinition {
             Tools::listFiles
     );
 
-    public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
-            "content_search",
-            "使用ripgrep (rg)搜索代码或文本。\n\n适用于查找代码库中的代码片段、函数定义、变量使用情况或任何文本内容。\n支持按正则表达式、文件类型或目录进行精准搜索。",
-            createInputSchema(
-                    Map.of(
-                            "pattern", createProperty("string", "要查找的文本内容或内容的正则表达式。"),
-                            "path", createProperty("string", "可选搜索路径（文件或目录）。"),
-                            "fileType", createProperty("string", "可选的文件扩展名，用于限制搜索范围（例如，'md'、'java'、'txt'）。"),
-                            "caseSensitive", createProperty("boolean", "搜索是否应区分大小写（默认值：false）。")
-                    ),
-                    List.of("pattern")
-            ),
-            ContentSearchInput.class,
-            Tools::searchContent
-    );
-
     /**
      * 创建属性定义
      */
@@ -178,16 +180,17 @@ public class ToolDefinition {
         return property;
     }
 
-    public String invoke(Object convertedInput) throws Exception {
-        if (typedInvoker != null) {
-            return typedInvoker.apply(convertedInput);
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
+        if (required != null && !required.isEmpty()) {
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-        if (function != null) {
-            if (convertedInput instanceof String) {
-                return function.apply((String) convertedInput);
-            }
-            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
-        }
-        throw new IllegalStateException("没有该工具的处理方法: " + name);
+        return schema;
     }
 }

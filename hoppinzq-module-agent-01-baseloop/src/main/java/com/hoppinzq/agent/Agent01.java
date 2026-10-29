@@ -8,15 +8,18 @@ import com.hoppinzq.agent.tool.ToolDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
 import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
 
 /**
  * 使用命令行
- * 示例提示词：AI，打开百度并搜索hoppinzq，然后再访问hoppinzq.com
- * 示例提示词：AI，查看我电脑里的进程，并关闭DOTA2的游戏进程，因为它卡死了
+ * <p>本模块是基础循环（内核同步版）：只有 bash 一个工具、无特性能力，
+ * 内核（client/session/base/command/capability 契约）与 06-compact 权威源逐字节一致。
+ * 会话启动交互已收拢到 {@link SessionManager#bootstrap}，入口类只负责装配。
+ *
+ * <p>示例提示词：AI，打开百度并搜索hoppinzq，然后再访问hoppinzq.com
+ * <p>示例提示词：AI，查看我电脑里的进程，并关闭DOTA2的游戏进程，因为它卡死了
  *
  * @author hoppinzq
  */
@@ -29,63 +32,10 @@ public class Agent01 {
 
         ZQAgent agent = new ZQAgent(provider, MODEL, tools);
         agent.setSystemPrompt(buildSystemPrompt());
-        agent.setSessionManager(bootstrapSession(args));
+        // 内核 setSessionManager 需要显式给出 SkillLoader（供内置 /skills 命令使用）；
+        // 01 没有技能特性，传 null 即可：/skills 会提示“未启用技能加载器”
+        agent.setSessionManager(SessionManager.bootstrap(args), null);
         agent.run();
-    }
-
-    /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java Agent01 <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
     }
 
     /**

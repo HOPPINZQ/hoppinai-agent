@@ -32,8 +32,21 @@ public class AIConstants {
 
     //是否开启打印日志，MCP stdio不允许打印日志，如果你拿去改造为MCP，请注意！
     public static final Boolean LOG_ENABLE = false;
+    //路径限制模式：true=允许任意绝对路径（关闭安全沙箱），false=只允许 ROOT 范围内的路径
+    //建议本地开发环境设为 true，生产环境设为 false
+    public static final Boolean UNRESTRICTED_PATH_MODE = true;
+
+
+    //是否开启扩展思考（Claude thinking / DeepSeek reasoning），由 Provider 映射为各自协议参数
+    public static final boolean THINK_ENABLED = false;
+    //扩展思考 token 预算（仅 Anthropic 协议使用）
+    public static final int THINK_BUDGET_TOKENS = 10000;
 
     public static final String MODULE_NAME = "hoppinzq-module-agent-01-baseloop";
     // 工作目录
     public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
+
+    // 技能目录：内核 ZQAgent/AgentCommandHandler 依赖 tool.skill.SkillLoader（休眠依赖），
+    // 本模块没有技能特性，此常量仅供该休眠依赖编译通过
+    public static final String SKILL_PATH = "skills";
 }

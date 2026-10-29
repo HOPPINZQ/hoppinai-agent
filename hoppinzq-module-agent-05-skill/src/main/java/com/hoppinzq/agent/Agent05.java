@@ -1,244 +1,122 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
-import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.capability.skill.SkillCapability;
+import com.hoppinzq.agent.capability.subagent.SubAgentCapability;
+import com.hoppinzq.agent.capability.todo.TodoCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
-import com.hoppinzq.agent.tool.manager.TodoManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.ToolDefinition;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
-import static com.hoppinzq.agent.tool.ToolDefinition.SubAgentDefinition;
 
 /**
- * 技能加载智能体
+ * 技能加载智能体。
  *
- * 核心概念：
- * - 两层技能注入机制
- * - Layer 1（便宜）：在系统提示中只放技能名称和描述（~100 tokens/skill）
- * - Layer 2（按需）：当模型调用load_skill工具时，才在tool_result中注入完整技能内容（~2000 tokens）
+ * <p>本类只负责<b>装配</b>：load_skill 工具与技能提示片段收拢在 {@link SkillCapability}
+ * （capability.skill 包）；sub_agent 工具收拢在 {@link SubAgentCapability}；
+ * todo 工具、提醒钩子与 /todos 命令收拢在 {@link TodoCapability}。
+ * 入口类不再持有 {@code SkillLoader}/{@code TodoManager} 静态实例，也不再覆写任何循环方法。
  *
+ * <p>这就是插拔式集成的完整形态：复制 capability/&lt;feature&gt;/ 目录 +
+ * 下面 main 中的三行 {@code agent.capability(new XxxCapability(...))}。
  * 技能文件结构：
+ * <pre>
  * skills/
  *   pdf/
  *     SKILL.md  # ---\n name: pdf\n description: Process PDF files\n ---\n ...
  *   code-review/
  *     SKILL.md  # ---\n name: code-review\n description: Review code\n ---\n ...
+ * </pre>
  *
  * @author hoppinzq
  */
 public class Agent05 extends ZQAgent {
 
-    public static TodoManager todoManager;
-    private int roundsSinceTodo = 0;
-    private long lastTodoVersion = 0;
-    public static SkillLoader skillLoader;
-
-    public Agent05(LlmProvider provider, String model, List<ToolDefinition> tools, SkillLoader skillLoader, TodoManager todoManager) {
+    public Agent05(LlmProvider provider, String model, List<ToolDefinition> tools) {
         super(provider, model, tools);
-        Agent05.skillLoader = skillLoader;
-        Agent05.todoManager = todoManager;
-        this.lastTodoVersion = todoManager.getVersion();
-    }
-
-    @Override
-    protected void onToolExecution(List<LlmMessage> toolResults) {
-        long currentVersion = todoManager.getVersion();
-        if (currentVersion > lastTodoVersion) {
-            roundsSinceTodo = 0;
-            lastTodoVersion = currentVersion;
-        } else {
-            roundsSinceTodo++;
-        }
-
-        if (roundsSinceTodo >= 3) {
-            String reminder = String.format("""
-                <reminder>
-                您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。
-                
-                建议操作：
-                1. 检查当前任务状态
-                2. 更新已完成的任务
-                3. 添加新的任务（如果需要）
-                4. 调整任务优先级
-                </reminder>
-                """, roundsSinceTodo);
-            toolResults.add(LlmMessage.user(reminder));
-        }
     }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        // 创建技能加载器
-        skillLoader = new SkillLoader();
-        todoManager = new TodoManager();
+        // 基座工具（不含任何能力工具；load_skill / sub_agent / todo 由能力注册）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
+                GlobDefinition, ContentSearchDefinition));
 
-        // 创建工具列表（基础工具 + load_skill工具）
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(BashDefinition);
-        tools.add(ReadFileDefinition);
-        tools.add(EditFileDefinition);
-        tools.add(WriteFileDefinition);
-        tools.add(GlobDefinition);
-        tools.add(ContentSearchDefinition);
-        tools.add(SubAgentDefinition);
-        tools.add(TodoDefinition);
+        Agent05 agent = new Agent05(provider, MODEL, baseTools);
 
-        tools.add(SkillsDefinition);
+        // 插拔式集成：复制 capability/<feature>/ 目录 + 这三行注册
+        TodoCapability todo = new TodoCapability();
+        SubAgentCapability subAgent = new SubAgentCapability();
+        SkillCapability skill = new SkillCapability();
+        agent.capability(todo);
+        agent.capability(subAgent);
+        agent.capability(skill);
 
-        // 创建智能体
-        Agent05 agent = new Agent05(provider, MODEL, tools, skillLoader, todoManager);
+        // 基础提示 + 各能力贡献的提示片段（技能片段即 Layer 1：只放名称与描述）
+        agent.setSystemPrompt(buildSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", todo.promptFragments())
+                + "\n\n" + String.join("\n", subAgent.promptFragments())
+                + "\n\n" + String.join("\n", skill.promptFragments()));
 
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setSessionManager(bootstrapSession(args),skillLoader);
+        System.out.println("=== 技能加载智能体 ===");
+        System.out.println(todo.description());
+        System.out.println(subAgent.description());
+        System.out.println(skill.description());
+        System.out.println();
+
+        // 能力自持的 SkillLoader 注入内核命令处理器：内置 /skills 命令的数据来源由能力供给
+        agent.setSessionManager(SessionManager.bootstrap(args), skill.getLoader());
         agent.run();
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java AgentXX <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    /**
-     * 构建系统提示词
+     * 基础系统提示词（不含能力片段；todo / 子智能体 / 技能的专属文案由各自能力的
+     * promptFragments 贡献）。
+     *
      * @return 格式化的系统提示词
      */
-    private static String buildSystemPrompt() {
+    private static String buildSystemPrompt(String root) {
         String osName = System.getProperty("os.name").toLowerCase();
-        // 构建系统提示（Layer 1: 技能名称和描述）
-        String systemPrompt = String.format("""
-            你是一个带有待办事项列表的编程智能体。你可以将复杂的任务委托给子智能体来处理。
+        return String.format("""
+            你是一个编程智能体，负责拆解并完成用户交给你的任务。
             你工作在 %s 操作系统，工作根目录为：%s
-            子智能体具有读写文件、编辑文件和搜索内容等能力，可以帮助你完成具体的文件操作任务。
-            请使用 todo 工具来管理您的任务。
-            在处理不熟悉的主题之前，请使用 load_skill 工具来获取专业知识。
-            
-            可用的技能：
-            %s
-            
+
             ## 核心原则
-            
-            1. **主动学习**：遇到不熟悉的领域时，主动使用 load_skill 工具获取专业知识
-            2. **任务管理**：使用 todo 工具创建、更新和跟踪任务进度
-            3. **委托处理**：复杂或重复性任务可以委托给子智能体处理
-            4. **工具优先**：优先使用工具解决问题，而不是仅提供建议
-            5. **安全第一**：执行命令前考虑安全性，避免破坏性操作
-            
+
+            1. **委托处理**：复杂或重复性任务可以委托给子智能体处理
+            2. **工具优先**：优先使用工具解决问题，而不是仅提供建议
+            3. **安全第一**：执行命令前考虑安全性，避免破坏性操作
+
             ## 工作流程
-            
+
             1. **理解需求**：仔细分析用户需求，明确任务目标
-            2. **技能评估**：检查是否需要加载相关技能
-            3. **任务规划**：使用 todo 工具创建任务计划
-            4. **执行实施**：使用合适的工具完成任务
-            5. **验证反馈**：检查结果，向用户提供反馈
-            
+            2. **任务规划**：使用 todo 工具创建任务计划
+            3. **执行实施**：使用合适的工具完成任务
+            4. **验证反馈**：检查结果，向用户提供反馈
+
             ## 工具使用指南
-            
+
             ### bash 工具
             - 用于执行系统命令
             - 支持 cmd、powershell、bash 三种类型
             - 执行前确认命令安全性
-            
+
             ### 文件操作工具
             - read_file: 读取文件内容
             - write_file: 写入新文件
             - edit_file: 编辑现有文件
             - glob: 列出目录内容
             - content_search: 搜索文件内容
-            
-            ### 智能体工具
-            - sub_agent: 委托任务给子智能体
-            - load_skill: 加载专业知识技能
-            - todo: 管理待办事项
-            
-            ## 技能使用策略
-            
-            ### 何时使用技能
-            - 遇到不熟悉的编程概念或技术
-            - 需要遵循特定最佳实践
-            - 执行标准化工作流程
-            - 学习新的开发模式
-            
-            ### 技能加载流程
-            1. 识别知识缺口
-            2. 使用 load_skill 加载相关技能
-            3. 阅读技能内容，理解核心概念
-            4. 应用技能知识解决问题
-            
-            ## 待办事项管理
-            
-            ### 任务创建
-            - 为复杂任务创建详细的任务列表
-            - 设置合理的任务优先级
-            - 分解大任务为可执行的小步骤
-            
-            ### 任务更新
-            - 定期更新任务状态
-            - 标记已完成的任务
-            - 调整任务优先级
-            
-            ### 任务提醒
-            - 系统会在3个回合未更新任务时自动提醒
-            - 保持任务列表与实际进度同步
-            
+
             记住：你的目标是帮助用户解决问题，而不仅仅是提供建议。使用你的工具来实际执行任务。
-            """, osName, ROOT, skillLoader.getDescriptions());
-        return systemPrompt;
+            """, osName, root);
     }
 }

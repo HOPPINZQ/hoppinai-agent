@@ -1,6 +1,8 @@
 package com.hoppinzq.agent.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.AgentCron;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,10 +17,7 @@ import java.util.function.Function;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * ToolDefinition 工具定义类（cron 模块本地副本）。
- * <p>
- * 与 module-02 的差异：新增 3 个 cron 工具定义（schedule_cron / list_crons / cancel_cron）。
- *
+ * ToolDefinition 工具定义类（16-cron 内核版：仅基座工具；cron 特性工具已收编至 capability/cron）
  * @author hoppinzq
  */
 @Data
@@ -26,11 +25,13 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 @AllArgsConstructor
 @Builder
 public class ToolDefinition {
+    // toolCall 或者 MCP需要用的三个字段
     private String name;
     private String description;
     /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
     private ObjectNode inputSchema;
 
+    // 工具的参数类型和处理函数
     private Class<?> type;
     private Function<String, String> function;
     private TypedToolInvoker typedInvoker;
@@ -63,19 +64,18 @@ public class ToolDefinition {
         this.typedInvoker = input -> typedFunction.apply(type.cast(input));
     }
 
-    public static ToolDefinition BashDefinition = new ToolDefinition(
-            "bash",
-            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
-            createInputSchema(
-                    Map.of(
-                            "command", createProperty("string", "要执行的命令字符串。"),
-                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
-                    ),
-                    List.of("command", "type")
-            ),
-            BashInput.class,
-            Tools::executeBash
-    );
+    public String invoke(Object convertedInput) throws Exception {
+        if (typedInvoker != null) {
+            return typedInvoker.apply(convertedInput);
+        }
+        if (function != null) {
+            if (convertedInput instanceof String) {
+                return function.apply((String) convertedInput);
+            }
+            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
+        }
+        throw new IllegalStateException("没有该工具的处理方法: " + name);
+    }
 
     public static ToolDefinition ReadFileDefinition = new ToolDefinition(
             "read_file",
@@ -103,18 +103,24 @@ public class ToolDefinition {
     );
 
     /**
-     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
-     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     * Bash 命令执行工具定义
+     * <p>
+     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
+     * </p>
      */
-    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
-        if (required != null && !required.isEmpty()) {
-            schema.set("required", OBJECT_MAPPER.valueToTree(required));
-        }
-        return schema;
-    }
+    public static ToolDefinition BashDefinition = new ToolDefinition(
+            "bash",
+            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
+            createInputSchema(
+                    Map.of(
+                            "command", createProperty("string", "要执行的命令字符串。"),
+                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
+                    ),
+                    List.of("command","type")
+            ),
+            BashInput.class,
+            Tools::executeBash
+    );
 
     public static ToolDefinition EditFileDefinition = new ToolDefinition(
             "edit_file",
@@ -131,18 +137,17 @@ public class ToolDefinition {
             Tools::editFile
     );
 
-public static ToolDefinition ListFilesDefinition = new ToolDefinition(
-            "list_files",
-            "列出指定目录下的所有文件和子目录（递归遍历），可跳过常见构建/缓存目录。\n\n适用于了解项目结构、查找某类文件等场景。",
+public static ToolDefinition GlobDefinition = new ToolDefinition(
+            "glob",
+            "使用glob模式查找匹配的文件和目录。\n\n支持通配符匹配文件路径，类似Python的glob.glob()功能。\n支持的glob模式：\n- *: 匹配当前目录下所有文件和目录\n- *.ext: 匹配当前目录下所有.ext文件\n- **/*.ext: 递归匹配所有.ext文件\n- test_*.py: 匹配以test_开头的Python文件\n- */: 只匹配目录",
             createInputSchema(
                     Map.of(
-                            "path", createProperty("string", "可选的目录路径（相对工作目录）。如不指定，默认遍历工作目录。"),
-                            "fileType", createProperty("string", "可选的文件扩展名，用于过滤结果（例如，'java'、'md'）。")
+                            "pattern", createProperty("string", "Glob匹配模式，支持通配符。例如：*.java, **/*.json, test_*.py")
                     ),
-                    List.of()
+                    List.of("pattern")
             ),
-            ListFilesInput.class,
-            Tools::listFiles
+            GlobInput.class,
+            Tools::glob
     );
 
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
@@ -161,51 +166,65 @@ public static ToolDefinition ListFilesDefinition = new ToolDefinition(
             Tools::searchContent
     );
 
-    // ========================= cron 工具 =========================
-
-    public static ToolDefinition ScheduleCronDefinition = new ToolDefinition(
-            "schedule_cron",
-            "调度一个定时任务。命中 5 字段 cron 表达式（min hour day-of-month month day-of-week）时，把 prompt 作为新的用户消息注入 agent。\n" +
-                    "示例：\n" +
-                    "- 每 2 分钟跑一次：*/2 * * * *\n" +
-                    "- 每天 9:30：30 9 * * *\n" +
-                    "- 每周一 9 点：0 9 * * 1\n" +
-                    "recurring=false 表示只触发一次（one-shot）；durable=true 表示进程重启后仍然有效。",
+    public static ToolDefinition SubAgentDefinition = new ToolDefinition(
+            "sub_agent",
+            "将子任务委托给子智能体处理。子智能体拥有读取文件、写入文件、编辑文件和搜索内容等工具能力，专门用于处理具体的文件操作任务。",
             createInputSchema(
-                    Map.of(
-                            "cron", createProperty("string", "5 字段 cron 表达式，例如 '*/2 * * * *'."),
-                            "prompt", createProperty("string", "触发时要注入的 prompt。"),
-                            "recurring", createProperty("boolean", "是否周期触发，默认 true。"),
-                            "durable", createProperty("boolean", "是否持久化到 .scheduled_tasks.json，默认 false。")
+                    Map.of("prompt", createProperty("string", "给子智能体的任务提示词，详细描述需要完成的任务")),
+                    List.of("prompt")
+            ),
+            SubAgentInput.class,
+            Tools::executeSubAgent
+    );
+
+    public static ToolDefinition SkillsDefinition = new ToolDefinition(
+            "load_skill",
+            "加载指定的技能（工具集合）。可用技能：" + String.join(", ", AgentCron.skillLoader.getAvailableSkills()),
+            createInputSchema(
+                    Map.of("skill_name", createProperty("string", "要加载的技能名称")),
+                    List.of("skill_name")
+            ),
+            LoadSkillInput.class,
+            Tools::skillLoad
+    );
+
+    /**
+     * 待办事项工具定义
+     * 用于管理任务列表，支持添加、更新或完成任务
+     */
+    public static ToolDefinition TodoDefinition = new ToolDefinition(
+            "todo",
+            "管理待办事项列表。使用此工具可以添加、更新或完成任务。支持任务状态追踪，包括待处理、进行中和已完成三种状态。",
+            createInputSchema(
+                    Map.of("todos",
+                            Map.of(
+                                    "type", "array",
+                                    "description", "待办事项列表",
+                                    "items", Map.of(
+                                            "type", "object",
+                                            "properties", Map.of(
+                                                    "id", Map.of("type", "string", "description", "任务的唯一标识符"),
+                                                    "content", Map.of("type", "string", "description", "待办事项的内容描述"),
+                                                    "status", Map.of(
+                                                            "type", "string",
+                                                            "enum", List.of("pending", "in_progress", "completed"),
+                                                            "description", "任务状态：pending-待处理, in_progress-进行中, completed-已完成"
+                                                    )
+                                            ),
+                                            "required", List.of("id", "content", "status")
+                                    )
+                            )
                     ),
-                    List.of("cron", "prompt")
+                    List.of("todos")
             ),
-            CronScheduleInput.class,
-            Tools::scheduleCron
+            TodoInput.class,
+            AgentCron.todoManager::updateTodos
     );
 
-    public static ToolDefinition ListCronsDefinition = new ToolDefinition(
-            "list_crons",
-            "列出当前所有已注册的 cron 任务（id、cron、prompt、recurring、durable、lastFire、nextFire）。无需参数。",
-            createInputSchema(
-                    Map.of(),
-                    List.of()
-            ),
-            Map.class,
-            Tools::listCrons
-    );
 
-    public static ToolDefinition CancelCronDefinition = new ToolDefinition(
-            "cancel_cron",
-            "按 id 取消一个已注册的 cron 任务。",
-            createInputSchema(
-                    Map.of("id", createProperty("string", "要取消的任务 id（来自 list_crons）")),
-                    List.of("id")
-            ),
-            CronCancelInput.class,
-            Tools::cancelCron
-    );
-
+    /**
+     * 创建属性定义
+     */
     public static Map<String, Object> createProperty(String type, String description) {
         Map<String, Object> property = new HashMap<>();
         property.put("type", type);
@@ -213,16 +232,17 @@ public static ToolDefinition ListFilesDefinition = new ToolDefinition(
         return property;
     }
 
-    public String invoke(Object convertedInput) throws Exception {
-        if (typedInvoker != null) {
-            return typedInvoker.apply(convertedInput);
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
+        if (required != null && !required.isEmpty()) {
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-        if (function != null) {
-            if (convertedInput instanceof String) {
-                return function.apply((String) convertedInput);
-            }
-            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
-        }
-        throw new IllegalStateException("没有该工具的处理方法: " + name);
+        return schema;
     }
 }

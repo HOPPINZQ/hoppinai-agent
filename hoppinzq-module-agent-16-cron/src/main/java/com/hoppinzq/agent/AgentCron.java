@@ -1,145 +1,110 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.cron.CronCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.Tools;
-import com.hoppinzq.agent.tool.cron.CronScheduler;
+import com.hoppinzq.agent.tool.manager.TodoManager;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
+import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
- * 定时调度示例（对应 Python 教程 s14_cron_scheduler）。
+ * 定时调度智能体（对应 Python 教程 s14_cron_scheduler）。
  *
- * <p>在 module-02 工具循环的基础上，新增两条 daemon 线程：
- * <ol>
- *   <li><b>调度线程</b>：每秒轮询当前时间，命中 5 字段 cron 表达式（min hour dom mon dow）的任务
- *       入 {@code cronQueue}；同一分钟内不重复触发（lastFire 防抖）</li>
- *   <li><b>队列处理线程</b>：保留为扩展位，主循环通过 {@code consumeQueue()} 在 LLM 调用前主动消费</li>
- * </ol>
+ * <p>本类只负责<b>装配</b>：cron 工具、/crons 命令、调度器生命周期与提示词片段
+ * 全部收拢在 {@link CronCapability}（capability.cron 包）。定时任务命中后由能力包
+ * 通过宿主 Agent 跑任务，入口类不再覆写主循环，也不持有调度器引用。
  *
- * <p>durable=true 的任务持久化到 {@code <ROOT>/.scheduled_tasks.json}，进程重启后自动恢复。
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/cron/} 目录 +
+ * 下面 main 中的一行 {@code agent.capability(new CronCapability())}。
  *
  * <p><b>示例 prompt：</b>
  * <ul>
- *   <li>"每 2 分钟打印当前日期"（用 schedule_cron，cron 表达式星号斜杠 2 空格星号空格星号空格星号空格星号）</li>
+ *   <li>"每 2 分钟打印当前日期"（schedule_cron，表达式 星号斜杠 2 空号星号 空格星号 空格星号 空格星号）</li>
  *   <li>"1 分钟后提醒我检查构建状态"（one-shot：recurring=false）</li>
- *   <li>"列出所有 cron 任务"</li>
- *   <li>"取消任务 &lt;id&gt;"</li>
+ *   <li>"列出所有 cron 任务" / "取消任务 &lt;id&gt;"</li>
  * </ul>
  *
  * @author hoppinzq
  */
-public class AgentCron {
+public class AgentCron extends ZQAgent {
+
+    /**
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 必须在构建工具列表之前赋值。
+     */
+    public static SkillLoader skillLoader;
+    public static TodoManager todoManager;
+
+    public AgentCron(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
+    }
+
+    /**
+     * 基础系统提示词（不含能力片段；cron 的用法说明由 CronCapability.promptFragments 贡献）。
+     */
+    public static String generateSystemPrompt(String root, String skillDescriptions) {
+        return String.format(
+                "你是一个编程智能体，工作在目录: %s\n\n" +
+                "核心能力：\n" +
+                "- 使用工具读写文件、编辑代码、执行命令、搜索内容\n" +
+                "- 通过 todo 工具管理任务列表，追踪复杂任务进度\n" +
+                "- 加载专业技能以应对特定领域的任务\n\n" +
+                "工作指南：\n" +
+                "1. 优先使用工具解决任务，而非仅提供建议\n" +
+                "2. 在处理复杂或不熟悉的主题时，使用 load_skill 工具获取专业知识\n" +
+                "3. 使用 todo 工具将大任务分解为小步骤，逐个完成\n\n" +
+                "可用的技能：\n%s",
+                root,
+                skillDescriptions
+        );
+    }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        // 6 个原有工具 + 3 个 cron 工具
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(ToolDefinition.BashDefinition);
-        tools.add(ToolDefinition.ReadFileDefinition);
-        tools.add(ToolDefinition.WriteFileDefinition);
-        tools.add(ToolDefinition.EditFileDefinition);
-        tools.add(ToolDefinition.ListFilesDefinition);
-        tools.add(ToolDefinition.ContentSearchDefinition);
-        tools.add(ToolDefinition.ScheduleCronDefinition);
-        tools.add(ToolDefinition.ListCronsDefinition);
-        tools.add(ToolDefinition.CancelCronDefinition);
+        // 工具定义静态初始化依赖这两个实例，须先创建
+        skillLoader = new SkillLoader();
+        todoManager = new TodoManager();
 
-        // 启动 cron 调度器
-        CronScheduler scheduler = new CronScheduler();
-        Tools.setCronScheduler(scheduler);
+        // 会话启动交互已收拢到 SessionManager.bootstrap
+        SessionManager sessionManager = SessionManager.bootstrap(args);
 
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setCronScheduler(scheduler);
-        agent.setSessionManager(bootstrapSession(args));
-        agent.run();
-    }
+        // 基座工具（不含任何能力工具）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
+                GlobDefinition, ContentSearchDefinition, SubAgentDefinition, TodoDefinition,
+                SkillsDefinition));
 
-    /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java AgentCron <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
+        AgentCron agent = new AgentCron(provider, MODEL, baseTools);
+
+        // 插拔式集成：复制 capability/cron/ 目录 + 这一行注册
+        CronCapability cron = new CronCapability();
+        agent.capability(cron);
+
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(generateSystemPrompt(ROOT, skillLoader.getDescriptions())
+                + "\n\n" + String.join("\n", cron.promptFragments()));
+
+        System.out.println("=== 定时调度智能体 ===");
+        System.out.println(cron.description());
+        System.out.println();
+
+        agent.setSessionManager(sessionManager, skillLoader);
         try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
+            agent.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            cron.onStop();
         }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    private static String buildSystemPrompt() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return String.format("""
-                ## 角色
-                你是一个带定时任务调度能力的开发助手。除了常规的 bash / 文件工具，你还拥有三个 cron 工具：
-                - schedule_cron(cron, prompt, recurring=true, durable=false)：注册一个 5 字段 cron 任务，命中时把 prompt 作为新 user 消息注入对话
-                - list_crons()：列出所有已注册的 cron 任务
-                - cancel_cron(id)：按 id 取消一个 cron 任务
-
-                cron 表达式字段顺序：minute hour day-of-month month day-of-week。
-                - 每 N 分钟：*/N * * * *
-                - 每天 HH:MM：M H * * *
-                - 每周 X 的 H 点：0 H * * D（0=周日，1=周一…6=周六）
-
-                ## 工作目录
-                %s
-
-                ## 操作系统
-                %s
-
-                注意：定时任务命中的 prompt 会作为 system reminder 注入对话；如果用户让你「N 分钟后做 X」，
-                请用 schedule_cron 配 recurring=false 实现 one-shot 提醒。""", ROOT, osName);
     }
 }

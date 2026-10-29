@@ -2,8 +2,6 @@ package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.BashInput;
-import com.hoppinzq.agent.tool.schema.ReadFileInput;
-import com.hoppinzq.agent.tool.schema.ScreenshotInput;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,7 +15,9 @@ import java.util.function.Function;
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * s22 工具定义。仅在 s01 的 bash 基础上增加 read_file / screenshot 两个工具。
+ * s22 工具定义。
+ * <p>本模块只保留基座工具 bash；多模态工具（read_file 图片增强 / screenshot）
+ * 属于特性侵入，已随能力化移入 {@code capability/multimodal/MultimodalCapability#tools()}。
  *
  * @author hoppinzq
  */
@@ -26,13 +26,20 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 @AllArgsConstructor
 @Builder
 public class ToolDefinition {
+
+    /**
+     * Bash 命令执行工具定义
+     * <p>
+     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
+     * </p>
+     */
     public static ToolDefinition BashDefinition = new ToolDefinition(
             "bash",
-            "执行 Shell 命令并返回其输出结果。",
+            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
             createInputSchema(
                     Map.of(
                             "command", createProperty("string", "要执行的命令字符串。"),
-                            "type", createProperty("string", "命令类型：cmd / powershell / bash。")
+                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
                     ),
                     List.of("command")
             ),
@@ -40,41 +47,26 @@ public class ToolDefinition {
             Tools::executeBash
     );
 
-    /**
-     * read_file：增强版，识别图片 MIME 自动 base64。
-     */
-    public static ToolDefinition ReadFileDefinition = new ToolDefinition(
-            "read_file",
-            "读取指定文件路径。若为图片（image/*）自动转 base64 image block；若为文本返回字符串；其他二进制返回文件描述。",
-            createInputSchema(
-                    Map.of("path", createProperty("string", "工作目录中文件的相对路径。")),
-                    List.of("path")
-            ),
-            ReadFileInput.class,
-            Tools::readFile
-    );
-
-    /**
-     * screenshot：抓取当前屏幕，返回 base64 PNG。
-     */
-    public static ToolDefinition ScreenshotDefinition = new ToolDefinition(
-            "screenshot",
-            "抓取当前屏幕截图，返回 base64 编码的 PNG。适用于需要查看屏幕内容的场景。",
-            createInputSchema(
-                    Map.of(),
-                    List.of()
-            ),
-            ScreenshotInput.class,
-            Tools::screenshot
-    );
-
+    // toolCall 或者 MCP需要用的三个字段
     private String name;
     private String description;
     /** 协议中立的 JSON Schema（type/properties/required），由 Provider 转为各自 SDK 类型 */
     private ObjectNode inputSchema;
+
+    // 工具的参数类型和处理函数
     private Class<?> type;
     private Function<String, String> function;
     private TypedToolInvoker typedInvoker;
+
+    @FunctionalInterface
+    public interface TypedToolFunction<T> {
+        String apply(T input) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface TypedToolInvoker {
+        String apply(Object input) throws Exception;
+    }
 
     public ToolDefinition(String name, String description, ObjectNode inputSchema, Class<?> type, Function<String, String> function) {
         this.name = name;
@@ -104,19 +96,12 @@ public class ToolDefinition {
             }
             return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
         }
-        throw new IllegalStateException("未配置工具处理器: " + name);
+        throw new IllegalStateException("没有该工具的处理方法: " + name);
     }
 
-    @FunctionalInterface
-    public interface TypedToolFunction<T> {
-        String apply(T input) throws Exception;
-    }
-
-    @FunctionalInterface
-    public interface TypedToolInvoker {
-        String apply(Object input) throws Exception;
-    }
-
+    /**
+     * 创建属性定义
+     */
     public static Map<String, Object> createProperty(String type, String description) {
         Map<String, Object> property = new HashMap<>();
         property.put("type", type);
@@ -124,6 +109,10 @@ public class ToolDefinition {
         return property;
     }
 
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
     public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
         ObjectNode schema = OBJECT_MAPPER.createObjectNode();
         schema.put("type", "object");

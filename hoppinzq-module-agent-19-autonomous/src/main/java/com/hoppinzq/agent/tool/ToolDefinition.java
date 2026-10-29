@@ -293,63 +293,6 @@ public static ToolDefinition ListFilesDefinition = new ToolDefinition(
             Tools::reviewPlan
     );
 
-    // ========================= task 工具 =========================
-
-    public static ToolDefinition CreateTaskDefinition = new ToolDefinition(
-            "create_task",
-            "创建一个新任务。任务会被 teammates 的自主认领机制（IdlePoller）自动发现并认领。",
-            createInputSchema(
-                    Map.of(
-                            "subject", createProperty("string", "任务标题。"),
-                            "description", createProperty("string", "任务描述。")
-                    ),
-                    List.of("subject")
-            ),
-            TaskCreateInput.class,
-            Tools::createTask
-    );
-
-    public static ToolDefinition ListTasksDefinition = new ToolDefinition(
-            "list_tasks",
-            "列出所有任务（含状态和依赖）。",
-            createInputSchema(Map.of(), List.of()),
-            Map.class,
-            Tools::listTasks
-    );
-
-    public static ToolDefinition GetTaskDefinition = new ToolDefinition(
-            "get_task",
-            "获取单个任务详情。",
-            createInputSchema(
-                    Map.of("taskId", createProperty("integer", "任务 id。")),
-                    List.of("taskId")
-            ),
-            TaskGetInput.class,
-            Tools::getTask
-    );
-
-    public static ToolDefinition ClaimTaskDefinition = new ToolDefinition(
-            "claim_task",
-            "认领一个任务（设置 owner + in_progress 状态）。仅 teammate 可调用。",
-            createInputSchema(
-                    Map.of("taskId", createProperty("integer", "要认领的任务 id。")),
-                    List.of("taskId")
-            ),
-            TaskClaimInput.class,
-            Tools::claimTask
-    );
-
-    public static ToolDefinition CompleteTaskDefinition = new ToolDefinition(
-            "complete_task",
-            "将任务标记为完成。",
-            createInputSchema(
-                    Map.of("taskId", createProperty("integer", "要完成的任务 id。")),
-                    List.of("taskId")
-            ),
-            TaskClaimInput.class,
-            Tools::completeTask
-    );
-
     public static Map<String, Object> createProperty(String type, String description) {
         Map<String, Object> property = new HashMap<>();
         property.put("type", type);

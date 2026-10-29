@@ -3,13 +3,23 @@ package com.hoppinzq.agent.client;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import com.anthropic.core.JsonValue;
+import com.anthropic.models.messages.Base64ImageSource;
 import com.anthropic.models.messages.ContentBlock;
 import com.anthropic.models.messages.ContentBlockParam;
+import com.anthropic.models.messages.ImageBlockParam;
 import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCountTokensParams;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
+import com.anthropic.models.messages.RawContentBlockDeltaEvent;
+import com.anthropic.models.messages.RawContentBlockStartEvent;
+import com.anthropic.models.messages.RawMessageDeltaEvent;
+import com.anthropic.models.messages.RawMessageStreamEvent;
+import com.anthropic.models.messages.StopReason;
 import com.anthropic.models.messages.TextBlockParam;
+import com.anthropic.models.messages.ThinkingBlockParam;
+import com.anthropic.models.messages.ThinkingConfigEnabled;
+import com.anthropic.models.messages.ThinkingConfigParam;
 import com.anthropic.models.messages.Tool;
 import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUnion;
@@ -36,7 +46,8 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
  *   <li>中立 {@code role=tool} 消息在发送前合并为一条 user 消息内嵌 tool_result 块（Anthropic 协议形态）</li>
  *   <li>工具入参由 SDK 的 {@code JsonValue} 转为 JSON 字符串表示</li>
  *   <li>countTokens 走原生 count-tokens 接口（精确值）</li>
- *   <li>流式暂未实现（接口默认抛 {@link UnsupportedOperationException}）</li>
+ *   <li>扩展思考：请求侧 {@code thinking.budget_tokens} 开启；assistant 的 thinking 块
+ *       （含签名）在工具循环中随 tool_use 回传（Anthropic 强制要求），其余场景仅展示/审计</li>
  * </ul>
  *
  * @author hoppinzq
@@ -68,13 +79,103 @@ public class AnthropicProvider implements LlmProvider {
                 .build();
     }
 
+    // ============================== 流式 ==============================
+
+    /**
+     * Anthropic 原生流式（RawMessageStreamEvent）→ 中立 {@link StreamListener}：
+     * 文本增量实时回调；工具调用块结束时以累积后的完整入参 JSON 整块回调。
+     */
+    @Override
+    public void stream(LlmRequest request, StreamListener listener) {
+        try (com.anthropic.core.http.StreamResponse<RawMessageStreamEvent> streamResponse =
+                     client.messages().createStreaming(toParams(request))) {
+            listener.onStart();
+            // 工具调用块累积状态（anthropic 的入参以 partial_json 分片到达）
+            boolean inToolBlock = false;
+            String toolId = null;
+            String toolName = null;
+            StringBuilder toolArgs = new StringBuilder();
+            StringBuilder thinking = new StringBuilder();
+            LlmResponse.FinishReason finishReason = LlmResponse.FinishReason.STOP;
+            long inputTokens = 0;
+            long outputTokens = 0;
+
+            java.util.Iterator<RawMessageStreamEvent> it = streamResponse.stream().iterator();
+            while (it.hasNext()) {
+                RawMessageStreamEvent event = it.next();
+                if (event.isMessageStart()) {
+                    Usage usage = event.asMessageStart().message().usage();
+                    if (usage != null) {
+                        inputTokens = usage.inputTokens();
+                    }
+                } else if (event.isContentBlockStart()) {
+                    RawContentBlockStartEvent blockStart = event.asContentBlockStart();
+                    if (blockStart.contentBlock().isToolUse()) {
+                        inToolBlock = true;
+                        com.anthropic.models.messages.ToolUseBlock toolUse = blockStart.contentBlock().asToolUse();
+                        toolId = toolUse.id();
+                        toolName = toolUse.name();
+                        toolArgs.setLength(0);
+                    }
+                } else if (event.isContentBlockDelta()) {
+                    RawContentBlockDeltaEvent delta = event.asContentBlockDelta();
+                    if (delta.delta().isText()) {
+                        String text = delta.delta().asText().text();
+                        if (text != null && !text.isEmpty()) {
+                            listener.onTextDelta(text);
+                        }
+                    } else if (delta.delta().isThinking()) {
+                        // 扩展思考块增量（Anthropic thinking / DeepSeek anthropic 兼容端点）
+                        String thinkingDelta = delta.delta().asThinking().thinking();
+                        if (thinkingDelta != null && !thinkingDelta.isEmpty()) {
+                            thinking.append(thinkingDelta);
+                            listener.onThinkingDelta(thinkingDelta);
+                        }
+                    } else if (delta.delta().isInputJson()) {
+                        toolArgs.append(delta.delta().asInputJson().partialJson());
+                    }
+                } else if (event.isContentBlockStop()) {
+                    if (inToolBlock) {
+                        listener.onToolUse(toolId, toolName,
+                                toolArgs.length() == 0 ? "{}" : toolArgs.toString());
+                        inToolBlock = false;
+                    }
+                } else if (event.isMessageDelta()) {
+                    RawMessageDeltaEvent deltaEvent = event.asMessageDelta();
+                    if (deltaEvent.usage() != null) {
+                        outputTokens = deltaEvent.usage().outputTokens();
+                    }
+                    StopReason reason = deltaEvent.delta().stopReason().orElse(null);
+                    if (StopReason.TOOL_USE.equals(reason)) {
+                        finishReason = LlmResponse.FinishReason.TOOL_CALLS;
+                    } else if (StopReason.MAX_TOKENS.equals(reason)) {
+                        finishReason = LlmResponse.FinishReason.LENGTH;
+                    } else if (reason != null) {
+                        finishReason = LlmResponse.FinishReason.STOP;
+                    }
+                }
+            }
+            if (thinking.length() > 0) {
+                listener.onThinkingComplete(thinking.toString());
+            }
+            TokenUsage usage = inputTokens == 0 && outputTokens == 0 ? null : TokenUsage.builder()
+                    .inputTokens(inputTokens)
+                    .outputTokens(outputTokens)
+                    .timestamp(java.time.LocalDateTime.now().format(TS_FMT))
+                    .build();
+            listener.onComplete(finishReason, usage);
+        } catch (Exception e) {
+            listener.onError(e);
+        }
+    }
+
     // ============================== token 计数 ==============================
 
     @Override
     public int countTokens(LlmRequest request) {
         MessageCountTokensParams.Builder builder = MessageCountTokensParams.builder()
                 .model(request.getModel())
-                .messages(toMessageParams(request.getMessages()));
+                .messages(toMessageParams(request.getMessages(), false));
         if (request.getSystemPrompt() != null && !request.getSystemPrompt().isEmpty()) {
             builder.system(request.getSystemPrompt());
         }
@@ -84,15 +185,30 @@ public class AnthropicProvider implements LlmProvider {
     // ============================== 中立 -> Anthropic ==============================
 
     private MessageCreateParams toParams(LlmRequest request) {
+        // 扩展思考开启时：budget 必须小于 max_tokens，且温度不可设置（Anthropic 约束）
+        boolean thinking = request.isThinking();
+        int maxTokens = request.getMaxTokens();
+        int budget = 0;
+        if (thinking) {
+            budget = request.getThinkingBudgetTokens() != null
+                    ? request.getThinkingBudgetTokens()
+                    : Math.min(10000, maxTokens / 2);
+            if (budget >= maxTokens) {
+                budget = maxTokens / 2;
+            }
+        }
         MessageCreateParams.Builder builder = MessageCreateParams.builder()
                 .model(request.getModel())
-                .messages(toMessageParams(request.getMessages()))
-                .maxTokens(request.getMaxTokens());
+                .messages(toMessageParams(request.getMessages(), thinking))
+                .maxTokens(maxTokens);
+        if (thinking) {
+            builder.thinking(ThinkingConfigParam.ofEnabled(
+                    ThinkingConfigEnabled.builder().budgetTokens((long) budget).build()));
+        } else if (request.getTemperature() != null) {
+            builder.temperature(request.getTemperature());
+        }
         if (request.getSystemPrompt() != null && !request.getSystemPrompt().isEmpty()) {
             builder.system(request.getSystemPrompt());
-        }
-        if (request.getTemperature() != null) {
-            builder.temperature(request.getTemperature());
         }
         for (ToolDefinition tool : request.getTools()) {
             builder.addTool(ToolUnion.ofTool(Tool.builder()
@@ -107,8 +223,10 @@ public class AnthropicProvider implements LlmProvider {
     /**
      * 中立消息列表 → Anthropic 消息列表。
      * 连续的 {@code role=tool} 消息合并为一条 user 消息内嵌 tool_result 块。
+     *
+     * @param includeThinking 是否随 assistant 消息回传 thinking 块（扩展思考开启时为 true）
      */
-    private List<MessageParam> toMessageParams(List<LlmMessage> messages) {
+    private List<MessageParam> toMessageParams(List<LlmMessage> messages, boolean includeThinking) {
         List<MessageParam> out = new ArrayList<>();
         List<LlmMessage> toolBuffer = new ArrayList<>();
         for (LlmMessage m : messages) {
@@ -118,16 +236,48 @@ public class AnthropicProvider implements LlmProvider {
             }
             flushToolBuffer(out, toolBuffer);
             if (m.isAssistant()) {
-                out.add(toAssistantParam(m));
+                out.add(toAssistantParam(m, includeThinking));
             } else {
-                out.add(MessageParam.builder()
-                        .role(MessageParam.Role.USER)
-                        .content(m.getText() == null ? "" : m.getText())
-                        .build());
+                out.add(toUserParam(m));
             }
         }
         flushToolBuffer(out, toolBuffer);
         return out;
+    }
+
+    /**
+     * user 消息：parts 非空时映射为文本/图片内容块，否则退化为纯文本。
+     */
+    private MessageParam toUserParam(LlmMessage m) {
+        if (m.getParts() != null && !m.getParts().isEmpty()) {
+            // 多模态 user 消息：映射为文本/图片内容块
+            List<ContentBlockParam> blocks = new ArrayList<>();
+            for (LlmMessage.ContentPart part : m.getParts()) {
+                if ("image".equals(part.getType()) && part.getData() != null) {
+                    String mt = part.getMediaType() == null ? "image/png" : part.getMediaType();
+                    blocks.add(ContentBlockParam.ofImage(ImageBlockParam.builder()
+                            .source(Base64ImageSource.builder()
+                                    .mediaType(Base64ImageSource.MediaType.of(mt))
+                                    .data(part.getData())
+                                    .build())
+                            .build()));
+                } else {
+                    String text = "file".equals(part.getType())
+                            ? "[文件: " + part.getFilename() + "]\n" + part.getText()
+                            : part.getText();
+                    blocks.add(ContentBlockParam.ofText(TextBlockParam.builder()
+                            .text(text == null ? "" : text).build()));
+                }
+            }
+            return MessageParam.builder()
+                    .role(MessageParam.Role.USER)
+                    .content(MessageParam.Content.ofBlockParams(blocks))
+                    .build();
+        }
+        return MessageParam.builder()
+                .role(MessageParam.Role.USER)
+                .content(m.getText() == null ? "" : m.getText())
+                .build();
     }
 
     private void flushToolBuffer(List<MessageParam> out, List<LlmMessage> toolBuffer) {
@@ -148,8 +298,19 @@ public class AnthropicProvider implements LlmProvider {
         toolBuffer.clear();
     }
 
-    private MessageParam toAssistantParam(LlmMessage m) {
+    /**
+     * assistant 消息。扩展思考开启时，thinking 块（含签名）必须置于首位随 tool_use 回传，
+     * 否则 API 返回 400（Anthropic 强制要求 thinking 先于文本与工具调用）。
+     */
+    private MessageParam toAssistantParam(LlmMessage m, boolean includeThinking) {
         List<ContentBlockParam> blocks = new ArrayList<>();
+        if (includeThinking && m.getReasoningContent() != null && !m.getReasoningContent().isBlank()) {
+            ThinkingBlockParam.Builder tb = ThinkingBlockParam.builder().thinking(m.getReasoningContent());
+            if (m.getReasoningSignature() != null && !m.getReasoningSignature().isBlank()) {
+                tb.signature(m.getReasoningSignature());
+            }
+            blocks.add(ContentBlockParam.ofThinking(tb.build()));
+        }
         if (m.getText() != null && !m.getText().isBlank()) {
             blocks.add(ContentBlockParam.ofText(TextBlockParam.builder().text(m.getText()).build()));
         }
@@ -208,12 +369,15 @@ public class AnthropicProvider implements LlmProvider {
         StringBuilder text = new StringBuilder();
         List<LlmMessage.ToolCall> calls = new ArrayList<>();
         StringBuilder thinking = new StringBuilder();
+        String signature = null;
         for (ContentBlock block : message.content()) {
             if (block.isText()) {
                 block.text().map(com.anthropic.models.messages.TextBlock::text).filter(t -> !t.isBlank())
                         .ifPresent(t -> text.append(text.length() > 0 ? "\n" : "").append(t));
             } else if (block.isThinking()) {
                 thinking.append(block.asThinking().thinking());
+                // 签名必须原样保留：回传 thinking 块时服务端校验
+                signature = block.asThinking().signature();
             } else if (block.isToolUse()) {
                 ToolUseBlock toolUse = block.asToolUse();
                 calls.add(LlmMessage.ToolCall.builder()
@@ -225,6 +389,7 @@ public class AnthropicProvider implements LlmProvider {
         }
         LlmMessage neutral = LlmMessage.assistant(text.length() > 0 ? text.toString() : null, calls);
         neutral.setReasoningContent(thinking.toString());
+        neutral.setReasoningSignature(signature);
         return neutral;
     }
 

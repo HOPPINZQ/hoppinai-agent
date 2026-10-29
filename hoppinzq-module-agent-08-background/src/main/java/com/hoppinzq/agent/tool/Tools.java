@@ -1,9 +1,9 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hoppinzq.agent.Agent08;
 import com.hoppinzq.agent.base.SubAgent;
 import com.hoppinzq.agent.constant.AIConstants;
+import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
@@ -26,12 +26,6 @@ import java.util.stream.Stream;
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
- * 工具方法集合类
- * <p>
- * 提供各种工具的具体实现方法，包括文件操作、命令执行、内容搜索、任务管理等。
- * 每个方法都对应一个工具定义，接收JSON格式的输入参数，返回执行结果。
- * </p>
- *
  * @author hoppinzq
  */
 @Slf4j
@@ -709,7 +703,10 @@ public class Tools {
         try {
             ObjectMapper mapper = new ObjectMapper();
             SubAgentInput subAgentInput = mapper.readValue(input, SubAgentInput.class);
-            return SubAgent.executeSubAgent(subAgentInput);
+            // 使用带 Token 统计的方法
+            SubAgentSessionResult result = SubAgent.executeSubAgentWithTokenUsage(subAgentInput);
+            // 返回结果，附加 Token 使用信息
+            return result.getResult() + "\n\n" + result.formatTokenUsage();
         } catch (Exception e) {
             if (AIConstants.LOG_ENABLE) {
                 log.error("调用子代理错误: {}", e.getMessage());
@@ -735,302 +732,6 @@ public class Tools {
         }
     }
 
-    // ==================== 后台任务工具方法 ====================
-
-    /**
-     * 在后台线程中执行命令
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为BackgroundRunInput对象
-     * - 立即返回task_id，不阻塞主线程
-     * - 适用于耗时命令如 npm install、pytest、docker build等
-     *
-     * @param input JSON格式的输入参数，包含：command（要在后台执行的bash命令）
-     * @return 后台任务启动确认消息，包含task_id
-     */
-    public static String backgroundRun(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            BackgroundRunInput runInput = mapper.readValue(input, BackgroundRunInput.class);
-
-            if (LOG_ENABLE) {
-                log.info("启动后台任务: {}", runInput.getCommand());
-            }
-
-            return Agent08.backgroundManager.runInBackground(runInput.getCommand());
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("启动后台任务失败: {}", e.getMessage());
-            }
-            return "启动后台任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 检查后台任务状态
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为CheckBackgroundInput对象
-     * - 如果提供了taskId，检查指定任务的状态
-     * - 如果未提供taskId，列出所有后台任务
-     *
-     * @param input JSON格式的输入参数，包含：taskId（要检查的任务ID，可选）
-     * @return 任务状态信息或所有任务列表
-     */
-    public static String checkBackground(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            CheckBackgroundInput checkInput = mapper.readValue(input, CheckBackgroundInput.class);
-
-            String taskId = checkInput.getTaskId();
-            if (taskId != null && !taskId.isEmpty()) {
-                if (LOG_ENABLE) {
-                    log.info("检查后台任务状态: {}", taskId);
-                }
-                return Agent08.backgroundManager.checkStatus(taskId);
-            } else {
-                if (LOG_ENABLE) {
-                    log.info("列出所有后台任务");
-                }
-                return Agent08.backgroundManager.listAllTasks();
-            }
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("检查后台任务失败: {}", e.getMessage());
-            }
-            return "检查后台任务失败: " + e.getMessage();
-        }
-    }
-
-    // ==================== 任务管理工具方法 ====================
-
-    /**
-     * 创建新任务
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为TaskCreateInput对象
-     * - 调用TaskManager创建新任务
-     * - 任务会被持久化到磁盘（.tasks目录）
-     * - 新任务默认状态为pending（待处理）
-     *
-     * @param input JSON格式的输入参数，包含：
-     *              - subject: 任务的标题或简短描述（必填）
-     *              - description: 任务的详细说明（可选）
-     *              - blockedBy: 依赖的前置任务ID列表（可选）
-     * @return 创建的任务JSON字符串，包含任务ID、标题、描述和状态
-     */
-    public static String createTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskCreateInput taskInput = mapper.readValue(input, TaskCreateInput.class);
-
-            if (taskInput.getSubject() == null || taskInput.getSubject().isEmpty()) {
-                if (LOG_ENABLE) {
-                    log.error("创建任务失败: subject不能为空");
-                }
-                return "错误: 任务标题(subject)不能为空";
-            }
-
-            if (LOG_ENABLE) {
-                String deps = taskInput.getBlockedBy() != null && !taskInput.getBlockedBy().isEmpty()
-                    ? " (blockedBy: " + taskInput.getBlockedBy() + ")" : "";
-                log.info("创建任务: {} - {}{}", taskInput.getSubject(),
-                        taskInput.getDescription() != null ? taskInput.getDescription() : "无描述", deps);
-            }
-
-            return Agent08.taskManager.createTask(
-                    taskInput.getSubject(),
-                    taskInput.getDescription(),
-                    taskInput.getBlockedBy()
-            );
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("创建任务失败: {}", e.getMessage());
-            }
-            return "创建任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 更新任务
-     * <p>
-     * 功能说明：
-     * - 解析输入的JSON字符串为TaskUpdateInput对象
-     * - 支持更新任务状态（pending、in_progress、completed）
-     * - 支持添加任务依赖关系（addBlockedBy和addBlocks）
-     * - 当任务状态更新为completed时，自动清除依赖关系
-     * - 双向更新依赖关系，确保数据一致性
-     *
-     * @param input JSON格式的输入参数，包含：
-     *              - taskId: 要更新的任务ID（必填）
-     *              - status: 新的状态（可选）：pending/in_progress/completed
-     *              - addBlockedBy: 要添加的前置依赖任务ID列表（可选）
-     *              - addBlocks: 要添加的后置任务ID列表（可选）
-     * @return 更新后的任务JSON字符串，或错误信息
-     */
-    public static String updateTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskUpdateInput taskInput = mapper.readValue(input, TaskUpdateInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                if (LOG_ENABLE) {
-                    log.error("更新任务失败: taskId不能为空");
-                }
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            if (LOG_ENABLE) {
-                log.info("更新任务 #{}: status={}, addBlockedBy={}, addBlocks={}",
-                        taskInput.getTaskId(), taskInput.getStatus(),
-                        taskInput.getAddBlockedBy(), taskInput.getAddBlocks());
-            }
-
-            return Agent08.taskManager.updateTask(
-                    taskInput.getTaskId(),
-                    taskInput.getStatus(),
-                    taskInput.getAddBlockedBy(),
-                    taskInput.getAddBlocks()
-            );
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("更新任务失败: {}", e.getMessage());
-            }
-            return "更新任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 列出所有任务
-     * <p>
-     * 功能说明：
-     * - 从.tasks目录读取所有持久化的任务
-     * - 按任务ID排序输出
-     * - 显示任务的状态和依赖关系
-     * - 便于查看整体进度和确定可执行的任务
-     *
-     * @param input 输入参数（忽略，为空对象）
-     * @return 格式化的任务列表字符串，包含ID、标题、状态和依赖关系；若无任务则返回提示信息
-     */
-    public static String listTasks(String input) {
-        try {
-            if (LOG_ENABLE) {
-                log.info("列出所有任务");
-            }
-            return Agent08.taskManager.listAllTasks();
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("列出任务失败: {}", e.getMessage());
-            }
-            return "列出任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 获取任务详情
-     * <p>
-     * 功能说明：
-     * - 根据任务ID从.tasks目录读取任务完整信息
-     * - 返回任务的详细JSON数据
-     * - 包含任务的所有属性：ID、标题、描述、状态、依赖关系等
-     *
-     * @param input JSON格式的输入参数，包含：taskId（要查询的任务ID）
-     * @return 任务的完整JSON字符串，包含所有详细信息；若任务不存在则返回错误信息
-     */
-    public static String getTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskGetInput taskInput = mapper.readValue(input, TaskGetInput.class);
-
-            if (LOG_ENABLE) {
-                log.info("获取任务详情: #{}", taskInput.getTaskId());
-            }
-            return Agent08.taskManager.getTask(taskInput.getTaskId());
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("获取任务详情失败: {}", e.getMessage());
-            }
-            return "获取任务详情失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 认领任务
-     * <p>
-     * 功能说明：
-     * - 检查任务状态是否为pending
-     * - 检查所有blockedBy依赖是否已完成
-     * - 如果依赖未完成，返回阻塞信息
-     * - 设置owner并变更状态为in_progress
-     *
-     * @param input JSON格式的输入参数，包含：
-     *              - taskId: 要认领的任务ID（必填）
-     *              - owner: 认领者名称（可选，默认为"agent"）
-     * @return 认领结果信息字符串；失败时返回错误原因
-     */
-    public static String claimTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskClaimInput taskInput = mapper.readValue(input, TaskClaimInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                if (LOG_ENABLE) {
-                    log.error("认领任务失败: taskId不能为空");
-                }
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            if (LOG_ENABLE) {
-                log.info("认领任务: #{} (owner: {})", taskInput.getTaskId(),
-                        taskInput.getOwner() != null ? taskInput.getOwner() : "agent");
-            }
-
-            return Agent08.taskManager.claimTask(taskInput.getTaskId(), taskInput.getOwner());
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("认领任务失败: {}", e.getMessage());
-            }
-            return "认领任务失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 完成任务
-     * <p>
-     * 功能说明：
-     * - 检查任务状态是否为in_progress
-     * - 变更状态为completed
-     * - 扫描所有任务，找出被解除阻塞的下游任务
-     * - 返回完成信息及被unblocked的任务列表
-     *
-     * @param input JSON格式的输入参数，包含：taskId（要完成的任务ID）
-     * @return 完成结果信息字符串，包含被解除阻塞的下游任务；失败时返回错误原因
-     */
-    public static String completeTask(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            TaskCompleteInput taskInput = mapper.readValue(input, TaskCompleteInput.class);
-
-            if (taskInput.getTaskId() == null) {
-                if (LOG_ENABLE) {
-                    log.error("完成任务失败: taskId不能为空");
-                }
-                return "错误: 任务ID(taskId)不能为空";
-            }
-
-            if (LOG_ENABLE) {
-                log.info("完成任务: #{}", taskInput.getTaskId());
-            }
-
-            return Agent08.taskManager.completeTask(taskInput.getTaskId());
-        } catch (Exception e) {
-            if (LOG_ENABLE) {
-                log.error("完成任务失败: {}", e.getMessage());
-            }
-            return "完成任务失败: " + e.getMessage();
-        }
-    }
-
     /**
      * 统计子字符串在主字符串中出现的次数
      * <p>
@@ -1038,7 +739,7 @@ public class Tools {
      * 并将每行内连续多个空格压缩为单个空格，这样可以匹配由于缩进格式不同（制表符vs空格）
      * 或换行符不同（\r\n vs \n）导致的视觉上相同但技术上不同的字符串。
      *
-     * @param str    主字符串，如果为null则返回0
+     * @param str 主字符串，如果为null则返回0
      * @param substr 要查找的子字符串，如果为null或空字符串则返回0
      * @return 子字符串在主字符串中出现的次数
      */
@@ -1086,7 +787,7 @@ public class Tools {
      * 创建新文件并写入内容，如果父目录不存在则自动创建
      *
      * @param filePath 要创建的文件路径
-     * @param content  要写入文件的内容
+     * @param content 要写入文件的内容
      * @return 返回操作结果字符串，包含成功创建的文件路径
      * @throws IOException 当文件创建或写入过程中发生I/O错误时抛出
      */

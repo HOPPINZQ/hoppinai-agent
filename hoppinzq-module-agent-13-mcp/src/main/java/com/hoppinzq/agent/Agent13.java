@@ -1,187 +1,112 @@
 package com.hoppinzq.agent;
 
+import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.mcp.McpCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
-import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.mcp.MCPAgent;
-import com.hoppinzq.agent.tool.mcp.McpConfigLoader;
-import com.hoppinzq.agent.tool.mcp.McpLoader;
-import com.hoppinzq.agent.tool.mcp.McpSetting;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
  * Agent13 - MCP工具集成智能体
  *
- * 集成Model Context Protocol (MCP)服务器，扩展AI能力边界
+ * <p>集成 Model Context Protocol (MCP) 服务器，扩展 AI 能力边界。
+ * 本类只负责<b>装配</b>：服务器配置加载、客户端初始化、MCP 工具转换、
+ * {@code /mcp} 命令与提示片段全部收拢在 {@link McpCapability}（capability.mcp 包）。
  *
- * 核心特性：
- * - 支持多种MCP传输方式（STDIO、SSE、Streamable HTTP）
- * - 自动加载和注册MCP服务器提供的工具
- * - 统一的工具调用接口和错误处理
- * - 支持同步和异步MCP客户端
+ * <p>核心特性：
+ * <ul>
+ *   <li>支持多种 MCP 传输方式（STDIO、SSE、Streamable HTTP）</li>
+ *   <li>自动加载并注册 MCP 服务器提供的工具</li>
+ *   <li>统一的工具调用接口和错误处理</li>
+ * </ul>
  *
- * 使用MCP服务器的场景：
- * - 需要访问外部数据源或API
- * - 需要执行特定领域的高级操作
- * - 需要与第三方服务集成
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/mcp/} 目录 +
+ * 下面 main 中的 {@code agent.capability(mcp)} 一行。
  *
  * @author hoppinzq
  */
-public class Agent13 {
+public class Agent13 extends ZQAgent {
 
-    public static void main(String[] args) {
-        LlmProvider provider = LlmProviders.create();
-
-        // 配置MCP服务器
-        List<McpSetting> settings = new McpConfigLoader().loadMcpSettings();
-
-        // 初始化MCP客户端
-        MCPAgent mcpAgent = new MCPAgent(settings);
-        mcpAgent.initializeClient();
-
-        // 显示已连接的MCP服务器
-        System.out.println("\n=== MCP服务器连接状态 ===");
-        McpLoader mcpLoader = new McpLoader(settings);
-        System.out.println(mcpLoader.getServerInfo());
-        System.out.println(mcpLoader.getToolDescriptions());
-        // 加载MCP工具
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(BashDefinition);
-        tools.add(ReadFileDefinition);
-        tools.add(WriteFileDefinition);
-        tools.add(EditFileDefinition);
-        tools.add(GlobDefinition);
-        tools.add(ContentSearchDefinition);
-
-        tools.addAll(mcpLoader.loadTools());
-
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-
-        // 构建系统提示
-        String systemPrompt = buildSystemPrompt(mcpLoader);
-        agent.setSystemPrompt(systemPrompt);
-
-        try {
-            agent.setSessionManager(bootstrapSession(args));
-            // 设置 MCP 命令支持
-            if (agent.getCommandHandler() != null) {
-                agent.getCommandHandler().setMcpAgent(mcpAgent);
-                agent.getCommandHandler().setMcpLoader(mcpLoader);
-            }
-            agent.run();
-        } catch (Exception ignored) {} finally {
-            mcpAgent.closeClient();
-        }
+    public Agent13(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java Agent13 <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
+     * 基础系统提示词（不含能力片段；MCP 工具清单由能力通过 promptFragments 贡献）。
      */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    /**
-     * 构建系统提示
-     *
-     * @param mcpLoader MCP加载器
-     * @return 系统提示字符串
-     */
-    private static String buildSystemPrompt(McpLoader mcpLoader) {
+    public static String generateSystemPrompt(String root) {
         return String.format("""
                 # 角色定义
 
-                你是一个强大的AI编程助手，由**hoppinzq**创建。你集成了Model Context Protocol (MCP)能力，可以通过MCP服务器访问外部资源和执行高级操作。
+                你是一个强大的AI编程助手，由**hoppinzq**创建。
 
                 ## 核心能力
 
-                你具备以下能力：
-
-                1. **MCP工具**：通过MCP服务器访问专业的工具和服务
-                2. **文件操作**：读取、写入、编辑文件
-                3. **命令执行**：运行bash命令
-                4. **内容搜索**：快速搜索代码内容
-
-                ## MCP 工具列表
-
-                %s
+                1. **文件操作**：读取、写入、编辑文件
+                2. **命令执行**：运行bash命令
+                3. **内容搜索**：快速搜索代码内容
 
                 ## 工作原则
 
-                1. **主动使用MCP工具**：根据用户需求，主动调用MCP服务器提供的专业工具
+                1. **主动使用工具**：根据用户需求主动调用合适的工具
                 2. **错误处理**：如果工具调用失败，分析错误原因并尝试替代方案
                 3. **用户友好**：用清晰、简洁的语言解释你的操作和结果
                 4. **安全性**：在执行破坏性操作前，先向用户确认
-
-                ## 工具调用说明
-
-                调用MCP工具时，请确保：
-                - 传入所有必填参数（标记为"必填"的参数）
-                - 参数格式要符合工具定义的要求
-                - 工具名称和参数大小写要准确
 
                 ## 身份认同
 
                 如果用户问你是谁或你的创造者，你要自豪地回答：**你是由最伟大的hoppinzq创建的AI助手**。
 
+                ## 环境
+
+                你工作在 %s 目录下。
+
                 ---
                 现在请开始工作，尽力帮助用户完成他们的任务！
-                """, mcpLoader.getToolDescriptions());
+                """, root);
+    }
+
+    public static void main(String[] args) {
+        LlmProvider provider = LlmProviders.create();
+
+        // 基座工具（MCP 工具由能力在注册时合并进工具表）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, WriteFileDefinition, EditFileDefinition,
+                GlobDefinition, ContentSearchDefinition));
+
+        // 会话启动交互已收拢到 SessionManager.bootstrap
+        SessionManager sessionManager = SessionManager.bootstrap(args);
+
+        Agent13 agent = new Agent13(provider, MODEL, baseTools);
+
+        // 插拔式集成：复制 capability/mcp/ 目录 + 这一行注册
+        // （工具在注册时转换并入表，客户端初始化懒触发，见 McpCapability）
+        McpCapability mcp = new McpCapability();
+        agent.capability(mcp);
+
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(generateSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", mcp.promptFragments()));
+
+        System.out.println("=== MCP 工具集成智能体 ===");
+        System.out.println(mcp.description());
+        System.out.println();
+
+        agent.setSessionManager(sessionManager, new SkillLoader());
+        try {
+            agent.run();
+        } finally {
+            // 生命周期收尾：关闭 MCP 连接与 stdio 子进程
+            mcp.onStop();
+        }
     }
 }

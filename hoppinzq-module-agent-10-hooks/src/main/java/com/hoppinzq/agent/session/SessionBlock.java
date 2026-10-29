@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
  * <p>支持四种类型：
  * <ul>
  *   <li>{@code text} —— 纯文本块，使用 {@link #text}</li>
- *   <li>{@code thinking} —— 模型原生思考块，使用 {@link #text}；恢复上下文时被剥离（不回传给模型）</li>
+ *   <li>{@code thinking} —— 模型原生思考块，使用 {@link #text}/{@link #signature}；恢复上下文时默认剥离（不回传给模型）</li>
  *   <li>{@code tool_use} —— 工具调用块，使用 {@link #toolUseId}/{@link #toolName}/{@link #toolInputJson}</li>
  *   <li>{@code tool_result} —— 工具结果块，使用 {@link #toolUseId}/{@link #toolResultContent}/{@link #isError}</li>
  * </ul>
@@ -30,6 +30,10 @@ public class SessionBlock {
      * text 块的文本内容
      */
     private String text;
+    /**
+     * thinking 块的 Anthropic 签名（服务端校验，回传时必须原样带回；其他协议为 null）
+     */
+    private String signature;
     /**
      * tool_use / tool_result 关联的工具调用 ID
      */

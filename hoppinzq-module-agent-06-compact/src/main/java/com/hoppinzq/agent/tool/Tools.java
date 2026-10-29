@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hoppinzq.agent.base.SubAgent;
 import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.session.SubAgentSessionResult;
-import com.hoppinzq.agent.tool.compact.ContextCompactor;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
@@ -731,32 +730,6 @@ public class Tools {
         } catch (Exception e) {
             return "加载Skills错误: " + e.getMessage();
         }
-    }
-
-    /**
-     * 手动压缩工具 - 触发完整压缩
-     *
-     * 功能说明：
-     * - 通过回调立即执行压缩
-     * - 压缩后的上下文会在下次 LLM 调用时生效
-     * - 返回压缩确认消息
-     *
-     * 执行时机：LLM 主动调用 compact 工具时
-     *
-     * @param json 输入的 JSON 参数（包含可选的 focus 字段）
-     * @return 压缩执行结果
-     */
-    public static String compact(String json) {
-        // 通过回调立即执行压缩
-        if (ContextCompactor.manualCompactHook != null) {
-            try {
-                ContextCompactor.manualCompactHook.run();
-                return "压缩完成。上下文已清理，完整历史已保存到会话。下次对话将使用压缩后的上下文。";
-            } catch (Exception e) {
-                return "压缩失败: " + e.getMessage();
-            }
-        }
-        return "压缩功能不可用：未初始化压缩回调。";
     }
 
     /**

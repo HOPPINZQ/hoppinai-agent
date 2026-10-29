@@ -1,0 +1,52 @@
+package com.hoppinzq.agent.constant;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.File;
+
+/**
+ * s25 goal loop 模块常量。
+ * <p>目标循环的特性常量（{@code GOAL_*} / {@code MAX_TURNS}）已移入
+ * {@code capability/goal/GoalConfig}（能力自持配置）。
+ *
+ * @author hoppinzq
+ */
+public class AIConstants {
+    //协议实现：openai（默认）或 anthropic，见 client/LlmProviders
+    public static final String PROVIDER = "openai";
+    //OpenAI 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /chat/completions
+    public static final String OPENAI_BASE_URL = "https://api.deepseek.com";
+    //Anthropic 兼容地址（DeepSeek）或者代理地址 必填；SDK 会在其后拼接 /v1/messages
+    public static final String ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic";
+    //API KEY 必填（两个端点通用）
+    public static final String API_KEY = System.getenv("DEEPSEEK_API_KEY");
+    //模型名称 必填
+    public static final String MODEL = "deepseek-v4-flash";
+
+    //最大token数量
+    public static final int MAX_TOKENS = 12500;
+    public static final long TIMEOUT = 5 * 60;
+    public static final int MAX_RETRIES = 5;
+
+    public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    public static final String JSON_FAIL = "{\"error\": \"json序列化失败\"}";
+
+    //是否开启打印日志，MCP stdio不允许打印日志，如果你拿去改造为MCP，请注意！
+    public static final Boolean LOG_ENABLE = false;
+
+    //路径限制模式：true=允许任意绝对路径（关闭安全沙箱），false=只允许 ROOT 范围内的路径
+    //建议本地开发环境设为 true，生产环境设为 false
+    public static final Boolean UNRESTRICTED_PATH_MODE = true;
+
+    //是否开启扩展思考（Claude thinking / DeepSeek reasoning），由 Provider 映射为各自协议参数
+    public static final boolean THINK_ENABLED = false;
+    //扩展思考 token 预算（仅 Anthropic 协议使用）
+    public static final int THINK_BUDGET_TOKENS = 10000;
+
+    public static final String MODULE_NAME = "hoppinzq-module-agent-25-goaloop";
+    // 工作目录
+    public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
+
+    // 技能目录（内核 SkillLoader 从 classpath 读取；本模块未内置技能资源，加载结果为空）
+    public static final String SKILL_PATH = "skills";
+}

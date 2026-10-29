@@ -1,6 +1,7 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.sandbox.SandboxCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
@@ -8,15 +9,22 @@ import com.hoppinzq.agent.tool.ToolDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 import static com.hoppinzq.agent.constant.AIConstants.MODEL;
-import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
 
 /**
- * s23 安全沙箱示例入口。
- * <p>
- * 示例提示词：
+ * s23 安全沙箱智能体。
+ *
+ * <p>本类只负责<b>装配</b>：四层沙箱（L1 静态分析 → L2 目录监禁 → L3 OS 沙箱 →
+ * L4 容器隔离 → 降级带超时 ProcessBuilder）、bash 工具、beforeToolCall 路径越界检查、
+ * 提示词片段全部收拢在 {@link SandboxCapability}（capability.sandbox 包），
+ * 入口类不再覆写任何循环方法。
+ *
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/sandbox/} 目录 +
+ * 下面 main 中的一行 {@code agent.capability(new SandboxCapability())}。
+ *
+ * <p>示例提示词：
  * <ul>
  *   <li>"执行 rm -rf /tmp/test"（L1 静态分析应拦截）</li>
  *   <li>"列出 ../../etc 下的文件"（L2 目录监禁应拦截）</li>
@@ -25,100 +33,60 @@ import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
  *
  * @author hoppinzq
  */
-public class Agent23 {
+public class Agent23 extends ZQAgent {
 
-    public static void main(String[] args) {
-        LlmProvider provider = LlmProviders.create();
-
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(BashDefinition);
-
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setSessionManager(bootstrapSession(args));
-        System.out.println("[s23 安全沙箱] bash 命令将经过 L1→L2→L3→L4 四层防护");
-        agent.run();
+    public Agent23(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java Agent23 <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
+     * 基础系统提示词（不含能力片段；能力通过 promptFragments 贡献自己的部分）。
      */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    private static String buildSystemPrompt() {
+    public static String generateSystemPrompt(String root) {
         String osName = System.getProperty("os.name").toLowerCase();
         return String.format("""
                 # 角色定义
 
-                你是一个安全沙箱 AI 编程助手，由 hoppinzq 创建。你的 bash 工具被四层沙箱保护：
-                L1 静态分析（黑名单拦截高危命令）→ L2 目录监禁（拒绝路径越界）→
-                L3 OS 沙箱（Linux bwrap）→ L4 容器隔离（docker）→ 降级带超时 ProcessBuilder。
+                你是一个安全沙箱 AI 编程助手，由 hoppinzq 创建。
 
                 ## 当前环境
 
                 - 操作系统：%s
                 - 工作目录（监禁根）：%s
 
-                ## 工作原则
-
-                1. 优先使用 bash 工具执行命令。
-                2. 若命令被沙箱拒绝，告知用户拒绝原因（响应中会带 ❌ 标记）。
-                3. Linux 环境下 L3 bwrap 会自动启用；docker 默认关闭。
-                4. 安全第一，不要试图绕过沙箱。
-
                 ## 身份
 
-                你是由最伟大的 hoppinzq 创建的 AI 助手。
-                """, osName, System.getProperty("user.dir"));
+                你是由最伟大的 hoppinzq 创建的 AI 助手。""", osName, root);
+    }
+
+    public static void main(String[] args) {
+        LlmProvider provider = LlmProviders.create();
+
+        // 会话启动交互已收拢到 SessionManager.bootstrap
+        SessionManager sessionManager = SessionManager.bootstrap(args);
+
+        // 基座工具列表为空：bash 是沙箱特性的载体，由能力注册
+        List<ToolDefinition> baseTools = new ArrayList<>();
+
+        // 插拔式集成：复制 capability/sandbox/ 目录 + 这一行注册
+        SandboxCapability sandbox = new SandboxCapability();
+        Agent23 agent = new Agent23(provider, MODEL, baseTools);
+        agent.capability(sandbox);
+
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(generateSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", sandbox.promptFragments()));
+
+        System.out.println("=== s23 安全沙箱智能体 ===");
+        System.out.println(sandbox.description());
+        System.out.println();
+
+        // 本模块无技能体系，SkillLoader 传 null（/skills 命令会提示未启用）
+        agent.setSessionManager(sessionManager, null);
+        try {
+            agent.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

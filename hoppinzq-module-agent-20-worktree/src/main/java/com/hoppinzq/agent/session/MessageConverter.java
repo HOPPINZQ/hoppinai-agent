@@ -25,6 +25,24 @@ public final class MessageConverter {
         if (m.isTool()) {
             return toMergedSessionMessage(List.of(m));
         }
+        // 多模态 user 消息：parts 降级为描述文本落盘（base64 不进会话文件，避免体积膨胀）
+        if (m.getParts() != null && !m.getParts().isEmpty()) {
+            StringBuilder degraded = new StringBuilder();
+            for (LlmMessage.ContentPart part : m.getParts()) {
+                if ("image".equals(part.getType())) {
+                    String mime = part.getMediaType() == null ? "image/png" : part.getMediaType();
+                    degraded.append("[图片: ").append(mime)
+                            .append(" base64, ").append(part.getData() == null ? 0 : part.getData().length())
+                            .append(" chars]\n");
+                } else if ("file".equals(part.getType())) {
+                    degraded.append("[文件: ").append(part.getFilename()).append("]\n")
+                            .append(part.getText() == null ? "" : part.getText()).append('\n');
+                } else {
+                    degraded.append(part.getText() == null ? "" : part.getText()).append('\n');
+                }
+            }
+            return SessionMessage.builder().role("user").text(degraded.toString()).build();
+        }
         return SessionMessage.builder().role("user").text(m.getText() == null ? "" : m.getText()).build();
     }
 
@@ -35,11 +53,13 @@ public final class MessageConverter {
             b.text(m.getText());
         }
         List<SessionBlock> blocks = new ArrayList<>();
-        // 原生思考链放首位（思考先于文本产生）；恢复上下文时会被剥离，仅作展示/审计留存
+        // 原生思考链放首位（思考先于文本产生）；恢复上下文时默认剥离，仅作展示/审计留存
+        // （末轮 assistant 的 thinking 会由 SessionManager.populate 回填，供 Anthropic 工具循环回传）
         if (m.getReasoningContent() != null && !m.getReasoningContent().isBlank()) {
             blocks.add(SessionBlock.builder()
                     .type("thinking")
                     .text(m.getReasoningContent())
+                    .signature(m.getReasoningSignature())
                     .build());
         }
         // 防御：toolCalls 理论上不为 null（工厂方法已兜底），Jackson 反序列化等旁路仍可能为 null
@@ -142,5 +162,24 @@ public final class MessageConverter {
         }
         // text 为 null 不设置：assistant 仅带 tool_calls、无文本是合法且常见的
         return LlmMessage.assistant(text, calls);
+    }
+
+    /**
+     * 恢复专用：把 {@code sm} 中的 thinking 块（含签名）回填到已转换的 assistant 中立消息。
+     * <p>{@link #toLlmMessages} 默认剥离 thinking（DeepSeek 禁止回传历史思考链）；
+     * 但 Anthropic 扩展思考开启时，末轮 assistant 的 thinking 块必须随 tool_use 回传，
+     * 否则工具循环请求 400。会话恢复后由 SessionManager 对最后一条 assistant 调用本方法。
+     */
+    public void restoreThinking(LlmMessage assistant, SessionMessage sm) {
+        if (sm.getBlocks() == null) {
+            return;
+        }
+        for (SessionBlock sb : sm.getBlocks()) {
+            if ("thinking".equals(sb.getType()) && sb.getText() != null && !sb.getText().isBlank()) {
+                assistant.setReasoningContent(sb.getText());
+                assistant.setReasoningSignature(sb.getSignature());
+                return;
+            }
+        }
     }
 }

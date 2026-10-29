@@ -3,9 +3,11 @@ package com.hoppinzq.agent.constant;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
- * 一些常量
  * @author hoppinzq
  */
 public class AIConstants {
@@ -20,7 +22,7 @@ public class AIConstants {
     //模型名称 必填
     public static final String MODEL = "deepseek-v4-flash";
 
-    //teammate 采样温度（原 TeammateRunner 引用但从未定义，此处补齐）
+    //teammate 采样温度（teams 能力使用；原 TeammateRunner 引用）
     public static final double TEMPERATURE = 0.5;
 
     //最大token数量
@@ -38,8 +40,15 @@ public class AIConstants {
     //建议本地开发环境设为 true，生产环境设为 false
     public static final Boolean UNRESTRICTED_PATH_MODE = true;
 
+    //是否开启扩展思考（Claude thinking / DeepSeek reasoning），由 Provider 映射为各自协议参数
+    public static final boolean THINK_ENABLED = false;
+    //扩展思考 token 预算（仅 Anthropic 协议使用）
+    public static final int THINK_BUDGET_TOKENS = 10000;
 
-    public static final String MODULE_NAME = "hoppinzq-module-agent-teams";
+    public static final String MODULE_NAME = "hoppinzq-module-agent-17-teams";
     // 工作目录
     public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
+
+    // 技能目录
+    public static final String SKILL_PATH = "skills";
 }

@@ -1,118 +1,107 @@
 package com.hoppinzq.agent;
 
+import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.cron.CronCapability;
+import com.hoppinzq.agent.capability.teams.TeamsCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
-import com.hoppinzq.agent.base.ZQAgent;
-import com.hoppinzq.agent.command.AgentCommandHandler;
+import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.Tools;
-import com.hoppinzq.agent.tool.bus.MessageBus;
-import com.hoppinzq.agent.tool.cron.CronScheduler;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
+import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
  * agent teams 示例（对应 Python 教程 s15_agent_teams）。
  *
- * <p>在 cron 模块的基础上（保留 cron 工具链，保持自包含）新增 3 个团队协作工具：
- * <ol>
- *   <li><b>spawn_teammate(name, role, prompt)</b>：启动一个 teammate 守护线程，
- *       它有自己的对话上下文与工具子集（bash / read_file / write_file / send_message），
- *       与 lead 通过 {@code <ROOT>/.mailboxes/*.jsonl} 异步通信。</li>
- *   <li><b>send_message(to, content)</b>：往某人的邮箱追加一条消息。
- *       lead 调用时 from=lead；teammate 在自己线程里调用时 from=其名字（靠 ThreadLocal 区分）。</li>
- *   <li><b>check_inbox()</b>：读取并清空 lead 自己的邮箱，返回未读消息。</li>
- * </ol>
+ * <p>本类只负责<b>装配</b>：团队协作（spawn_teammate / send_message / check_inbox）与邮箱轮询
+ * 收拢在 {@link TeamsCapability}（capability.teams 包），定时任务链收拢在
+ * {@link CronCapability}（capability.cron 包）。Agent 每轮不再覆写主循环。
  *
- * <p>同时 ZQAgent 每轮主循环结束后会自动 pollInbox，把 teammate 发来的消息注入下一轮对话。
+ * <p>插拔式集成：复制 {@code capability/teams/} 与 {@code capability/cron/} 目录
+ * + 两行 {@code agent.capability(...)}。
  *
- * <p><b>示例 prompt：</b>
- * <ul>
- *   <li>"Spawn alice 作为后端开发，让她创建 schema.sql"</li>
- *   <li>"检查 inbox 看 alice 的结果"</li>
- * </ul>
+ * <p>每个 teammate 是一个守护线程，有自己的对话上下文与工具子集，与 lead 之间
+ * 通过 {@code <ROOT>/.mailboxes/*.jsonl} 文件邮箱异步通信。
  *
  * @author hoppinzq
  */
-public class AgentTeams {
+public class AgentTeams extends ZQAgent {
+
+    /**
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 必须在构建工具列表之前赋值。
+     */
+    public static SkillLoader skillLoader;
+    /** 工具定义静态初始化依赖，须在构建工具列表之前赋值 */
+    public static com.hoppinzq.agent.tool.manager.TodoManager todoManager;
+
+    public AgentTeams(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
+    }
+
+    /**
+     * 基础系统提示词（不含能力片段；团队/定时用法由各能力的 promptFragments 贡献）。
+     */
+    public static String generateSystemPrompt(String root) {
+        return String.format("""
+                ## 角色
+                你是一个 lead agent（团队负责人），可以派 teammate 去并行干活。
+
+                ## 工作指南
+                1. 优先使用工具解决任务，而非仅提供建议
+                2. 复杂任务先 spawn_teammate 分批派发，自己继续做别的事
+                3. 每轮主循环结束会自动轮询你的邮箱，teammate 的回执会出现在下一轮对话里
+
+                ## 工作目录
+                %s""", root);
+    }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
+        skillLoader = new SkillLoader();
+        todoManager = new com.hoppinzq.agent.tool.manager.TodoManager();
 
-        MessageBus bus = new MessageBus(); // 无状态，仅作为依赖占位
+        SessionManager sessionManager = SessionManager.bootstrap(args);
 
-        // lead 工具：6 个基础 + 3 个 cron + 3 个 team = 12
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(ToolDefinition.BashDefinition);
-        tools.add(ToolDefinition.ReadFileDefinition);
-        tools.add(ToolDefinition.WriteFileDefinition);
-        tools.add(ToolDefinition.EditFileDefinition);
-        tools.add(ToolDefinition.ListFilesDefinition);
-        tools.add(ToolDefinition.ContentSearchDefinition);
-        tools.add(ToolDefinition.ScheduleCronDefinition);
-        tools.add(ToolDefinition.ListCronsDefinition);
-        tools.add(ToolDefinition.CancelCronDefinition);
-        tools.add(ToolDefinition.SpawnTeammateDefinition);
-        tools.add(ToolDefinition.SendMessageDefinition);
-        tools.add(ToolDefinition.CheckInboxDefinition);
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
+                GlobDefinition, ContentSearchDefinition));
+
+        AgentTeams agent = new AgentTeams(provider, MODEL, baseTools);
+
+        // 插拔式集成：复制 capability 目录 + 两行注册
+        CronCapability cron = new CronCapability();
+        agent.capability(cron);
 
         // teammate 工具子集：bash / read_file / write_file / send_message
-        List<ToolDefinition> teammateTools = new ArrayList<>();
-        teammateTools.add(ToolDefinition.BashDefinition);
-        teammateTools.add(ToolDefinition.ReadFileDefinition);
-        teammateTools.add(ToolDefinition.WriteFileDefinition);
-        teammateTools.add(ToolDefinition.SendMessageDefinition);
+        // send_message 由 TeamsCapability 自身注册，这里只需要基座工具
+        List<ToolDefinition> teammateTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, WriteFileDefinition));
+        TeamsCapability teams = new TeamsCapability(provider, MODEL, teammateTools);
+        agent.capability(teams);
 
-        Tools.setLeadProvider(provider);
-        Tools.setLeadModel(MODEL);
-        Tools.setLeadBus(bus);
-        Tools.setLeadTeammateTools(teammateTools);
+        agent.setSystemPrompt(generateSystemPrompt(ROOT) + "\n\n"
+                + String.join("\n", cron.promptFragments()) + "\n"
+                + String.join("\n", teams.promptFragments()));
 
-        // teams 模块仍然保留 cron，保持自包含链式派生
-        CronScheduler scheduler = new CronScheduler();
-        Tools.setCronScheduler(scheduler);
+        System.out.println("=== 团队协作智能体 ===");
+        System.out.println(teams.description());
+        System.out.println();
 
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setMessageBus(bus);
-        agent.setTeammateProvider(provider);
-        agent.setTeammateTools(teammateTools);
-        agent.setCronScheduler(scheduler);
-        agent.setCommandHandler(new AgentCommandHandler(null));
-        agent.run();
-    }
-
-    private static String buildSystemPrompt() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return String.format("""
-                ## 角色
-                你是一个 lead agent（团队负责人），可以派 teammate 去并行干活。你拥有 12 个工具：
-                - 基础：bash / read_file / write_file / edit_file / glob / content_search
-                - 定时：schedule_cron / list_crons / cancel_cron
-                - 团队：spawn_teammate / send_message / check_inbox
-
-                ## 团队工具用法
-                - spawn_teammate(name, role, prompt)：启动一个 teammate，它在独立的守护线程里跑自己的 agent 循环，
-                  拥有 bash/read_file/write_file/send_message 工具。spawn 立即返回，不要等待。
-                - 每个 teammate 用完最多 10 轮 LLM 调用就会自动结束，并通过文件邮箱给你回执。
-                - check_inbox()：读取你的邮箱（<ROOT>/.mailboxes/lead.jsonl）。每轮主循环结束我会自动 pollInbox，
-                  所以即使你不主动 check_inbox，teammate 的消息也会出现在下一轮对话里。
-                - send_message(to, content)：主动给某个 teammate 发消息。
-
-                ## 邮箱机制
-                每个角色（lead 或 teammate）在 <ROOT>/.mailboxes/ 下有一个 {name}.jsonl 文件作为收件箱。
-                读即消费：readInbox 一次读完全部然后清空文件，不会重复消费。
-
-                ## 工作目录
-                %s
-
-                ## 操作系统
-                %s
-
-                典型流程：spawn_teammate 派任务 → 继续做别的事 → 下一轮自动收到 teammate 的回执。
-                """, ROOT, osName);
+        agent.setSessionManager(sessionManager, skillLoader);
+        try {
+            agent.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            teams.onStop();
+            cron.onStop();
+        }
     }
 }

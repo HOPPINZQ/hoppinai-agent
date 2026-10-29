@@ -13,6 +13,9 @@ import com.openai.models.FunctionParameters;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionAssistantMessageParam;
+import com.openai.models.chat.completions.ChatCompletionContentPart;
+import com.openai.models.chat.completions.ChatCompletionContentPartImage;
+import com.openai.models.chat.completions.ChatCompletionContentPartText;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionFunctionTool;
 import com.openai.models.chat.completions.ChatCompletionMessageFunctionToolCall;
@@ -83,6 +86,8 @@ public class OpenAIProvider implements LlmProvider {
             listener.onStart();
             // 工具调用分片按 index 累积：id/name 首片到达，arguments 逐片拼接
             Map<Long, LlmMessage.ToolCall> pendingCalls = new HashMap<>();
+            // 思考链增量累积：流式结束后通过 onThinkingComplete 交付完整思考链
+            StringBuilder thinking = new StringBuilder();
             LlmResponse.FinishReason finishReason = LlmResponse.FinishReason.STOP;
             TokenUsage usage = null;
             java.util.Iterator<ChatCompletionChunk> it = stream.stream().iterator();
@@ -102,7 +107,10 @@ public class OpenAIProvider implements LlmProvider {
                 }
                 choice.delta().content().filter(c -> !c.isEmpty()).ifPresent(listener::onTextDelta);
                 // DeepSeek 思考模型扩展字段：reasoning_content 以 additionalProperty 形式存在（SDK 强类型无此字段）
-                extractReasoningDelta(choice.delta()).ifPresent(listener::onThinkingDelta);
+                extractReasoningDelta(choice.delta()).ifPresent(delta -> {
+                    thinking.append(delta);
+                    listener.onThinkingDelta(delta);
+                });
                 choice.delta().toolCalls().ifPresent(calls -> {
                     for (ChatCompletionChunk.Choice.Delta.ToolCall call : calls) {
                         LlmMessage.ToolCall acc = pendingCalls.computeIfAbsent(call.index(),
@@ -114,6 +122,9 @@ public class OpenAIProvider implements LlmProvider {
                         });
                     }
                 });
+            }
+            if (thinking.length() > 0) {
+                listener.onThinkingComplete(thinking.toString());
             }
             pendingCalls.values().stream()
                     .filter(c -> c.getId() != null && c.getName() != null)
@@ -173,6 +184,10 @@ public class OpenAIProvider implements LlmProvider {
         if (request.getTemperature() != null) {
             builder.temperature(request.getTemperature());
         }
+        if (request.isThinking()) {
+            // OpenAI 推理模型用 reasoning_effort 控制思考强度；DeepSeek 等兼容端点由模型自身决定，会忽略该字段
+            builder.reasoningEffort(com.openai.models.ReasoningEffort.MEDIUM);
+        }
         if (streaming) {
             builder.streamOptions(ChatCompletionStreamOptions.builder().includeUsage(true).build());
         }
@@ -211,6 +226,29 @@ public class OpenAIProvider implements LlmProvider {
             return ChatCompletionMessageParam.ofTool(ChatCompletionToolMessageParam.builder()
                     .toolCallId(m.getToolCallId())
                     .content(m.getText() == null ? "" : m.getText())
+                    .build());
+        }
+        // 多模态 user 消息：parts 非空时映射为文本/图片内容块数组
+        if (m.getParts() != null && !m.getParts().isEmpty()) {
+            List<ChatCompletionContentPart> contentParts = new ArrayList<>();
+            for (LlmMessage.ContentPart part : m.getParts()) {
+                if ("image".equals(part.getType()) && part.getData() != null) {
+                    String url = "data:" + (part.getMediaType() == null ? "image/png" : part.getMediaType())
+                            + ";base64," + part.getData();
+                    contentParts.add(ChatCompletionContentPart.ofImageUrl(
+                            ChatCompletionContentPartImage.builder()
+                                    .imageUrl(ChatCompletionContentPartImage.ImageUrl.builder().url(url).build())
+                                    .build()));
+                } else {
+                    String text = "file".equals(part.getType())
+                            ? "[文件: " + part.getFilename() + "]\n" + part.getText()
+                            : part.getText();
+                    contentParts.add(ChatCompletionContentPart.ofText(
+                            ChatCompletionContentPartText.builder().text(text == null ? "" : text).build()));
+                }
+            }
+            return ChatCompletionMessageParam.ofUser(ChatCompletionUserMessageParam.builder()
+                    .contentOfArrayOfContentParts(contentParts)
                     .build());
         }
         return ChatCompletionMessageParam.ofUser(ChatCompletionUserMessageParam.builder()

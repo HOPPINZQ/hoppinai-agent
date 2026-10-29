@@ -2,6 +2,9 @@ package com.hoppinzq.agent.base;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.hoppinzq.agent.capability.AgentCommand;
+import com.hoppinzq.agent.capability.AgentHook;
+import com.hoppinzq.agent.capability.Capability;
 import com.hoppinzq.agent.client.LlmMessage;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmRequest;
@@ -18,7 +21,11 @@ import java.util.*;
 import static com.hoppinzq.agent.constant.AIConstants.*;
 
 /**
- * 智能体基类
+ * 智能体基类。
+ * <p>功能扩展通过 {@link Capability} 插拔：{@code agent.capability(new XxxCapability(...))}。
+ * 内核只在固定挂载点向能力分发事件（LLM 调用前后、工具执行前后、命令、提示词片段），
+ * 自身不感知任何具体能力。
+ *
  * @author hoppinzq
  */
 @Data
@@ -41,16 +48,37 @@ public class ZQAgent {
      */
     protected SessionManager sessionManager;
 
+    /** 已注册的能力（顺序 = 注册顺序 = 钩子执行顺序） */
+    private final List<Capability> capabilities = new ArrayList<>();
+
     public ZQAgent(LlmProvider provider, String model, List<ToolDefinition> tools) {
         this.provider = provider;
         this.model = model;
         this.scanner = new Scanner(System.in);
-        this.tools = tools;
+        // 拷贝为可变列表：能力注册时需要往里追加工具
+        this.tools = new ArrayList<>(tools);
+    }
+
+    /**
+     * 注册一个能力：合并其工具，保存钩子与命令，并回调 {@code onStart}。
+     * 须在 {@link #setSessionManager} 之前调用（命令在会话初始化时收集）。
+     */
+    public ZQAgent capability(Capability capability) {
+        capabilities.add(capability);
+        for (ToolDefinition tool : capability.tools()) {
+            boolean exists = tools.stream().anyMatch(t -> t.getName().equals(tool.getName()));
+            if (exists) {
+                System.out.printf("[能力 %s] 工具 '%s' 已存在，跳过注册%n", capability.name(), tool.getName());
+                continue;
+            }
+            tools.add(tool);
+        }
+        capability.onStart(this);
+        return this;
     }
 
     /**
      * 设置会话管理器，同时初始化命令处理器。
-     * 子类可以重写此方法以提供额外的命令处理器（如 compact 命令）。
      */
     public void setSessionManager(SessionManager sessionManager, SkillLoader skillLoader) {
         this.sessionManager = sessionManager;
@@ -58,14 +86,14 @@ public class ZQAgent {
     }
 
     /**
-     * 创建命令处理器。子类可以重写此方法以提供自定义的命令处理器。
-     *
-     * @param sessionManager 会话管理器
-     * @param skillLoader 技能加载器
-     * @return 命令处理器，默认不包含 compact 命令支持
+     * 创建命令处理器：内置命令 + 全部能力注册的命令。
      */
     protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
-        return new AgentCommandHandler(sessionManager, skillLoader, null);
+        List<AgentCommand> commands = new ArrayList<>();
+        for (Capability capability : capabilities) {
+            commands.addAll(capability.commands());
+        }
+        return new AgentCommandHandler(sessionManager, skillLoader, commands);
     }
 
     public void run() {
@@ -79,7 +107,7 @@ public class ZQAgent {
                 System.out.printf("\u001b[90m新会话 %s\u001b[0m%n", sessionManager.getSessionId());
             }
         }
-        System.out.println("开始对话吧（输入 /stats 查看统计，/usage 查看明细，/skills 查看技能，/tokens 查看上下文，/transcripts 查看压缩历史，/compact 手动压缩，/exit 退出）");
+        System.out.println("开始对话吧（" + availableCommandsHint() + "）");
         while (true) {
             System.out.print("\u001b[94m你\u001b[0m: ");
             String userInput = scanner.nextLine();
@@ -185,6 +213,14 @@ public class ZQAgent {
             String callId = call.getId();
             String toolName = call.getName();
             String arguments = call.getArgumentsJson();
+
+            // 能力拦截（如权限拒绝）：以拦截文本作为工具结果，不再执行
+            String intercepted = dispatchBeforeToolCall(call);
+            if (intercepted != null) {
+                System.out.printf("拦截: %s%n", intercepted);
+                toolResults.add(LlmMessage.tool(callId, intercepted));
+                continue;
+            }
             System.out.printf("\u001b[96m工具\u001b[0m: %s(%s)%n", toolName, arguments);
 
             String toolResult = null;
@@ -210,8 +246,9 @@ public class ZQAgent {
                 }
             }
 
-            toolResults.add(LlmMessage.tool(callId,
-                    toolError != null ? "错误: " + toolError.getMessage() : toolResult));
+            String result = toolError != null ? "错误: " + toolError.getMessage() : toolResult;
+            dispatchAfterToolCall(toolName, result);
+            toolResults.add(LlmMessage.tool(callId, result));
         }
         return toolResults;
     }
@@ -236,13 +273,67 @@ public class ZQAgent {
         }
     }
 
+    // ============================== 能力分发 ==============================
+
     /**
-     * 工具执行后的回调钩子，子类可重写以注入额外内容（如提醒、压缩等）。
-     * 注意：基类的 {@link #executeToolCalls(LlmMessage)} 不再调用此方法；
-     * 仅为兼容已有子类重写而保留。
+     * 启动提示中的可用命令清单（内置 + 能力注册）。
      */
-    protected void onToolExecution(List<LlmMessage> toolResults) {
-        // 默认空实现
+    private String availableCommandsHint() {
+        if (commandHandler == null) {
+            return "输入 /exit 退出";
+        }
+        return "可用命令: " + commandHandler.availableCommands();
+    }
+
+    /** 遍历能力的 beforeToolCall；任一返回非 null 即拦截（短路） */
+    private String dispatchBeforeToolCall(LlmMessage.ToolCall call) {
+        for (Capability capability : capabilities) {
+            for (AgentHook hook : capability.hooks()) {
+                String verdict = hook.beforeToolCall(call);
+                if (verdict != null) {
+                    return verdict;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 遍历能力的 afterLlmResponse（拿到 finishReason / usage，可做统计或旁路记录） */
+    private void dispatchAfterLlmResponse(LlmResponse response) {
+        for (Capability capability : capabilities) {
+            for (AgentHook hook : capability.hooks()) {
+                hook.afterLlmResponse(response);
+            }
+        }
+    }
+
+    private void dispatchAfterToolCall(String toolName, String result) {
+        for (Capability capability : capabilities) {
+            for (AgentHook hook : capability.hooks()) {
+                hook.afterToolCall(toolName, result);
+            }
+        }
+    }
+
+    /**
+     * 遍历能力的 beforeLlmCall；返回新列表（非同一引用）则替换当前上下文。
+     * 压缩类能力借此在每次 LLM 调用前对历史做手术。
+     */
+    private List<LlmMessage> dispatchBeforeLlmCall(List<LlmMessage> messages) {
+        List<LlmMessage> current = messages;
+        for (Capability capability : capabilities) {
+            for (AgentHook hook : capability.hooks()) {
+                List<LlmMessage> next = hook.beforeLlmCall(current);
+                if (next != null && next != current) {
+                    current = next;
+                }
+            }
+        }
+        if (current != messages) {
+            messageParams.clear();
+            messageParams.addAll(current);
+        }
+        return messageParams;
     }
 
     private String invokeTool(ToolDefinition tool, String arguments) throws Exception {
@@ -262,13 +353,19 @@ public class ZQAgent {
     }
 
     protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
-        return provider.complete(LlmRequest.builder()
+        // 能力钩子先对上下文做手术（如压缩），再发起请求
+        List<LlmMessage> effective = dispatchBeforeLlmCall(messageParams);
+        LlmResponse response = provider.complete(LlmRequest.builder()
                 .model(model)
                 .systemPrompt(systemPrompt)
-                .messages(messageParams)
+                .messages(effective)
                 .tools(tools)
                 .maxTokens(MAX_TOKENS)
+                .thinking(THINK_ENABLED)
+                .thinkingBudgetTokens(THINK_BUDGET_TOKENS)
                 .build());
+        dispatchAfterLlmResponse(response);
+        return response;
     }
 
     public String runTask(String prompt) {

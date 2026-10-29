@@ -1,34 +1,30 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.memory.MemoryCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.memory.MemoryExtractor;
-import com.hoppinzq.agent.tool.memory.MemorySelector;
-import com.hoppinzq.agent.tool.memory.MemoryStore;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
+import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
- * 持久记忆示例（对应 Python 教程 s09_memory）。
+ * 持久记忆智能体（对应 Python 教程 s09_memory）。
  *
- * <p>跨会话记忆：每轮 LLM 调用前从 .memory/ 索引里挑相关条目注入 system prompt；
- * 每轮结束后用 LLM 抽取新记忆写入。重启后下次对话即可读到上次的记忆。
+ * <p>本类只负责<b>装配</b>：记忆的存取（MemoryStore）、相关性选择（MemorySelector）、
+ * 事实抽取（MemoryExtractor）、逐轮注入与 /memory 命令全部收拢在
+ * {@link MemoryCapability}（capability.memory 包）；每轮的挂载点由内核的
+ * beforeLlmCall 钩子分发，入口类不再覆写任何循环方法。
  *
- * <p>文件结构：
- * <pre>
- * {ROOT}/
- *   ├── .memory/
- *   │   ├── user_prefers_vim.md      (YAML frontmatter + 正文)
- *   │   └── ...
- *   └── MEMORY.md                    (索引，每条一行摘要)
- * </pre>
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/memory/} 目录 +
+ * 下面 main 中的一行 {@code agent.capability(memory)}。
  *
  * <p><b>示例 prompt：</b>
  * <ul>
@@ -38,103 +34,60 @@ import static com.hoppinzq.agent.constant.AIConstants.*;
  *
  * @author hoppinzq
  */
-public class AgentMemory {
+public class AgentMemory extends ZQAgent {
+
+    public AgentMemory(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
+    }
+
+    /**
+     * 基础系统提示词（不含能力片段；记忆的动态注入由能力在每轮钩子里完成）。
+     */
+    public static String generateSystemPrompt(String root) {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return String.format("""
+                ## 角色
+                你是一个具备跨会话持久记忆的开发助手。
+
+                ## 可用工具
+                - bash / read_file / write_file / edit_file / content_search / list_files
+
+                ## 环境
+                - 操作系统：%s
+                - 工作目录：%s""", osName, root);
+    }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(ToolDefinition.BashDefinition);
-        tools.add(ToolDefinition.ReadFileDefinition);
-        tools.add(ToolDefinition.WriteFileDefinition);
-        tools.add(ToolDefinition.EditFileDefinition);
-        tools.add(ToolDefinition.ListFilesDefinition);
+        // 基座工具（不含任何能力工具）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, WriteFileDefinition, EditFileDefinition,
+                ContentSearchDefinition, ListFilesDefinition));
 
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
+        // 会话启动交互已收拢到 SessionManager.bootstrap
+        SessionManager sessionManager = SessionManager.bootstrap(args);
 
-        // 装配记忆三件套
-        MemoryStore store = new MemoryStore(ROOT, provider);
-        agent.setMemoryStore(store);
-        agent.setMemorySelector(new MemorySelector(store));
-        agent.setMemoryExtractor(new MemoryExtractor(store));
+        AgentMemory agent = new AgentMemory(provider, MODEL, baseTools);
 
-        System.out.printf("\u001b[95m[memory]\u001b[0m 工作目录 %s，已存在 %d 条记忆%n",
-                ROOT, store.fileCount());
+        // 插拔式集成：复制 capability/memory/ 目录 + 这一行注册
+        MemoryCapability memory = new MemoryCapability(provider);
+        agent.capability(memory);
 
-        agent.setSessionManager(bootstrapSession(args));
-        agent.run();
-    }
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(generateSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", memory.promptFragments()));
 
-    /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java AgentMemory <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
+        System.out.println("=== 持久记忆智能体 ===");
+        System.out.println(memory.description());
+        System.out.println("[memory] 工作目录 " + ROOT + "，已存在 " + memory.fileCount() + " 条记忆");
+        System.out.println();
+
+        agent.setSessionManager(sessionManager, new SkillLoader());
         try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
+            agent.run();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    private static String buildSystemPrompt() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return String.format("""
-                ## 角色
-                你是一个具备跨会话持久记忆的开发助手。系统会自动：
-                  - 每轮从 .memory/ 选相关记忆注入到这段系统提示后
-                  - 每轮结束时把你新提供的事实写入 .memory/
-                如果用户告诉你偏好、纠正你、或描述项目结构，请用陈述句表达，便于记忆抽取器落盘。
-
-                ## 可用工具
-                - bash / read_file / write_file / edit_file / glob
-
-                ## 环境
-                - 操作系统：%s
-                - 工作目录：%s""", osName, ROOT);
     }
 }

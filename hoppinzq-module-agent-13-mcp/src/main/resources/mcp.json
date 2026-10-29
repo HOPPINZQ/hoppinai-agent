@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "红警95_stdio": {
+      "type": "stdio",
       "enabled": true,
       "command": "java",
       "args": [
@@ -13,9 +14,14 @@
         "wc_bbs_token": "wc_bbs_xxxxxxxxxxxx"
       }
     },
-    "红警95": {
-      "enabled": false,
-      "url": "http://localhost:9002/sse"
+    "mcp的demo_sse": {
+      "type": "streamable-http",
+      "enabled": true,
+      "url": "http://hoppinzq.com:18080/mcp",
+      "timeout": 60,
+      "headers": {
+        "X-Api-key": "2acac3e650574e3fa69792b8be0e27ab"
+      }
     }
   }
 }

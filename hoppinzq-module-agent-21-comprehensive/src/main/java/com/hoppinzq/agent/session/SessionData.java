@@ -10,8 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 会话持久化数据：消息列表 + token 使用统计 + 压缩历史。
+ * 会话持久化数据：消息列表 + token 使用统计。
  * <p>这是 {@code .sessions/<id>.json} 的根结构，便于扩展更多元数据。
+ * 压缩历史（transcripts）由 compact 能力自持存储，不进内核会话文件。
  *
  * @author hoppinzq
  */
@@ -42,10 +43,4 @@ public class SessionData {
      * 会话最后更新时间（可选）
      */
     private String updatedAt;
-
-    /**
-     * 压缩历史记录（每次压缩前的完整对话保存记录）
-     */
-    @Builder.Default
-    private List<TranscriptRecord> transcripts = new ArrayList<>();
 }

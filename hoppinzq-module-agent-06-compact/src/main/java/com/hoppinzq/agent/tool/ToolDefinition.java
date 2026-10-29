@@ -223,31 +223,6 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
 
 
     /**
-     * 对话压缩工具定义
-     * <p>
-     * 手动触发对话压缩，由 LLM 调用时立即执行完整的上下文压缩。
-     * </p>
-     */
-    public static ToolDefinition ContentCompactDefinition = new ToolDefinition(
-            "compact",
-            "手动触发对话压缩。当上下文过大时使用此工具。\n\n" +
-                    "使用场景：\n" +
-                    "• 对话历史过长，占用大量 token 时\n" +
-                    "• 需要保持核心信息但压缩历史对话时\n" +
-                    "• 系统提示接近 token 限制时\n\n" +
-                    "功能说明：\n" +
-                    "• 压缩历史对话，保留关键信息\n" +
-                    "• 可选指定压缩重点（focus 参数）\n" +
-                    "• 压缩后保留最近的工作上下文",
-            createInputSchema(
-                    Map.of("focus", ToolDefinition.createProperty("string", "压缩重点，指定在摘要中保留的内容类型（可选）")),
-                    List.of()
-            ),
-            CompactInput.class,
-            Tools::compact
-    );
-
-    /**
      * 创建属性定义
      */
     public static Map<String, Object> createProperty(String type, String description) {

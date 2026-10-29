@@ -1,6 +1,7 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
@@ -153,8 +154,8 @@ public class Tools {
             // 根据命令类型和操作系统动态选择编码
             String charsetName;
             if ("bash".equalsIgnoreCase(type) ||
-                (!System.getProperty("os.name").toLowerCase().contains("win") &&
-                 (type == null || type.isEmpty()))) {
+                    (!System.getProperty("os.name").toLowerCase().contains("win") &&
+                            (type == null || type.isEmpty()))) {
                 charsetName = "UTF-8";
             } else {
                 charsetName = "GBK";
@@ -356,7 +357,7 @@ public class Tools {
             // 检查 resolved 是否以 rootPath 开头（安全沙箱）
             if (!resolved.startsWith(rootPath)) {
                 throw new IllegalArgumentException(
-                    "路径必须在项目目录内。ROOT=" + ROOT + "，尝试访问: " + inputPath);
+                        "路径必须在项目目录内。ROOT=" + ROOT + "，尝试访问: " + inputPath);
             }
 
             if (LOG_ENABLE) {
@@ -372,7 +373,7 @@ public class Tools {
         // 再次检查（防止 ../ 跳出，除非在非限制模式）
         if (!UNRESTRICTED_PATH_MODE && !resolved.startsWith(rootPath)) {
             throw new IllegalArgumentException(
-                "相对路径解析后超出项目目录。ROOT=" + ROOT + "，输入: " + inputPath);
+                    "相对路径解析后超出项目目录。ROOT=" + ROOT + "，输入: " + inputPath);
         }
 
         if (LOG_ENABLE) {
@@ -468,71 +469,71 @@ public class Tools {
 
             try (Stream<Path> stream = recursive ? Files.walk(searchPath) : Files.list(searchPath)) {
                 List<String> matches = stream
-                    .filter(path -> {
-                        try {
-                            boolean isDirectory = Files.isDirectory(path);
-                            boolean isFile = Files.isRegularFile(path);
+                        .filter(path -> {
+                            try {
+                                boolean isDirectory = Files.isDirectory(path);
+                                boolean isFile = Files.isRegularFile(path);
 
-                            // 如果pattern明确要求目录，只匹配目录
-                            if (onlyDirectories) {
-                                return isDirectory;
-                            }
+                                // 如果pattern明确要求目录，只匹配目录
+                                if (onlyDirectories) {
+                                    return isDirectory;
+                                }
 
-                            // 如果pattern是 *，匹配文件和目录
-                            if (matchAll) {
-                                return true;
-                            }
-
-                            // 其他模式（如 *.py），只匹配文件
-                            if (isFile) {
-                                String fileName = path.getFileName().toString();
-                                // 特殊处理：globPattern是单个"*"，匹配所有文件
-                                if (globPattern.equals("*")) {
+                                // 如果pattern是 *，匹配文件和目录
+                                if (matchAll) {
                                     return true;
                                 }
-                                if (globPattern.startsWith("*.")) {
-                                    // 处理 *.ext 模式
-                                    return fileName.endsWith(globPattern.substring(1));
-                                } else if (globPattern.length() > 1 && globPattern.startsWith("*") && globPattern.endsWith("*")) {
-                                    // 处理 *模式* 模式（确保长度>1避免单个*的情况）
-                                    String patternPart = globPattern.substring(1, globPattern.length() - 1);
-                                    return fileName.contains(patternPart);
-                                } else if (globPattern.startsWith("*") && globPattern.length() > 1) {
-                                    // 处理 *开头模式
-                                    String patternPart = globPattern.substring(1);
-                                    return fileName.endsWith(patternPart);
-                                } else if (globPattern.endsWith("*")) {
-                                    // 处理 *结尾模式
-                                    String patternPart = globPattern.substring(0, globPattern.length() - 1);
-                                    return fileName.startsWith(patternPart);
-                                } else {
-                                    // 精确匹配
-                                    return fileName.equals(globPattern);
+
+                                // 其他模式（如 *.py），只匹配文件
+                                if (isFile) {
+                                    String fileName = path.getFileName().toString();
+                                    // 特殊处理：globPattern是单个"*"，匹配所有文件
+                                    if (globPattern.equals("*")) {
+                                        return true;
+                                    }
+                                    if (globPattern.startsWith("*.")) {
+                                        // 处理 *.ext 模式
+                                        return fileName.endsWith(globPattern.substring(1));
+                                    } else if (globPattern.length() > 1 && globPattern.startsWith("*") && globPattern.endsWith("*")) {
+                                        // 处理 *模式* 模式（确保长度>1避免单个*的情况）
+                                        String patternPart = globPattern.substring(1, globPattern.length() - 1);
+                                        return fileName.contains(patternPart);
+                                    } else if (globPattern.startsWith("*") && globPattern.length() > 1) {
+                                        // 处理 *开头模式
+                                        String patternPart = globPattern.substring(1);
+                                        return fileName.endsWith(patternPart);
+                                    } else if (globPattern.endsWith("*")) {
+                                        // 处理 *结尾模式
+                                        String patternPart = globPattern.substring(0, globPattern.length() - 1);
+                                        return fileName.startsWith(patternPart);
+                                    } else {
+                                        // 精确匹配
+                                        return fileName.equals(globPattern);
+                                    }
                                 }
+                                return false;
+                            } catch (Exception e) {
+                                return false;
                             }
-                            return false;
-                        } catch (Exception e) {
-                            return false;
-                        }
-                    })
-                    .map(path -> {
-                        try {
-                            // 返回相对于ROOT的路径
-                            Path relativePath = startPath.relativize(path.toAbsolutePath());
-                            String result = relativePath.toString().replace("\\", "/");
-                            // 如果是目录且pattern不是 */，添加/标识
-                            boolean isDirectory = Files.isDirectory(path);
-                            if (isDirectory && !onlyDirectories) {
-                                return result + "/";
+                        })
+                        .map(path -> {
+                            try {
+                                // 返回相对于ROOT的路径
+                                Path relativePath = startPath.relativize(path.toAbsolutePath());
+                                String result = relativePath.toString().replace("\\", "/");
+                                // 如果是目录且pattern不是 */，添加/标识
+                                boolean isDirectory = Files.isDirectory(path);
+                                if (isDirectory && !onlyDirectories) {
+                                    return result + "/";
+                                }
+                                return result;
+                            } catch (IllegalArgumentException e) {
+                                // 如果路径无法相对化，返回绝对路径
+                                return path.toAbsolutePath().toString().replace("\\", "/");
                             }
-                            return result;
-                        } catch (IllegalArgumentException e) {
-                            // 如果路径无法相对化，返回绝对路径
-                            return path.toAbsolutePath().toString().replace("\\", "/");
-                        }
-                    })
-                    .sorted()
-                    .toList();
+                        })
+                        .sorted()
+                        .toList();
 
                 for (String match : matches) {
                     results.append(match).append("\n");
@@ -694,7 +695,6 @@ public class Tools {
         }
     }
 
-
     /**
      * 统计子字符串在主字符串中出现的次数
      * <p>
@@ -702,7 +702,7 @@ public class Tools {
      * 并将每行内连续多个空格压缩为单个空格，这样可以匹配由于缩进格式不同（制表符vs空格）
      * 或换行符不同（\r\n vs \n）导致的视觉上相同但技术上不同的字符串。
      *
-     * @param str    主字符串，如果为null则返回0
+     * @param str 主字符串，如果为null则返回0
      * @param substr 要查找的子字符串，如果为null或空字符串则返回0
      * @return 子字符串在主字符串中出现的次数
      */
@@ -750,18 +750,18 @@ public class Tools {
      * 创建新文件并写入内容，如果父目录不存在则自动创建
      *
      * @param filePath 要创建的文件路径
-     * @param content  要写入文件的内容
+     * @param content 要写入文件的内容
      * @return 返回操作结果字符串，包含成功创建的文件路径
      * @throws IOException 当文件创建或写入过程中发生I/O错误时抛出
      */
     private static String createNewFile(Path filePath, String content) throws IOException {
-        if (LOG_ENABLE) {
+        if (AIConstants.LOG_ENABLE) {
             log.info("创建文件: {} ({} bytes)", filePath, content.length());
         }
 
         Path parent = filePath.getParent();
         if (parent != null && !Files.exists(parent)) {
-            if (LOG_ENABLE) {
+            if (AIConstants.LOG_ENABLE) {
                 log.info("创建文件夹: {}", parent);
             }
             Files.createDirectories(parent);
@@ -769,7 +769,7 @@ public class Tools {
 
         Files.write(filePath, content.getBytes(), StandardOpenOption.CREATE);
 
-        if (LOG_ENABLE) {
+        if (AIConstants.LOG_ENABLE) {
             log.info("成功创建文件 {}", filePath);
         }
 

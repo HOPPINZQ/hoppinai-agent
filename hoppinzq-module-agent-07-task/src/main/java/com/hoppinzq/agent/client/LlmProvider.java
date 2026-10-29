@@ -48,6 +48,10 @@ public interface LlmProvider {
         default void onThinkingDelta(String delta) {
         }
 
+        /** 思考链流式结束：交付累积后的完整思考链（有思考内容时才会回调，在 onComplete 之前） */
+        default void onThinkingComplete(String fullThinking) {
+        }
+
         /** 工具调用块结束：argumentsJson 为累积后的完整入参 JSON */
         default void onToolUse(String id, String name, String argumentsJson) {
         }

@@ -1,26 +1,32 @@
 package com.hoppinzq.agent;
 
+import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.multimodal.MultimodalCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
-import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.API_KEY;
 import static com.hoppinzq.agent.constant.AIConstants.MODEL;
-import static com.hoppinzq.agent.constant.AIConstants.SUPPORTS_VISION;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
 import static com.hoppinzq.agent.tool.ToolDefinition.BashDefinition;
-import static com.hoppinzq.agent.tool.ToolDefinition.ReadFileDefinition;
-import static com.hoppinzq.agent.tool.ToolDefinition.ScreenshotDefinition;
 
 /**
- * s22 多模态输入示例入口。
- * <p>
- * 示例提示词：
+ * s22 多模态输入智能体。
+ *
+ * <p>本类只负责<b>装配</b>：多模态工具（read_file 图片增强 / screenshot）、/img 命令、
+ * 提示词片段全部收拢在 {@link MultimodalCapability}（capability.multimodal 包），
+ * 入口类不再承载任何多模态逻辑。
+ *
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/multimodal/} 目录 +
+ * 下面 main 中的一行 {@code agent.capability(new MultimodalCapability())}。
+ *
+ * <p>示例提示词：
  * <ul>
  *   <li>"读取 test.png"（工作目录放一张图片，会自动 base64）</li>
  *   <li>"截个屏"（调用 screenshot 工具）</li>
@@ -29,98 +35,85 @@ import static com.hoppinzq.agent.tool.ToolDefinition.ScreenshotDefinition;
  *
  * @author hoppinzq
  */
-public class Agent22 {
+public class Agent22 extends ZQAgent {
 
-    public static void main(String[] args) {
-        LlmProvider provider = LlmProviders.create();
+    /** 多模态能力：/img 前缀命令需要在其上解析参数，保存为字段供命令分发覆写使用 */
+    private final MultimodalCapability multimodal;
 
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(BashDefinition);
-        tools.add(ReadFileDefinition);
-        tools.add(ScreenshotDefinition);
-
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setSessionManager(bootstrapSession(args));
-        System.out.println("[s22 多模态] SUPPORTS_VISION = " + SUPPORTS_VISION
-                + "（修改 AIConstants.SUPPORTS_VISION 切换）");
-        agent.run();
+    public Agent22(LlmProvider provider, String model, List<ToolDefinition> tools, MultimodalCapability multimodal) {
+        super(provider, model, tools);
+        this.multimodal = multimodal;
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java Agent22 <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
+     * 基础系统提示词（不含能力片段；能力通过 promptFragments 贡献自己的部分）。
      */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    private static String buildSystemPrompt() {
-        return """
+    public static String generateSystemPrompt(String root) {
+        return String.format("""
                 你是一个多模态 AI 编程助手，由 hoppinzq 创建。
 
                 ## 核心能力
 
                 - bash: 执行 Shell 命令
-                - read_file: 读取文件；遇到图片会自动转 base64 image block（当前模型 vision 支持度: %s）
+                - read_file: 读取文件；遇到图片会自动转 base64 image block
                 - screenshot: 抓取当前屏幕
 
                 ## 工作原则
 
                 1. 优先使用工具完成任务。
                 2. 用户给出图片时，先描述图片内容再回答问题。
-                3. 当前模型若不支持 vision，图片会被降级为文本描述，请明确告诉用户。
 
                 ## 身份
 
-                你是由最伟大的 hoppinzq 创建的 AI 助手。
-                """.formatted(SUPPORTS_VISION ? "已开启" : "已关闭");
+                你是由最伟大的 hoppinzq 创建的 AI 助手，工作在目录: %s。""", root);
+    }
+
+    /**
+     * 命令分发：/img 带参数时无法被内核的"命令名精确匹配"命中（{@code /img test.png} ≠ {@code /img}），
+     * 因此在命令处理器外包一层，先按前缀转交能力解析，其余命令回落到内核处理器。
+     */
+    @Override
+    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
+        AgentCommandHandler base = super.createCommandHandler(sessionManager, skillLoader);
+        return new AgentCommandHandler(sessionManager, skillLoader, multimodal.commands()) {
+            @Override
+            public boolean handleCommand(String input) {
+                if (multimodal.handleImgCommand(input)) {
+                    return true;
+                }
+                return super.handleCommand(input);
+            }
+        };
+    }
+
+    public static void main(String[] args) {
+        LlmProvider provider = LlmProviders.create();
+
+        // 会话启动交互已收拢到 SessionManager.bootstrap
+        SessionManager sessionManager = SessionManager.bootstrap(args);
+
+        // 基座工具（不含任何能力工具）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(BashDefinition));
+
+        // 插拔式集成：复制 capability/multimodal/ 目录 + 这一行注册
+        MultimodalCapability multimodal = new MultimodalCapability();
+        Agent22 agent = new Agent22(provider, MODEL, baseTools, multimodal);
+        agent.capability(multimodal);
+
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(generateSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", multimodal.promptFragments()));
+
+        System.out.println("=== s22 多模态智能体 ===");
+        System.out.println(multimodal.description());
+        System.out.println();
+
+        // 本模块无技能体系，SkillLoader 传 null（/skills 命令会提示未启用）
+        agent.setSessionManager(sessionManager, null);
+        try {
+            agent.run();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

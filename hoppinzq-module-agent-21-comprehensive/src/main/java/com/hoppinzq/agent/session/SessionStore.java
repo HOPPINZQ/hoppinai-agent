@@ -69,10 +69,21 @@ public class SessionStore {
         Path tmp = target.resolveSibling(target.getFileName() + ".tmp");
         try {
             mapper.writeValue(tmp.toFile(), data);
+            // Windows 上需要先删除目标文件，否则 Files.move 可能失败
+            if (Files.exists(target)) {
+                try {
+                    Files.delete(target);
+                } catch (IOException e) {
+                    // 如果删除失败，尝试直接复制
+                    Files.copy(tmp, target, StandardCopyOption.REPLACE_EXISTING);
+                    Files.deleteIfExists(tmp);
+                    return;
+                }
+            }
             try {
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ame) {
-                // 跨文件系统时退化为普通覆盖
+                // 跨文件系统时退化为普通移动
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {

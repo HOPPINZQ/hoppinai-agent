@@ -1,0 +1,328 @@
+package com.hoppinzq.agent.session;
+
+import com.hoppinzq.agent.client.LlmMessage;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+import java.util.concurrent.ThreadLocalRandom;
+
+/**
+ * 会话编排器：维护当前 {@code sessionId} 与内存中的消息副本，
+ * 在每条消息追加时自动持久化到 {@link SessionStore}。
+ * <p>与 agent 解耦：agent 只需在添加消息时调用 {@link #onMessageAppended(LlmMessage)}，
+ * 启动时调用 {@link #populate(List)} 即可恢复历史。
+ *
+ * <h3>典型用法</h3>
+ * <pre>{@code
+ *   SessionManager sm = new SessionManager();
+ *   if (args.length > 0 && sm.resume(args[0])) {
+ *       System.out.println("已恢复会话 " + sm.getSessionId());
+ *   } else {
+ *       sm.startNew();
+ *       System.out.println("新会话 " + sm.getSessionId());
+ *   }
+ *   agent.setSessionManager(sm);
+ *   sm.populate(agent.getMessageParams());   // 由 ZQAgent.run 启动时自动调用
+ *   agent.run();
+ * }</pre>
+ *
+ * @author hoppinzq
+ */
+public class SessionManager {
+
+    private static final DateTimeFormatter ID_FMT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+
+    private final SessionStore store;
+    private final MessageConverter converter;
+    private SessionData sessionData = SessionData.builder().build();
+    private String sessionId;
+
+    public SessionManager() {
+        this(new SessionStore(), new MessageConverter());
+    }
+
+    public SessionManager(SessionStore store, MessageConverter converter) {
+        this.store = store;
+        this.converter = converter;
+    }
+
+    // ============================== 交互式启动 ==============================
+
+    /**
+     * 交互式启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
+     * <ul>
+     *   <li>{@code java AgentXX <sessionId>} —— 直接恢复指定会话</li>
+     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
+     * </ul>
+     * <p>各 Agent 模块的 main 方法只需调用 {@code SessionManager.bootstrap(args)}。
+     *
+     * @param args main 方法的命令行参数
+     * @return 已就绪（新开或已恢复）的 SessionManager
+     */
+    public static SessionManager bootstrap(String[] args) {
+        SessionManager sm = new SessionManager();
+        if (args.length > 0 && !args[0].isBlank()) {
+            boolean ok = sm.resume(args[0]);
+            System.out.println(ok
+                    ? "已恢复会话 " + args[0]
+                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
+            return sm;
+        }
+        Scanner sc = new Scanner(System.in);
+        List<String> sessions = sm.listSessions();
+        if (sessions.isEmpty()) {
+            sm.startNew();
+            System.out.println("新会话已创建: " + sm.getSessionId());
+            return sm;
+        }
+        System.out.println("\n\u001b[95m========== 历史会话 ==========\u001b[0m");
+        for (int i = 0; i < sessions.size(); i++) {
+            System.out.printf("\u001b[95m%d\u001b[0m) %s%n", i + 1, sessions.get(i));
+        }
+        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
+        String line = sc.nextLine().trim();
+        if (line.isEmpty()) {
+            sm.startNew();
+            System.out.println("新会话已创建: " + sm.getSessionId());
+            return sm;
+        }
+        try {
+            int idx = Integer.parseInt(line) - 1;
+            if (idx >= 0 && idx < sessions.size()) {
+                String id = sessions.get(idx);
+                sm.resume(id);
+                System.out.println("已恢复会话: " + id);
+                return sm;
+            }
+        } catch (NumberFormatException ignore) {
+            // 用户可能直接输入了 sessionId
+            if (sessions.contains(line)) {
+                sm.resume(line);
+                System.out.println("已恢复会话: " + line);
+                return sm;
+            }
+        }
+        sm.startNew();
+        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
+        return sm;
+    }
+
+    // ============================== 生命周期 ==============================
+
+    /**
+     * 创建一个新会话，生成形如 {@code yyyyMMdd-HHmmss-XXXX} 的 ID。
+     */
+    public String startNew() {
+        this.sessionId = generateId();
+        this.sessionData = SessionData.builder()
+                .messages(new ArrayList<>())
+                .usage(new ArrayList<>())
+                .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                .build();
+        // 预先落盘一份空文件，便于 listIds 时就能看到
+        persist();
+        return this.sessionId;
+    }
+
+    /**
+     * 恢复指定会话。
+     *
+     * @return 若会话存在且非空返回 {@code true}；否则返回 {@code false}（仍会以该 id 继续会话）
+     */
+    public boolean resume(String sessionId) {
+        this.sessionId = sessionId;
+        this.sessionData = store.load(sessionId);
+        boolean hasMessages = !this.sessionData.getMessages().isEmpty();
+        // 若有历史 usage 数据，打印统计摘要
+        if (hasMessages && !sessionData.getUsage().isEmpty()) {
+            printSummary();
+        }
+        return hasMessages;
+    }
+
+    /**
+     * 列出所有已存在的会话 ID。
+     */
+    public List<String> listSessions() {
+        return store.listIds();
+    }
+
+    // ============================== 与 agent 的桥接 ==============================
+
+    /**
+     * 把历史消息回放到 agent 的 messageParams。
+     * <p>由 agent 在 run 启动时调用，恢复上下文。
+     * 一条 user+tool_result 的 {@link SessionMessage} 会展开为 N 条 {@code role=tool} 消息。
+     * <p>末轮 assistant 会回填 thinking 块（含签名）：Anthropic 扩展思考开启时，
+     * 工具循环请求必须携带末轮 thinking，否则 400。
+     */
+    public void populate(List<LlmMessage> out) {
+        List<SessionMessage> msgs = sessionData.getMessages();
+        for (int i = 0; i < msgs.size(); i++) {
+            SessionMessage sm = msgs.get(i);
+            List<LlmMessage> converted = converter.toLlmMessages(sm);
+            if (i == msgs.size() - 1 && converted.size() == 1 && converted.get(0).isAssistant()) {
+                converter.restoreThinking(converted.get(0), sm);
+            }
+            out.addAll(converted);
+        }
+    }
+
+    /**
+     * 每当 agent 追加一条新消息时调用：转成 {@link SessionMessage} 并落盘。
+     */
+    public void onMessageAppended(LlmMessage message) {
+        sessionData.getMessages().add(converter.toSessionMessage(message));
+        sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        persist();
+    }
+
+    /**
+     * 一轮的 N 条 {@code role=tool} 结果消息合并为一条 user SessionMessage 落盘
+     * （保持与旧版一致的落盘格式）。
+     */
+    public void onToolMessagesAppended(List<LlmMessage> toolMessages) {
+        sessionData.getMessages().add(converter.toMergedSessionMessage(toolMessages));
+        sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+        persist();
+    }
+
+    /**
+     * 每次调用 LLM 后记录 token 使用情况（输入为协议中立的统计对象）。
+     */
+    public void recordUsage(TokenUsage usage) {
+        if (usage == null) {
+            return;
+        }
+        TokenUsage tokenUsage = TokenUsage.builder()
+                .inputTokens(usage.getInputTokens())
+                .outputTokens(usage.getOutputTokens())
+                .cacheReadTokens(usage.getCacheReadTokens())
+                .cacheCreationTokens(usage.getCacheCreationTokens())
+                .timestamp(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+                .build();
+        sessionData.getUsage().add(tokenUsage);
+        persist();
+    }
+
+    /**
+     * 当前消息数量。
+     */
+    public int historySize() {
+        return sessionData.getMessages().size();
+    }
+
+    public String getSessionId() {
+        return sessionId;
+    }
+
+    // ============================== 内部 ==============================
+
+    private void persist() {
+        if (sessionId == null) {
+            return;
+        }
+        store.save(sessionId, sessionData);
+    }
+
+    // ============================== Token 统计 ==============================
+
+    /**
+     * 本次会话的总 token 消耗（input + output）。
+     */
+    public long getTotalTokens() {
+        return sessionData.getUsage().stream()
+                .mapToLong(TokenUsage::getTotalTokens)
+                .sum();
+    }
+
+    /**
+     * 本次会话的输入 token 总和。
+     */
+    public long getInputTokens() {
+        return sessionData.getUsage().stream()
+                .mapToLong(u -> u.getInputTokens() != null ? u.getInputTokens() : 0)
+                .sum();
+    }
+
+    /**
+     * 本次会话的输出 token 总和。
+     */
+    public long getOutputTokens() {
+        return sessionData.getUsage().stream()
+                .mapToLong(u -> u.getOutputTokens() != null ? u.getOutputTokens() : 0)
+                .sum();
+    }
+
+    /**
+     * 本次会话的缓存命中 token 总和。
+     */
+    public long getCacheReadTokens() {
+        return sessionData.getUsage().stream()
+                .mapToLong(u -> u.getCacheReadTokens() != null ? u.getCacheReadTokens() : 0)
+                .sum();
+    }
+
+    /**
+     * 本次会话的缓存创建 token 总和。
+     */
+    public long getCacheCreationTokens() {
+        return sessionData.getUsage().stream()
+                .mapToLong(u -> u.getCacheCreationTokens() != null ? u.getCacheCreationTokens() : 0)
+                .sum();
+    }
+
+    /**
+     * 本次会话的缓存命中率（0-1）。
+     * <p>注：OpenAI API 的 {@code prompt_tokens_details.cached_tokens} 是 {@code prompt_tokens}
+     * 的子集（DeepSeek 同样如此），与 Anthropic 的独立统计语义不同。
+     */
+    public double getCacheHitRate() {
+        long cached = getCacheReadTokens();
+        long input = getInputTokens();
+        if (input == 0) {
+            return 0.0;
+        }
+        return (double) cached / input;
+    }
+
+    /**
+     * 本次会话的 LLM 调用次数。
+     */
+    public int getCallCount() {
+        return sessionData.getUsage().size();
+    }
+
+    /**
+     * 获取本次会话的 token 使用明细（只读）。
+     */
+    public List<TokenUsage> getUsageList() {
+        return new ArrayList<>(sessionData.getUsage());
+    }
+
+    /**
+     * 打印本次会话的 token 统计摘要。
+     */
+    public void printSummary() {
+        System.out.printf("\u001b[90m========== 会话 %s 的 token 统计 ==========\u001b[0m%n", sessionId);
+        System.out.printf("\u001b[90m调用次数\u001b[0m: %d%n", getCallCount());
+        System.out.printf("\u001b[90m输入 tokens\u001b[0m: %,d%n", getInputTokens());
+        System.out.printf("\u001b[90m输出 tokens\u001b[0m: %,d%n", getOutputTokens());
+        System.out.printf("\u001b[90m缓存命中 tokens\u001b[0m: %,d%n", getCacheReadTokens());
+        System.out.printf("\u001b[90m缓存创建 tokens\u001b[0m: %,d%n", getCacheCreationTokens());
+        System.out.printf("\u001b[90m总计 tokens\u001b[0m: %,d%n", getTotalTokens());
+        if (getInputTokens() > 0) {
+            System.out.printf("\u001b[90m缓存命中率\u001b[0m: %.1f%%%n", getCacheHitRate() * 100);
+        }
+        System.out.println();
+    }
+
+    private String generateId() {
+        String time = LocalDateTime.now().format(ID_FMT);
+        String rand = Integer.toHexString(ThreadLocalRandom.current().nextInt(0x1000, 0x10000));
+        return time + "-" + rand;
+    }
+}

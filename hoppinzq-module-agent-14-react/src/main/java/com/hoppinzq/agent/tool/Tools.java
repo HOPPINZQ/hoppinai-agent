@@ -1,17 +1,13 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.constant.AIConstants;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
-import com.hoppinzq.agent.tool.util.FileExclusionHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -21,10 +17,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
@@ -702,7 +695,6 @@ public class Tools {
         }
     }
 
-
     /**
      * 统计子字符串在主字符串中出现的次数
      * <p>
@@ -782,42 +774,5 @@ public class Tools {
         }
 
         return "成功创建文件 " + filePath;
-    }
-
-    private static String executeTool(String toolName, String actionInput) throws Exception {
-        List<ToolDefinition> availableTools = Arrays.asList(
-                ToolDefinition.BashDefinition,
-                ToolDefinition.EditFileDefinition,
-                ToolDefinition.WriteFileDefinition,
-                ToolDefinition.ReadFileDefinition,
-                ToolDefinition.GlobDefinition,
-                ToolDefinition.ContentSearchDefinition
-        );
-
-        ToolDefinition targetTool = null;
-        for (ToolDefinition tool : availableTools) {
-            if (tool.getName().equals(toolName)) {
-                targetTool = tool;
-                break;
-            }
-        }
-
-        if (targetTool == null) {
-            return "错误: 工具 '" + toolName + "' 没有找到";
-        }
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        Map<String, Object> inputMap;
-        try {
-            inputMap = objectMapper.readValue(actionInput, HashMap.class);
-        } catch (Exception e) {
-            return "错误: Action Input 必须是有效的 JSON 对象 - " + e.getMessage();
-        }
-
-        try {
-            return targetTool.invoke(inputMap);
-        } catch (Exception e) {
-            throw new Exception("工具 '" + toolName + "' 执行失败: " + e.getMessage(), e);
-        }
     }
 }

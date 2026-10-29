@@ -1,147 +1,100 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.hooks.HooksCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.hook.HookEvent;
-import com.hoppinzq.agent.tool.hook.HookRegistry;
-import com.hoppinzq.agent.tool.hook.LargeOutputHook;
-import com.hoppinzq.agent.tool.hook.LogHook;
-import com.hoppinzq.agent.tool.hook.PermissionHook;
-import com.hoppinzq.agent.tool.hook.SummaryHook;
+import com.hoppinzq.agent.tool.manager.TodoManager;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
+import static com.hoppinzq.agent.constant.AIConstants.ROOT;
+import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
  * 钩子系统示例（对应 Python 教程 s04_hooks）。
  *
- * <p>把 permission 模块硬编码的权限检查改成可注册的钩子。
- * 注册 4 个示例钩子：
- * <ul>
- *   <li>{@link PermissionHook}  → PreToolUse，拦截危险命令</li>
- *   <li>{@link LogHook}         → 4 个事件全挂，做审计日志</li>
- *   <li>{@link LargeOutputHook} → PostToolUse，提示输出过长</li>
- *   <li>{@link SummaryHook}     → PostToolUse + Stop，统计每轮调用数</li>
- * </ul>
+ * <p>本类只负责<b>装配</b>：4 个示例钩子（危险命令拦截 / 审计日志 / 长输出告警 / 每轮统计）
+ * 全部收拢在 {@link HooksCapability}（capability.hooks 包），通过内核的
+ * {@code AgentHook} 契约挂到 {@code beforeToolCall} / {@code afterToolCall} / {@code afterLlmResponse}。
+ *
+ * <p>原实现自建了一套 HookEvent/HookCallback/HookRegistry 框架，与本契约重复，已删除 ——
+ * 能力包对内核的依赖仅剩契约本身。
  *
  * <p><b>示例 prompt：</b>
  * <ul>
- *   <li>"执行 rm -rf /tmp/x"   → PreToolUse 的 PermissionHook 应阻断</li>
- *   <li>"列出当前目录所有文件" → 正常执行，LogHook 打印审计，SummaryHook 统计次数</li>
+ *   <li>"执行 rm -rf /tmp/x"   → DangerousCommandHook 应阻断</li>
+ *   <li>"列出当前目录所有文件" → 正常执行，AuditLogHook 打印审计，TurnSummaryHook 统计次数</li>
  * </ul>
  *
  * @author hoppinzq
  */
-public class AgentHooks {
+public class AgentHooks extends ZQAgent {
 
-    public static void main(String[] args) {
-        LlmProvider provider = LlmProviders.create();
+    /**
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 必须在构建工具列表之前赋值。
+     */
+    public static SkillLoader skillLoader;
+    public static TodoManager todoManager;
 
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(ToolDefinition.BashDefinition);
-        tools.add(ToolDefinition.ReadFileDefinition);
-        tools.add(ToolDefinition.WriteFileDefinition);
-        tools.add(ToolDefinition.EditFileDefinition);
-        tools.add(ToolDefinition.ListFilesDefinition);
-
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt());
-
-        HookRegistry registry = new HookRegistry();
-        // PreToolUse：权限护栏
-        registry.register(HookEvent.PRE_TOOL_USE, new PermissionHook());
-        // 全事件：审计日志
-        LogHook logHook = new LogHook();
-        registry.register(HookEvent.USER_PROMPT_SUBMIT, logHook);
-        registry.register(HookEvent.PRE_TOOL_USE, logHook);
-        registry.register(HookEvent.POST_TOOL_USE, logHook);
-        registry.register(HookEvent.STOP, logHook);
-        // PostToolUse：长输出截断提示
-        registry.register(HookEvent.POST_TOOL_USE, new LargeOutputHook());
-        // PostToolUse + Stop：本轮小结
-        SummaryHook summary = new SummaryHook();
-        registry.register(HookEvent.POST_TOOL_USE, summary);
-        registry.register(HookEvent.STOP, summary);
-
-        agent.setHookRegistry(registry);
-        agent.setSessionManager(bootstrapSession(args));
-        agent.run();
+    public AgentHooks(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java AgentHooks <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
+     * 基础系统提示词（不含能力片段；钩子规则由 HooksCapability.promptFragments 贡献）。
      */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
+    public static String generateSystemPrompt(String root, String skillDescriptions) {
+        return String.format("""
+                        你是一个编程智能体，工作在目录: %s
+
+                        核心能力：
+                        - 使用工具读写文件、编辑代码、执行命令、搜索内容
+                        - 通过 todo 工具管理任务列表，追踪复杂任务进度
+                        - 加载专业技能以应对特定领域的任务
+
+                        工作指南：
+                        1. 优先使用工具解决任务，而非仅提供建议
+                        2. 在处理复杂或不熟悉的主题时，使用 load_skill 工具获取专业知识
+                        3. 使用 todo 工具将大任务分解为小步骤，逐个完成
+
+                        可用的技能：
+                        %s""",
+                root, skillDescriptions);
     }
 
-    private static String buildSystemPrompt() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        return String.format("""
-                ## 角色
-                你是一个钩子驱动的开发助手。所有工具调用前会经过 PreToolUse 钩子，
-                其中 PermissionHook 会拦截 rm -rf /、sudo、format 等危险命令。
-                如果工具被钩子阻断，你会收到包含原因的 ToolResult，请如实告知用户。
+    public static void main(String[] args) {
+        LlmProvider provider = LlmProviders.create();
+        skillLoader = new SkillLoader();
+        todoManager = new TodoManager();
 
-                ## 可用工具
-                - bash / read_file / write_file / edit_file / glob
+        SessionManager sessionManager = SessionManager.bootstrap(args);
 
-                ## 环境
-                - 操作系统：%s
-                - 工作目录：%s""", osName, ROOT);
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
+                GlobDefinition, ContentSearchDefinition, SubAgentDefinition, TodoDefinition,
+                SkillsDefinition));
+
+        AgentHooks agent = new AgentHooks(provider, MODEL, baseTools);
+
+        // 插拔式集成：复制 capability/hooks/ 目录 + 这一行注册
+        HooksCapability hooks = new HooksCapability();
+        agent.capability(hooks);
+
+        agent.setSystemPrompt(generateSystemPrompt(ROOT, skillLoader.getDescriptions()) + "\n\n\n"
+                + String.join("\n", hooks.promptFragments()));
+
+        System.out.println("=== 钩子系统智能体 ===");
+        System.out.println(hooks.description());
+        System.out.println();
+
+        agent.setSessionManager(sessionManager, skillLoader);
+        agent.run();
     }
 }

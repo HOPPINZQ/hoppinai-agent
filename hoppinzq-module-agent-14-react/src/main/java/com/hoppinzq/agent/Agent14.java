@@ -1,226 +1,64 @@
 package com.hoppinzq.agent;
 
+import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.react.ReActCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
-import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.session.SessionManager;
+import com.hoppinzq.agent.tool.ToolDefinition;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
-import static com.hoppinzq.agent.constant.AIConstants.*;
+import static com.hoppinzq.agent.constant.AIConstants.MODEL;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
 /**
- * ReAct Agent 示例
- * 使用 ReAct 模式让 AI 能够推理和行动
+ * ReAct Agent 示例（对应 Python 教程 s13_react）。
+ *
+ * <p>本类只负责<b>装配</b>：ReAct 的格式约束（Thought / Action / Action Input）
+ * 收拢在 {@link ReActCapability}（capability.react 包），通过 {@code promptFragments()}
+ * 注入系统提示；工具调用仍走内核的标准 tool_calls 通道，主循环无需任何改动。
+ *
+ * <p>插拔式集成：复制 {@code capability/react/} 目录 + 一行 {@code agent.capability(...)}。
  *
  * @author hoppinzq
  */
-public class Agent14 {
+public class Agent14 extends ZQAgent {
+
+    /** 命令处理器需要技能加载器（/skills），工具定义静态初始化也依赖它，须先赋值 */
+    public static SkillLoader skillLoader;
+
+    public Agent14(LlmProvider provider, String model, List<ToolDefinition> tools) {
+        super(provider, model, tools);
+    }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
+        skillLoader = new SkillLoader();
 
-        List<ToolDefinition> tools = new ArrayList<>();
-        // 添加基础工具
-        tools.add(BashDefinition);
-        tools.add(EditFileDefinition);
-        tools.add(WriteFileDefinition);
-        tools.add(ReadFileDefinition);
-        tools.add(GlobDefinition);
-        tools.add(ContentSearchDefinition);
+        SessionManager sessionManager = SessionManager.bootstrap(args);
 
-        ZQAgent agent = new ZQAgent(provider, MODEL, tools);
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
+                GlobDefinition, ContentSearchDefinition));
 
-        // 构建 ReAct 系统提示词或普通系统提示词
-        String systemPrompt;
-        if (REACT_ENABLE) {
-            systemPrompt = buildReActSystemPrompt(tools);
-        } else {
-            systemPrompt = buildNormalSystemPrompt(tools);
-        }
+        Agent14 agent = new Agent14(provider, MODEL, baseTools);
 
-        agent.setSystemPrompt(systemPrompt);
-        agent.setSessionManager(bootstrapSession(args));
+        // 插拔式集成：复制 capability/react/ 目录 + 这一行注册
+        // ReAct 提示需要工具清单，故构造时传入 tools
+        ReActCapability react = new ReActCapability(baseTools);
+        agent.capability(react);
+
+        // 提示词完全由能力贡献（ReAct 或普通模式，取决于 ReactConfig.REACT_ENABLE）
+        agent.setSystemPrompt(String.join("\n\n", react.promptFragments()));
+
+        System.out.println("=== ReAct 智能体 ===");
+        System.out.println(react.description());
+        System.out.println();
+
+        agent.setSessionManager(sessionManager, skillLoader);
         agent.run();
-    }
-
-    /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java Agent14 <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    /**
-     * 构建普通模式系统提示词
-     *
-     * @param tools 工具列表
-     * @return 构建好的提示词字符串
-     */
-    private static String buildNormalSystemPrompt(List<ToolDefinition> tools) {
-        StringBuilder toolDescriptions = new StringBuilder();
-        for (ToolDefinition tool : tools) {
-            toolDescriptions.append("- ").append(tool.getName()).append(": ").append(tool.getDescription()).append("\n");
-            try {
-                toolDescriptions.append("  参数 Schema: ").append(OBJECT_MAPPER.writeValueAsString(tool.getInputSchema())).append("\n");
-            } catch (Exception ignored) {}
-        }
-
-        return String.format("""
-            你是一个专业的编程智能体，具有强大的后台任务执行能力。你可以使用工具来帮助用户解决编程和系统任务。
-            
-            ## 可用工具
-            
-            %s
-            
-            ## 工作目录
-            
-            你工作在 %s 目录下。
-            
-            请记住：你的目标是帮助用户高效地完成任务。如果需要使用工具，请直接调用。
-            """, toolDescriptions, ROOT);
-    }
-
-    /**
-     * 构建 ReAct 系统提示词
-     *
-     * @param tools 工具列表
-     * @return 构建好的提示词字符串
-     */
-    private static String buildReActSystemPrompt(List<ToolDefinition> tools) {
-        StringBuilder toolDescriptions = new StringBuilder();
-        for (ToolDefinition tool : tools) {
-            toolDescriptions.append("- ").append(tool.getName()).append(": ").append(tool.getDescription()).append("\n");
-            try {
-                toolDescriptions.append("  参数 Schema: ").append(OBJECT_MAPPER.writeValueAsString(tool.getInputSchema())).append("\n");
-            } catch (Exception ignored) {}
-        }
-
-        String actionNames = tools.stream().map(ToolDefinition::getName).reduce((a, b) -> a + "," + b).orElse("");
-        
-        return String.format("""
-            你是一个专业的编程智能体，使用 ReAct 模式（推理+行动）解决复杂问题。
-
-            ========== 输出格式（必须 100%% 严格遵守，违反即任务失败） ==========
-
-            当需要使用工具时，**单次回复**只能按下面三行的原文格式输出（顺序固定、关键字固定、冒号后有一个空格）：
-
-            Thought: 你的思考内容
-            Action: 工具名
-            Action Input: JSON参数
-
-            不需要使用工具时，直接用自然语言回答用户，回复中**绝不能**出现 Thought / Action / Action Input / Observation 这些关键字。
-
-            ---------- 以下写法都属于格式错误，严禁出现 ----------
-
-            [错] <Action: glob>          ← 禁止用尖括号 <> 包裹
-            [错] <Action Input: {}>            ← 禁止用尖括号 <> 包裹
-            [错] <Thought: ...>                ← 禁止用尖括号 <> 包裹
-            [错] **Action**: glob        ← 禁止用 markdown 加粗
-            [错] `Action: glob`          ← 禁止用反引号包裹
-            [错] ```Action: glob```      ← 禁止用代码块包裹
-            [错] Action：glob            ← 禁止用中文冒号 ：
-            [错] Action:glob             ← 冒号后必须有一个空格
-            [错] 一次回复出现多组 Thought/Action/Action Input
-            [错] 自己编造 Observation 的值
-
-            ---------- 唯一正确写法 ----------
-
-            Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
-            Action: glob
-            Action Input: {}
-
-            ========== 工作流程 ==========
-
-            1. 收到用户问题，判断是否需要工具
-            2. 需要工具：输出一组 Thought/Action/Action Input 后立即停止，等待系统返回 Observation
-            3. 收到 Observation 后，根据结果继续思考下一步（如需再次调用工具，重复步骤 2）
-            4. 不再需要工具：用自然语言直接回答用户（此时不要输出 Thought/Action/Action Input）
-            5. 缺少必要参数时：直接向用户提问，不要调用工具
-            6. 工具执行出错时：向用户说明情况并寻求帮助
-
-            ========== 完整对话示例 ==========
-
-            用户: 请列出当前目录的文件
-
-            AI:
-            Thought: 用户想要查看当前目录的文件列表，应使用 glob 工具
-            Action: glob
-            Action Input: {}
-
-            （系统执行后返回）Observation: ["file1.txt", "file2.java"]
-
-            AI: 我找到了以下文件：file1.txt, file2.java
-
-            ========== 关键约束 ==========
-
-            1. 工具名只能是以下集合中的一个：[%s]
-            2. Action Input 必须是合法 JSON 对象，以 { 开头、} 结尾
-            3. 一次回复只能有一组 Thought/Action/Action Input，等待 Observation 才能继续
-            4. Observation 永远由系统返回，**绝对不能**自己填写
-            5. 同一工具需要多次调用时，每轮都完整输出 Thought/Action/Action Input
-
-            ## 可用工具
-
-            %s
-
-            ## 工作目录
-
-            你工作在 %s 目录下。
-
-            请记住：输出格式错误（例如使用尖括号、加粗、中文冒号、自编 Observation）会导致整个任务失败。
-            """, actionNames, toolDescriptions, ROOT);
     }
 }

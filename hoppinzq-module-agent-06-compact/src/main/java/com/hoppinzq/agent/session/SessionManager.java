@@ -1,7 +1,6 @@
 package com.hoppinzq.agent.session;
 
 import com.hoppinzq.agent.client.LlmMessage;
-import com.hoppinzq.agent.session.TranscriptRecord;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -157,10 +156,18 @@ public class SessionManager {
      * 把历史消息回放到 agent 的 messageParams。
      * <p>由 agent 在 run 启动时调用，恢复上下文。
      * 一条 user+tool_result 的 {@link SessionMessage} 会展开为 N 条 {@code role=tool} 消息。
+     * <p>末轮 assistant 会回填 thinking 块（含签名）：Anthropic 扩展思考开启时，
+     * 工具循环请求必须携带末轮 thinking，否则 400。
      */
     public void populate(List<LlmMessage> out) {
-        for (SessionMessage sm : sessionData.getMessages()) {
-            out.addAll(converter.toLlmMessages(sm));
+        List<SessionMessage> msgs = sessionData.getMessages();
+        for (int i = 0; i < msgs.size(); i++) {
+            SessionMessage sm = msgs.get(i);
+            List<LlmMessage> converted = converter.toLlmMessages(sm);
+            if (i == msgs.size() - 1 && converted.size() == 1 && converted.get(0).isAssistant()) {
+                converter.restoreThinking(converted.get(0), sm);
+            }
+            out.addAll(converted);
         }
     }
 
@@ -181,33 +188,6 @@ public class SessionManager {
         sessionData.getMessages().add(converter.toMergedSessionMessage(toolMessages));
         sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         persist();
-    }
-
-    /**
-     * 记录压缩操作。
-     *
-     * @param record 压缩记录
-     */
-    public void recordTranscript(TranscriptRecord record) {
-        if (record == null) {
-            return;
-        }
-        if (sessionData.getTranscripts() == null) {
-            sessionData.setTranscripts(new ArrayList<>());
-        }
-        sessionData.getTranscripts().add(record);
-        sessionData.setUpdatedAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        persist();
-    }
-
-    /**
-     * 获取本次会话的压缩记录（只读副本）。
-     */
-    public List<TranscriptRecord> getTranscripts() {
-        if (sessionData.getTranscripts() == null) {
-            return new ArrayList<>();
-        }
-        return new ArrayList<>(sessionData.getTranscripts());
     }
 
     /**

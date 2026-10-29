@@ -44,8 +44,7 @@ public class TodoInput {
         public List<TodoItem> deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
             JsonToken token = p.currentToken();
             if (token == JsonToken.START_ARRAY) {
-                return p.readValueAs(new TypeReference<List<TodoItem>>() {
-                });
+                return p.readValueAs(new TypeReference<List<TodoItem>>() {});
             }
             if (token == JsonToken.START_OBJECT) {
                 TodoItem item = p.readValueAs(TodoItem.class);
@@ -66,8 +65,7 @@ public class TodoInput {
                     text = text.substring("todos=".length()).trim();
                 }
                 if (text.startsWith("[") && text.endsWith("]")) {
-                    return OBJECT_MAPPER.readValue(text, new TypeReference<List<TodoItem>>() {
-                    });
+                    return OBJECT_MAPPER.readValue(text, new TypeReference<List<TodoItem>>() {});
                 }
                 if (text.startsWith("{") && text.endsWith("}")) {
                     TodoItem item = OBJECT_MAPPER.readValue(text, TodoItem.class);

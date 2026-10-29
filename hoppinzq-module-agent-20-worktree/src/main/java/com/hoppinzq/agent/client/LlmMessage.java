@@ -41,11 +41,16 @@ public class LlmMessage {
     private List<ToolCall> toolCalls = new ArrayList<>();
     /**
      * role=assistant 时的模型原生思考链（DeepSeek reasoning_content / Claude thinking）。
-     * <p>仅用于展示与审计：请求构建时天然不回传（OpenAI 协议请求模型无此字段），
-     * DeepSeek 官方也要求多轮对话必须剥离历史 reasoning_content，否则报 400。
+     * <p>OpenAI 协议不回传（请求模型无此字段，DeepSeek 官方要求多轮剥离历史 reasoning_content）；
+     * Anthropic 协议在扩展思考开启时需随 tool_use 回传（见 Provider 的请求构建），
+     * 其余场景仅用于展示与审计。
      */
     @Builder.Default
     private String reasoningContent = "";
+    /** {@link #reasoningContent} 的 Anthropic 签名（thinking 块回传时服务端校验，必须原样带回） */
+    private String reasoningSignature;
+    /** 多模态内容块（仅 user 消息使用；非空时优先于 text，由 Provider 映射为各自协议的图片/文本块） */
+    private List<ContentPart> parts;
 
     public static LlmMessage user(String text) {
         return LlmMessage.builder().role(ROLE_USER).text(text).build();
@@ -75,6 +80,21 @@ public class LlmMessage {
 
     public boolean isTool() {
         return ROLE_TOOL.equals(role);
+    }
+
+    /**
+     * 多模态内容块：text / image(base64) / file。
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ContentPart {
+        private String type;      // "text" / "image" / "file"
+        private String text;      // text/file 的文本内容
+        private String mediaType; // image 的 MIME 类型，如 image/png
+        private String data;      // image 的 base64 数据
+        private String filename;  // file 的文件名
     }
 
     /**

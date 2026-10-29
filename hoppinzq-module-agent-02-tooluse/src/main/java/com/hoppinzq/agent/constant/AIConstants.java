@@ -37,8 +37,16 @@ public class AIConstants {
     //建议本地开发环境设为 true，生产环境设为 false
     public static final Boolean UNRESTRICTED_PATH_MODE = true;
 
+    //是否开启扩展思考（Claude thinking / DeepSeek reasoning），由 Provider 映射为各自协议参数
+    public static final boolean THINK_ENABLED = false;
+    //扩展思考 token 预算（仅 Anthropic 协议使用）
+    public static final int THINK_BUDGET_TOKENS = 10000;
 
     public static final String MODULE_NAME = "hoppinzq-module-agent-02-tooluse";
     // 工作目录
     public static final String ROOT = System.getProperty("user.dir") + File.separator + MODULE_NAME;
+
+    // 技能目录：内核 ZQAgent/AgentCommandHandler 依赖 tool.skill.SkillLoader（休眠依赖），
+    // 本模块没有技能特性，此常量仅供该休眠依赖编译通过
+    public static final String SKILL_PATH = "skills";
 }

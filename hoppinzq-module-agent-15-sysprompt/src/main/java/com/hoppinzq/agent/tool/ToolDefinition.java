@@ -1,5 +1,6 @@
 package com.hoppinzq.agent.tool;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
@@ -62,23 +63,18 @@ public class ToolDefinition {
         this.typedInvoker = input -> typedFunction.apply(type.cast(input));
     }
 
-    /**
-     * Bash 命令执行工具定义
-     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
-     */
-    public static ToolDefinition BashDefinition = new ToolDefinition(
-            "bash",
-            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
-            createInputSchema(
-                    Map.of(
-                            "command", createProperty("string", "要执行的命令字符串。"),
-                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
-                    ),
-                    List.of("command", "type")
-            ),
-            BashInput.class,
-            Tools::executeBash
-    );
+    public String invoke(Object convertedInput) throws Exception {
+        if (typedInvoker != null) {
+            return typedInvoker.apply(convertedInput);
+        }
+        if (function != null) {
+            if (convertedInput instanceof String) {
+                return function.apply((String) convertedInput);
+            }
+            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
+        }
+        throw new IllegalStateException("没有该工具的处理方法: " + name);
+    }
 
     public static ToolDefinition ReadFileDefinition = new ToolDefinition(
             "read_file",
@@ -106,18 +102,24 @@ public class ToolDefinition {
     );
 
     /**
-     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
-     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     * Bash 命令执行工具定义
+     * <p>
+     * 执行 Shell 命令并返回输出结果。支持多种命令类型，适用于文件操作、程序执行、系统信息查询等场景。
+     * </p>
      */
-    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
-        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
-        if (required != null && !required.isEmpty()) {
-            schema.set("required", OBJECT_MAPPER.valueToTree(required));
-        }
-        return schema;
-    }
+    public static ToolDefinition BashDefinition = new ToolDefinition(
+            "bash",
+            "执行 Shell 命令并返回其输出结果。适用于需要运行各种 Shell 命令的场景，可用于文件操作、程序执行、系统信息查询等多种任务。比如：如果用户让你打开网站，直接使用 start [url]；你要进入目录，如果返回系统找不到指定的路径，则尝试一下绝对路径。始终记住，你处于 " + System.getProperty("os.name").toLowerCase() + " 操作系统。",
+            createInputSchema(
+                    Map.of(
+                            "command", createProperty("string", "要执行的命令字符串。"),
+                            "type", createProperty("string", "命令类型，可选值：cmd（Windows CMD）、powershell（Windows PowerShell）、bash（Linux/Mac）。如不指定，系统将根据操作系统自动选择。")
+                    ),
+                    List.of("command","type")
+            ),
+            BashInput.class,
+            Tools::executeBash
+    );
 
     public static ToolDefinition EditFileDefinition = new ToolDefinition(
             "edit_file",
@@ -132,20 +134,6 @@ public class ToolDefinition {
             ),
             EditFileInput.class,
             Tools::editFile
-    );
-
-public static ToolDefinition ListFilesDefinition = new ToolDefinition(
-            "list_files",
-            "列出指定目录下的所有文件和子目录（递归遍历），可跳过常见构建/缓存目录。\n\n适用于了解项目结构、查找某类文件等场景。",
-            createInputSchema(
-                    Map.of(
-                            "path", createProperty("string", "可选的目录路径（相对工作目录）。如不指定，默认遍历工作目录。"),
-                            "fileType", createProperty("string", "可选的文件扩展名，用于过滤结果（例如，'java'、'md'）。")
-                    ),
-                    List.of()
-            ),
-            ListFilesInput.class,
-            Tools::listFiles
     );
 
     public static ToolDefinition ContentSearchDefinition = new ToolDefinition(
@@ -165,6 +153,24 @@ public static ToolDefinition ListFilesDefinition = new ToolDefinition(
     );
 
     /**
+     * 文件列表工具定义
+     * 列出目录下的文件和子目录，可按扩展名过滤。
+     */
+    public static ToolDefinition ListFilesDefinition = new ToolDefinition(
+            "list_files",
+            "列出指定目录下的所有文件和子目录。支持按文件扩展名过滤，并自动排除常见的构建/依赖目录。",
+            createInputSchema(
+                    Map.of(
+                            "path", createProperty("string", "要列出内容的目标目录路径（相对于工作目录，可选，默认为工作目录）。"),
+                            "fileType", createProperty("string", "可选的文件扩展名过滤，例如 'java'、'md'、'txt'。")
+                    ),
+                    List.of()
+            ),
+            ListFilesInput.class,
+            Tools::listFiles
+    );
+
+    /**
      * 创建属性定义
      */
     public static Map<String, Object> createProperty(String type, String description) {
@@ -174,16 +180,17 @@ public static ToolDefinition ListFilesDefinition = new ToolDefinition(
         return property;
     }
 
-    public String invoke(Object convertedInput) throws Exception {
-        if (typedInvoker != null) {
-            return typedInvoker.apply(convertedInput);
+    /**
+     * 创建协议中立的 InputSchema（JSON Schema：type/properties/required），
+     * 由 Provider 实现类负责转为各自 SDK 的 schema 类型。
+     */
+    public static ObjectNode createInputSchema(Map<String, Object> properties, List<String> required) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        schema.put("type", "object");
+        schema.set("properties", OBJECT_MAPPER.valueToTree(properties));
+        if (required != null && !required.isEmpty()) {
+            schema.set("required", OBJECT_MAPPER.valueToTree(required));
         }
-        if (function != null) {
-            if (convertedInput instanceof String) {
-                return function.apply((String) convertedInput);
-            }
-            return function.apply(OBJECT_MAPPER.writeValueAsString(convertedInput));
-        }
-        throw new IllegalStateException("没有该工具的处理方法: " + name);
+        return schema;
     }
 }

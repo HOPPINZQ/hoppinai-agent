@@ -5,9 +5,8 @@ import com.hoppinzq.agent.client.LlmMessage;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Scanner;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -50,6 +49,67 @@ public class SessionManager {
         this.converter = converter;
     }
 
+    // ============================== 交互式启动 ==============================
+
+    /**
+     * 交互式启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
+     * <ul>
+     *   <li>{@code java AgentXX <sessionId>} —— 直接恢复指定会话</li>
+     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
+     * </ul>
+     * <p>各 Agent 模块的 main 方法只需调用 {@code SessionManager.bootstrap(args)}。
+     *
+     * @param args main 方法的命令行参数
+     * @return 已就绪（新开或已恢复）的 SessionManager
+     */
+    public static SessionManager bootstrap(String[] args) {
+        SessionManager sm = new SessionManager();
+        if (args.length > 0 && !args[0].isBlank()) {
+            boolean ok = sm.resume(args[0]);
+            System.out.println(ok
+                    ? "已恢复会话 " + args[0]
+                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
+            return sm;
+        }
+        Scanner sc = new Scanner(System.in);
+        List<String> sessions = sm.listSessions();
+        if (sessions.isEmpty()) {
+            sm.startNew();
+            System.out.println("新会话已创建: " + sm.getSessionId());
+            return sm;
+        }
+        System.out.println("\n\u001b[95m========== 历史会话 ==========\u001b[0m");
+        for (int i = 0; i < sessions.size(); i++) {
+            System.out.printf("\u001b[95m%d\u001b[0m) %s%n", i + 1, sessions.get(i));
+        }
+        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
+        String line = sc.nextLine().trim();
+        if (line.isEmpty()) {
+            sm.startNew();
+            System.out.println("新会话已创建: " + sm.getSessionId());
+            return sm;
+        }
+        try {
+            int idx = Integer.parseInt(line) - 1;
+            if (idx >= 0 && idx < sessions.size()) {
+                String id = sessions.get(idx);
+                sm.resume(id);
+                System.out.println("已恢复会话: " + id);
+                return sm;
+            }
+        } catch (NumberFormatException ignore) {
+            // 用户可能直接输入了 sessionId
+            if (sessions.contains(line)) {
+                sm.resume(line);
+                System.out.println("已恢复会话: " + line);
+                return sm;
+            }
+        }
+        sm.startNew();
+        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
+        return sm;
+    }
+
     // ============================== 生命周期 ==============================
 
     /**
@@ -75,67 +135,12 @@ public class SessionManager {
     public boolean resume(String sessionId) {
         this.sessionId = sessionId;
         this.sessionData = store.load(sessionId);
-
-        // 验证会话数据完整性：检查是否有未完成的 tool_use
-        if (!this.sessionData.getMessages().isEmpty()) {
-            boolean hasIncompleteToolUse = validateMessageIntegrity();
-            if (hasIncompleteToolUse) {
-                System.out.printf("\u001b[93m警告: 会话 %s 数据不完整，包含未完成的 tool_use，已清理\u001b[0m%n", sessionId);
-                // 清理会话数据
-                this.sessionData = SessionData.builder()
-                        .messages(new ArrayList<>())
-                        .usage(new ArrayList<>())
-                        .createdAt(LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
-                        .build();
-                // 清空磁盘上的会话文件
-                try {
-                    store.save(sessionId, this.sessionData);
-                } catch (Exception e) {
-                    // 忽略保存失败
-                }
-                return false;
-            }
-        }
-
         boolean hasMessages = !this.sessionData.getMessages().isEmpty();
         // 若有历史 usage 数据，打印统计摘要
         if (hasMessages && !sessionData.getUsage().isEmpty()) {
             printSummary();
         }
         return hasMessages;
-    }
-
-    /**
-     * 验证消息序列的完整性，检查是否有未完成的 tool_use。
-     *
-     * @return 如果发现未完成的 tool_use 返回 true，否则返回 false
-     */
-    private boolean validateMessageIntegrity() {
-        Set<String> completedToolUses = new HashSet<>();
-        Set<String> pendingToolUses = new HashSet<>();
-
-        for (SessionMessage sm : sessionData.getMessages()) {
-            if (sm.getBlocks() == null) {
-                continue;
-            }
-            for (SessionBlock block : sm.getBlocks()) {
-                if ("tool_use".equals(block.getType())) {
-                    String toolUseId = block.getToolUseId();
-                    if (toolUseId != null) {
-                        pendingToolUses.add(toolUseId);
-                    }
-                } else if ("tool_result".equals(block.getType())) {
-                    String toolUseId = block.getToolUseId();
-                    if (toolUseId != null) {
-                        pendingToolUses.remove(toolUseId);
-                        completedToolUses.add(toolUseId);
-                    }
-                }
-            }
-        }
-
-        // 如果还有未完成的 tool_use，说明数据不完整
-        return !pendingToolUses.isEmpty();
     }
 
     /**
@@ -151,10 +156,18 @@ public class SessionManager {
      * 把历史消息回放到 agent 的 messageParams。
      * <p>由 agent 在 run 启动时调用，恢复上下文。
      * 一条 user+tool_result 的 {@link SessionMessage} 会展开为 N 条 {@code role=tool} 消息。
+     * <p>末轮 assistant 会回填 thinking 块（含签名）：Anthropic 扩展思考开启时，
+     * 工具循环请求必须携带末轮 thinking，否则 400。
      */
     public void populate(List<LlmMessage> out) {
-        for (SessionMessage sm : sessionData.getMessages()) {
-            out.addAll(converter.toLlmMessages(sm));
+        List<SessionMessage> msgs = sessionData.getMessages();
+        for (int i = 0; i < msgs.size(); i++) {
+            SessionMessage sm = msgs.get(i);
+            List<LlmMessage> converted = converter.toLlmMessages(sm);
+            if (i == msgs.size() - 1 && converted.size() == 1 && converted.get(0).isAssistant()) {
+                converter.restoreThinking(converted.get(0), sm);
+            }
+            out.addAll(converted);
         }
     }
 

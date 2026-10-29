@@ -19,14 +19,14 @@ import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 public class TodoItem {
     @JsonProperty("id")
     private String id;
-
+    
     @JsonProperty("content")
     private String content;
 
     //状态 pending, in_progress, complete
     @JsonProperty("status")
     private String status;
-
+    
     @JsonProperty("activeForm")
     private String activeForm;
 

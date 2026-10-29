@@ -4,13 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.hoppinzq.agent.base.SubAgent;
 import com.hoppinzq.agent.constant.AIConstants;
-import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.util.FileExclusionHelper;
 import lombok.extern.slf4j.Slf4j;
 
@@ -704,39 +701,6 @@ public class Tools {
         }
     }
 
-
-    public static String executeSubAgent(String input) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            SubAgentInput subAgentInput = mapper.readValue(input, SubAgentInput.class);
-            // 使用带 Token 统计的方法
-            SubAgentSessionResult result = SubAgent.executeSubAgentWithTokenUsage(subAgentInput);
-            // 返回结果，附加 Token 使用信息
-            return result.getResult() + "\n\n" + result.formatTokenUsage();
-        } catch (Exception e) {
-            if (AIConstants.LOG_ENABLE) {
-                log.error("调用子代理错误: {}", e.getMessage());
-            }
-            return "调用子代理错误: " + e.getMessage();
-        }
-    }
-
-    public static String skillLoad(String inputJson) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            LoadSkillInput input = mapper.readValue(inputJson, LoadSkillInput.class);
-            String skillName = input.getSkillName();
-
-            String skillContent = new SkillLoader().getSkill(skillName);
-            if (skillContent.startsWith("Error:")) {
-                return skillContent;
-            }
-
-            return skillContent;
-        } catch (Exception e) {
-            return "加载Skills错误: " + e.getMessage();
-        }
-    }
 
     /**
      * 统计子字符串在主字符串中出现的次数

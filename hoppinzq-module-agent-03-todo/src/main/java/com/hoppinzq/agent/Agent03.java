@@ -1,136 +1,90 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
-import com.hoppinzq.agent.client.LlmMessage;
+import com.hoppinzq.agent.capability.todo.TodoCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.manager.TodoManager;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 
 import static com.hoppinzq.agent.constant.AIConstants.*;
 import static com.hoppinzq.agent.tool.ToolDefinition.*;
 
-
+/**
+ * 待办事项智能体。
+ *
+ * <p>本类只负责<b>装配</b>：todo 工具定义、提醒钩子、/todos 命令与任务管理提示词
+ * 全部收拢在 {@link TodoCapability}（capability.todo 包）。入口类不再持有
+ * {@code TodoManager} 静态实例，也不再覆写任何循环方法（原 onToolExecution 提醒
+ * 逻辑改由能力的 beforeLlmCall 钩子承接）。
+ *
+ * <p>这就是插拔式集成的完整形态：复制 {@code capability/todo/} 目录 +
+ * 下面 main 中的一行 {@code agent.capability(new TodoCapability())}。
+ *
+ * @author hoppinzq
+ */
 public class Agent03 extends ZQAgent {
-    public static TodoManager todoManager;
-    private int roundsSinceTodo = 0;
-    private long lastTodoVersion = 0;
 
-    public Agent03(LlmProvider provider, String model, List<ToolDefinition> tools, TodoManager todoManager) {
+    public Agent03(LlmProvider provider, String model, List<ToolDefinition> tools) {
         super(provider, model, tools);
-        Agent03.todoManager = todoManager;
-        this.lastTodoVersion = todoManager.getVersion();
     }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        todoManager = new TodoManager();
+        // 基座工具（不含任何能力工具；todo 由能力注册）
+        List<ToolDefinition> baseTools = new ArrayList<>(List.of(
+                BashDefinition, EditFileDefinition, WriteFileDefinition,
+                ReadFileDefinition, GlobDefinition, ContentSearchDefinition));
 
-        List<ToolDefinition> tools = new ArrayList<>();
-        tools.add(BashDefinition);
-        tools.add(EditFileDefinition);
-        tools.add(WriteFileDefinition);
-        tools.add(ReadFileDefinition);
-        tools.add(GlobDefinition);
-        tools.add(ContentSearchDefinition);
+        Agent03 agent = new Agent03(provider, MODEL, baseTools);
 
-        tools.add(TodoDefinition);
+        // 插拔式集成：复制 capability/todo/ 目录 + 这一行注册
+        TodoCapability todo = new TodoCapability();
+        agent.capability(todo);
 
-        Agent03 agent = new Agent03(provider, MODEL, tools, todoManager);
-        agent.setSystemPrompt(buildSystemPrompt());
-        agent.setSessionManager(bootstrapSession(args));
+        // 基础提示 + 能力贡献的提示片段
+        agent.setSystemPrompt(buildSystemPrompt(ROOT)
+                + "\n\n" + String.join("\n", todo.promptFragments()));
+
+        System.out.println("=== 待办事项智能体 ===");
+        System.out.println(todo.description());
+        System.out.println();
+
+        // 内核 setSessionManager 需要显式给出 SkillLoader（供内置 /skills 命令使用）；
+        // 03 没有技能特性，传 null 即可
+        agent.setSessionManager(SessionManager.bootstrap(args), null);
         agent.run();
     }
 
     /**
-     * 启动会话：若命令行传入了 sessionId 则尝试恢复；否则交互式询问。
-     * <ul>
-     *   <li>{@code java AgentXX <sessionId>} —— 直接恢复指定会话</li>
-     *   <li>无参启动 —— 列出已有会话，输入序号恢复或回车开新会话</li>
-     * </ul>
-     */
-    private static SessionManager bootstrapSession(String[] args) {
-        SessionManager sm = new SessionManager();
-        if (args.length > 0 && !args[0].isBlank()) {
-            boolean ok = sm.resume(args[0]);
-            System.out.println(ok
-                    ? "已恢复会话 " + args[0]
-                    : "会话 " + args[0] + " 不存在或为空，将以该 ID 开始新会话");
-            return sm;
-        }
-        Scanner sc = new Scanner(System.in);
-        List<String> sessions = sm.listSessions();
-        if (sessions.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        System.out.println("\n\033[95m========== 历史会话 ==========\033[0m");
-        for (int i = 0; i < sessions.size(); i++) {
-            System.out.printf("\033[95m%d\033[0m) %s%n", i + 1, sessions.get(i));
-        }
-        System.out.print("输入序号恢复对应会话，或直接回车开启新会话: ");
-        String line = sc.nextLine().trim();
-        if (line.isEmpty()) {
-            sm.startNew();
-            System.out.println("新会话已创建: " + sm.getSessionId());
-            return sm;
-        }
-        try {
-            int idx = Integer.parseInt(line) - 1;
-            if (idx >= 0 && idx < sessions.size()) {
-                String id = sessions.get(idx);
-                sm.resume(id);
-                System.out.println("已恢复会话: " + id);
-                return sm;
-            }
-        } catch (NumberFormatException ignore) {
-            // 用户可能直接输入了 sessionId
-            if (sessions.contains(line)) {
-                sm.resume(line);
-                System.out.println("已恢复会话: " + line);
-                return sm;
-            }
-        }
-        sm.startNew();
-        System.out.println("输入无效，已开启新会话: " + sm.getSessionId());
-        return sm;
-    }
-
-    /**
-     * 构建系统提示词
+     * 基础系统提示词（不含能力片段；todo 相关的任务管理文案由 TodoCapability.promptFragments 贡献）。
      *
      * @return 格式化的系统提示词
      */
-    private static String buildSystemPrompt() {
+    private static String buildSystemPrompt(String root) {
         String osName = System.getProperty("os.name").toLowerCase();
         return String.format("""
                 # 角色定义
                 您是一个专业的软件开发助手，专门负责代码开发、文件管理和任务协调工作。
-                您拥有一个待办事项列表系统，可以帮助您高效地管理和跟踪任务进度。
-                
+
                 # 核心职责
-                1. 任务管理：使用 todo 工具来创建、更新和跟踪您的任务
-                2. 代码开发：协助用户进行软件开发、代码编写和调试
-                3. 文件操作：使用文件操作工具进行代码编辑、文件创建和内容管理
-                4. 代码搜索：使用搜索工具快速定位代码片段和相关信息
-                
+                1. 代码开发：协助用户进行软件开发、代码编写和调试
+                2. 文件操作：使用文件操作工具进行代码编辑、文件创建和内容管理
+                3. 代码搜索：使用搜索工具快速定位代码片段和相关信息
+
                 # 工作环境
                 - 操作系统：%s
                 - 工作目录：%s
-                
+
                 # 行为规范
                 1. 优先使用工具：尽量使用您可用的工具来解决用户的问题
-                2. 主动管理任务：定期更新待办事项列表，反映当前工作进度
-                3. 保持专注：专注于用户当前的需求，避免偏离主题
-                4. 详细报告：在执行操作后，提供详细的执行结果和下一步建议
-                
+                2. 保持专注：专注于用户当前的需求，避免偏离主题
+                3. 详细报告：在执行操作后，提供详细的执行结果和下一步建议
+
                 # 工具使用指南
                 您可以使用以下工具：
                 - bash: 执行 Shell 命令
@@ -139,46 +93,13 @@ public class Agent03 extends ZQAgent {
                 - read_file: 读取文件内容
                 - glob: 查找匹配的文件和目录
                 - content_search: 搜索代码内容
-                - todo: 管理待办事项列表
-                
-                # 任务管理策略
-                1. 当开始新任务时，立即使用 todo 工具创建相关任务
-                2. 任务进行中时，定期更新任务状态
-                3. 任务完成后，标记为已完成
-                4. 如果连续多个回合没有更新任务，系统会提醒您
-                
+
                 # 响应格式要求
                 1. 清晰简洁：使用清晰的语言描述您的操作和结果
                 2. 结构化：适当使用列表、标题等结构化格式
                 3. 包含上下文：在响应中引用相关的文件路径和代码片段
-                
-                请记住：您的主要目标是高效、准确地帮助用户解决问题，同时保持良好的任务管理习惯。
-                """, osName, ROOT);
-    }
 
-    @Override
-    protected void onToolExecution(List<LlmMessage> toolResults) {
-        long currentVersion = todoManager.getVersion();
-        if (currentVersion > lastTodoVersion) {
-            roundsSinceTodo = 0;
-            lastTodoVersion = currentVersion;
-        } else {
-            roundsSinceTodo++;
-        }
-
-        if (roundsSinceTodo >= 3) {
-            String reminder = String.format("""
-                    <reminder>
-                    您已经 %d 个回合没有更新待办事项列表了。请更新列表以反映当前进度。
-                    
-                    建议操作：
-                    1. 检查当前任务状态
-                    2. 更新已完成的任务
-                    3. 添加新的任务（如果需要）
-                    4. 调整任务优先级
-                    </reminder>
-                    """, roundsSinceTodo);
-            toolResults.add(LlmMessage.user(reminder));
-        }
+                请记住：您的主要目标是高效、准确地帮助用户解决问题。
+                """, osName, root);
     }
 }

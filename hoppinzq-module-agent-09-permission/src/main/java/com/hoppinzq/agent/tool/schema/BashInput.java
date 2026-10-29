@@ -47,7 +47,7 @@ public class BashInput {
     @JsonProperty("type")
     private String type;
 
-    @Override
+   @Override
    public String toString() {
       try {
          return OBJECT_MAPPER.writeValueAsString(this);

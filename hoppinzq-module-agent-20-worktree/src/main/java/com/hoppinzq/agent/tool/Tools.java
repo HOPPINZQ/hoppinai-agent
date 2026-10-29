@@ -13,10 +13,8 @@ import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 import com.hoppinzq.agent.tool.schema.*;
 import com.hoppinzq.agent.tool.search.JavaContentSearcher;
 import com.hoppinzq.agent.tool.search.RipgrepLocator;
-import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.util.FileExclusionHelper;
-import com.hoppinzq.agent.tool.worktree.WorktreeContext;
-import com.hoppinzq.agent.tool.worktree.WorktreeManager;
+import com.hoppinzq.agent.capability.worktree.WorktreeContext;
 import com.hoppinzq.agent.client.LlmProvider;
 import lombok.extern.slf4j.Slf4j;
 
@@ -84,14 +82,8 @@ public class Tools {
     public static void setLeadRegistry(ProtocolRegistry registry) { LEAD_REGISTRY = registry; }
 
     /** 任务管理器单例 */
-    private static volatile TaskManager TASK_MANAGER;
-    public static void setTaskManager(TaskManager tm) { TASK_MANAGER = tm; }
-    public static TaskManager getTaskManager() { return TASK_MANAGER; }
 
     /** worktree 管理器单例 */
-    private static volatile WorktreeManager WORKTREE_MANAGER;
-    public static void setWorktreeManager(WorktreeManager wm) { WORKTREE_MANAGER = wm; }
-    public static WorktreeManager getWorktreeManager() { return WORKTREE_MANAGER; }
 
     /**
      * schedule_cron：注册一个 cron 任务。
@@ -960,92 +952,4 @@ public class Tools {
         }
     }
 
-    // ========================= task 工具 =========================
-
-    public static String createTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskCreateInput in = new ObjectMapper().readValue(input, TaskCreateInput.class);
-            if (in.getSubject() == null || in.getSubject().isBlank()) return "错误：subject 不能为空";
-            return TASK_MANAGER.createTask(in.getSubject(), in.getDescription());
-        } catch (Exception e) {
-            return "create_task 错误: " + e.getMessage();
-        }
-    }
-
-    public static String listTasks(String input) {
-        if (TASK_MANAGER == null) return "暂无任务（任务管理器未初始化）";
-        try { return TASK_MANAGER.listAllTasks(); }
-        catch (Exception e) { return "list_tasks 错误: " + e.getMessage(); }
-    }
-
-    public static String getTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskGetInput in = new ObjectMapper().readValue(input, TaskGetInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            return TASK_MANAGER.getTask(in.getTaskId());
-        } catch (Exception e) { return "get_task 错误: " + e.getMessage(); }
-    }
-
-    public static String claimTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskClaimInput in = new ObjectMapper().readValue(input, TaskClaimInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            String owner = CURRENT_TEAMMATE_NAME.get();
-            if (owner == null || owner.isEmpty()) return "错误：claim_task 只能由 teammate 调用";
-            String result = TASK_MANAGER.claimTask(in.getTaskId(), owner);
-            // 如果任务绑定了 worktree，把当前线程的 cwd 切到 worktree 路径
-            String wtName = TASK_MANAGER.getWorktree(in.getTaskId());
-            if (wtName != null && !wtName.isBlank() && WORKTREE_MANAGER != null) {
-                java.io.File wtDir = new java.io.File(WORKTREE_MANAGER.getWorktreesDir(), wtName);
-                if (wtDir.exists()) {
-                    WorktreeContext.set(wtDir.getAbsolutePath());
-                    result += "\n[worktree] 已切换到 " + wtDir.getAbsolutePath();
-                }
-            }
-            return result;
-        } catch (Exception e) { return "claim_task 错误: " + e.getMessage(); }
-    }
-
-    // ========================= worktree 工具 =========================
-
-    public static String createWorktree(String input) {
-        if (WORKTREE_MANAGER == null) return "错误：worktree 管理器未初始化";
-        try {
-            CreateWorktreeInput in = new ObjectMapper().readValue(input, CreateWorktreeInput.class);
-            if (in.getName() == null || in.getName().isBlank()) return "错误：name 不能为空";
-            int taskId = in.getTaskId() == null ? 0 : in.getTaskId();
-            String path = WORKTREE_MANAGER.create(in.getName(), taskId);
-            return "已创建 worktree " + in.getName() + " @ " + path;
-        } catch (Exception e) { return "create_worktree 错误: " + e.getMessage(); }
-    }
-
-    public static String removeWorktree(String input) {
-        if (WORKTREE_MANAGER == null) return "错误：worktree 管理器未初始化";
-        try {
-            RemoveWorktreeInput in = new ObjectMapper().readValue(input, RemoveWorktreeInput.class);
-            if (in.getName() == null || in.getName().isBlank()) return "错误：name 不能为空";
-            return WORKTREE_MANAGER.remove(in.getName(), in.isDiscard());
-        } catch (Exception e) { return "remove_worktree 错误: " + e.getMessage(); }
-    }
-
-    public static String keepWorktree(String input) {
-        if (WORKTREE_MANAGER == null) return "错误：worktree 管理器未初始化";
-        try {
-            KeepWorktreeInput in = new ObjectMapper().readValue(input, KeepWorktreeInput.class);
-            if (in.getName() == null || in.getName().isBlank()) return "错误：name 不能为空";
-            return WORKTREE_MANAGER.keep(in.getName());
-        } catch (Exception e) { return "keep_worktree 错误: " + e.getMessage(); }
-    }
-
-    public static String completeTask(String input) {
-        if (TASK_MANAGER == null) return "错误：任务管理器未初始化";
-        try {
-            TaskClaimInput in = new ObjectMapper().readValue(input, TaskClaimInput.class);
-            if (in.getTaskId() == null) return "错误：taskId 不能为空";
-            return TASK_MANAGER.completeTask(in.getTaskId());
-        } catch (Exception e) { return "complete_task 错误: " + e.getMessage(); }
-    }
 }

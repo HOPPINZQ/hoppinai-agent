@@ -1,35 +1,43 @@
 package com.hoppinzq.agent.command;
 
+import com.hoppinzq.agent.capability.AgentCommand;
 import com.hoppinzq.agent.session.SessionManager;
-import com.hoppinzq.agent.tool.mcp.MCPAgent;
-import com.hoppinzq.agent.tool.mcp.McpLoader;
-import lombok.Setter;
+import com.hoppinzq.agent.tool.skill.SkillLoader;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Agent 特殊命令处理器。
  * <p>处理以 {@code /} 开头的用户命令，不发送给 LLM。
- * <p>内置命令：
+ * <p>内核内置命令：
  * <ul>
  *   <li>{@code /stats} —— 打印当前会话的 token 统计</li>
  *   <li>{@code /usage} —— 打印每次 LLM 调用的 token 明细</li>
- *   <li>{@code /mcp} —— 显示 MCP 服务器信息</li>
- *   <li>{@code /mcp tools} —— 显示 MCP 工具列表</li>
+ *   <li>{@code /skills} —— 查询已加载的技能信息</li>
  *   <li>{@code /exit} —— 退出程序并打印统计</li>
  * </ul>
+ * 其余命令（如 {@code /compact}、{@code /tokens}）由能力通过 {@link AgentCommand}
+ * 注册，本类不感知任何具体能力。
  *
  * @author hoppinzq
  */
 public class AgentCommandHandler {
 
     private final SessionManager sessionManager;
+    private final SkillLoader skillLoader;
+    /** 能力注册的额外命令，按 name 索引（LinkedHashMap 保持注册顺序） */
+    private final Map<String, AgentCommand> extraCommands = new LinkedHashMap<>();
 
-    @Setter
-    private MCPAgent mcpAgent;
-    @Setter
-    private McpLoader mcpLoader;
-
-    public AgentCommandHandler(SessionManager sessionManager) {
+    public AgentCommandHandler(SessionManager sessionManager, SkillLoader skillLoader, List<AgentCommand> extraCommands) {
         this.sessionManager = sessionManager;
+        this.skillLoader = skillLoader;
+        if (extraCommands != null) {
+            for (AgentCommand cmd : extraCommands) {
+                this.extraCommands.put(cmd.name().toLowerCase(), cmd);
+            }
+        }
     }
 
     /**
@@ -53,71 +61,38 @@ public class AgentCommandHandler {
             return false;
         }
 
-        String cmd = input.toLowerCase();
-
-        // 基础命令
-        switch (cmd) {
+        switch (input.toLowerCase()) {
             case "/stats":
                 handleStats();
                 return true;
             case "/usage":
                 handleUsage();
                 return true;
+            case "/skills":
+                handleSkills();
+                return true;
             case "/exit":
                 handleExit();
                 return true;
-            case "/mcp":
-                handleMcp();
+            default:
+                AgentCommand cmd = extraCommands.get(input.toLowerCase());
+                if (cmd != null) {
+                    cmd.execute();
+                    return true;
+                }
+                System.out.println("\u001b[90m[提示] 未知命令: " + input + "\u001b[0m");
+                System.out.println("\u001b[90m可用命令: " + availableCommands() + "\u001b[0m");
                 return true;
-            case "/mcp tools":
-                handleMcpTools();
-                return true;
         }
-
-        // 检查是否是 MCP 相关命令
-        if (cmd.startsWith("/mcp")) {
-            handleMcp();
-            return true;
-        }
-
-        System.out.println("\u001b[90m[提示] 未知命令: " + input + "\u001b[0m");
-        printHelp();
-        return true;
     }
 
-    /**
-     * 打印帮助信息
-     */
-    private void printHelp() {
-        System.out.println("\u001b[90m可用命令:\u001b[0m");
-        System.out.println("  /stats   - 打印当前会话的 token 统计");
-        System.out.println("  /usage   - 打印每次 LLM 调用的 token 明细");
-        System.out.println("  /mcp     - 显示 MCP 服务器信息");
-        System.out.println("  /mcp tools - 显示 MCP 工具列表");
-        System.out.println("  /exit    - 退出程序并打印统计");
-    }
-
-    /**
-     * 处理 MCP 服务器信息命令
-     */
-    private void handleMcp() {
-        if (mcpLoader == null) {
-            System.out.println("\u001b[90m[提示] 本会话未启用 MCP 功能\u001b[0m");
-            return;
+    /** 内置命令 + 能力注册命令的清单（用于未知命令提示与启动横幅） */
+    public String availableCommands() {
+        StringBuilder sb = new StringBuilder("/stats, /usage, /skills");
+        for (String name : extraCommands.keySet()) {
+            sb.append(", ").append(name);
         }
-        System.out.println("\u001b[96m========== MCP 服务器信息 ==========\u001b[0m");
-        System.out.print(mcpLoader.getServerInfo());
-    }
-
-    /**
-     * 处理 MCP 工具列表命令
-     */
-    private void handleMcpTools() {
-        if (mcpAgent == null) {
-            System.out.println("\u001b[90m[提示] 本会话未启用 MCP 功能\u001b[0m");
-            return;
-        }
-        mcpAgent.listTools();
+        return sb + ", /exit";
     }
 
     private void handleStats() {
@@ -165,5 +140,18 @@ public class AgentCommandHandler {
         }
         System.out.println("再见！");
         System.exit(0);
+    }
+
+    private void handleSkills() {
+        if (skillLoader == null) {
+            System.out.println("\u001b[90m[提示] 本会话未启用技能加载器，无技能信息\u001b[0m");
+            return;
+        }
+
+        List<String> availableSkills = skillLoader.getAvailableSkills();
+        System.out.println("=== 技能加载智能体 ===");
+        System.out.println("已加载技能数量: " + availableSkills.size());
+        System.out.println("可用技能: " + String.join(", ", availableSkills));
+        System.out.println();
     }
 }

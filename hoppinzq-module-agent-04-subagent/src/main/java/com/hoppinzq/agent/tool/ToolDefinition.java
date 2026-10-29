@@ -1,7 +1,6 @@
 package com.hoppinzq.agent.tool;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.hoppinzq.agent.Agent04;
 import com.hoppinzq.agent.tool.schema.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -163,50 +162,6 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             ),
             ContentSearchInput.class,
             Tools::searchContent
-    );
-
-    public static ToolDefinition SubAgentDefinition = new ToolDefinition(
-            "sub_agent",
-            "将子任务委托给子智能体处理。子智能体拥有读取文件、写入文件、编辑文件和搜索内容等工具能力，专门用于处理具体的文件操作任务。",
-            createInputSchema(
-                    Map.of("prompt", createProperty("string", "给子智能体的任务提示词，详细描述需要完成的任务")),
-                    List.of("prompt")
-            ),
-            SubAgentInput.class,
-            Tools::executeSubAgent
-    );
-
-    /**
-     * 待办事项工具定义
-     * 用于管理任务列表，支持添加、更新或完成任务
-     */
-    public static ToolDefinition TodoDefinition = new ToolDefinition(
-            "todo",
-            "管理待办事项列表。使用此工具可以添加、更新或完成任务。支持任务状态追踪，包括待处理、进行中和已完成三种状态。",
-            createInputSchema(
-                    Map.of("todos",
-                            Map.of(
-                                    "type", "array",
-                                    "description", "待办事项列表",
-                                    "items", Map.of(
-                                            "type", "object",
-                                            "properties", Map.of(
-                                                    "id", Map.of("type", "string", "description", "任务的唯一标识符"),
-                                                    "content", Map.of("type", "string", "description", "待办事项的内容描述"),
-                                                    "status", Map.of(
-                                                            "type", "string",
-                                                            "enum", List.of("pending", "in_progress", "completed"),
-                                                            "description", "任务状态：pending-待处理, in_progress-进行中, completed-已完成"
-                                                    )
-                                            ),
-                                            "required", List.of("id", "content", "status")
-                                    )
-                            )
-                    ),
-                    List.of("todos")
-            ),
-            TodoInput.class,
-            Agent04.todoManager::updateTodos
     );
 
     /**

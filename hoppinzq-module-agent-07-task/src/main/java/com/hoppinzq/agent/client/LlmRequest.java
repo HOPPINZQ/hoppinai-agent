@@ -33,4 +33,8 @@ public class LlmRequest {
     private int maxTokens;
     /** 采样温度；null 使用服务端默认值 */
     private Double temperature;
+    /** 是否开启扩展思考（Claude thinking / DeepSeek reasoning） */
+    private boolean thinking;
+    /** 扩展思考的 token 预算（仅 Anthropic 协议使用；null 时由 Provider 取默认值） */
+    private Integer thinkingBudgetTokens;
 }
