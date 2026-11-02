@@ -7,7 +7,6 @@ import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,9 +72,9 @@ public class Agent22 extends ZQAgent {
      * 因此在命令处理器外包一层，先按前缀转交能力解析，其余命令回落到内核处理器。
      */
     @Override
-    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
-        AgentCommandHandler base = super.createCommandHandler(sessionManager, skillLoader);
-        return new AgentCommandHandler(sessionManager, skillLoader, multimodal.commands()) {
+    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager) {
+        AgentCommandHandler base = super.createCommandHandler(sessionManager);
+        return new AgentCommandHandler(sessionManager, multimodal.commands()) {
             @Override
             public boolean handleCommand(String input) {
                 if (multimodal.handleImgCommand(input)) {
@@ -109,7 +108,7 @@ public class Agent22 extends ZQAgent {
         System.out.println();
 
         // 本模块无技能体系，SkillLoader 传 null（/skills 命令会提示未启用）
-        agent.setSessionManager(sessionManager, null);
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

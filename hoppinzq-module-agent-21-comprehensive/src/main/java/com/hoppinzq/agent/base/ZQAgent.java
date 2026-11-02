@@ -11,9 +11,7 @@ import com.hoppinzq.agent.client.LlmRequest;
 import com.hoppinzq.agent.client.LlmResponse;
 import com.hoppinzq.agent.command.AgentCommandHandler;
 import com.hoppinzq.agent.session.SessionManager;
-import com.hoppinzq.agent.session.SubAgentSessionResult;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 import lombok.Data;
 
 import java.util.*;
@@ -39,7 +37,7 @@ public class ZQAgent {
     private String taskResult;
     private boolean taskCompleted = false;
     /**
-     * 可选的命令处理器；设置后可处理 /stats、/usage、/skills、/exit 等特殊命令。
+     * 可选的命令处理器；设置后可处理 /stats、/usage、/exit 等内置命令（/skills 等由能力注册）。
      */
     private AgentCommandHandler commandHandler;
 
@@ -80,20 +78,20 @@ public class ZQAgent {
     /**
      * 设置会话管理器，同时初始化命令处理器。
      */
-    public void setSessionManager(SessionManager sessionManager, SkillLoader skillLoader) {
+    public void setSessionManager(SessionManager sessionManager) {
         this.sessionManager = sessionManager;
-        this.commandHandler = sessionManager != null ? createCommandHandler(sessionManager, skillLoader) : null;
+        this.commandHandler = sessionManager != null ? createCommandHandler(sessionManager) : null;
     }
 
     /**
      * 创建命令处理器：内置命令 + 全部能力注册的命令。
      */
-    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager, SkillLoader skillLoader) {
+    protected AgentCommandHandler createCommandHandler(SessionManager sessionManager) {
         List<AgentCommand> commands = new ArrayList<>();
         for (Capability capability : capabilities) {
             commands.addAll(capability.commands());
         }
-        return new AgentCommandHandler(sessionManager, skillLoader, commands);
+        return new AgentCommandHandler(sessionManager, commands);
     }
 
     public void run() {
@@ -352,12 +350,28 @@ public class ZQAgent {
         }
     }
 
+    /**
+     * 环境提示（参考 Python s01 的 ENVIRONMENT_PROMPT）：告知模型当前 shell 环境与工作目录，
+     * 追加在模块系统提示之后——Windows 上不说明 shell 类型，模型会高频输出 ls / rm 等 Unix 命令。
+     */
+    private String environmentPrompt() {
+        boolean windows = System.getProperty("os.name", "").toLowerCase().contains("win");
+        String shellHint = windows
+                ? "bash 工具在 Windows 上通过 cmd.exe 执行：请使用 cmd 语法，而不是 Unix Bash 或 PowerShell 语法"
+                : "bash 工具使用系统 shell（Unix-like）";
+        return "\n\n[运行环境] 工作目录: " + ROOT + "。" + shellHint
+                + " 优先直接行动解决问题（Act, don't explain）。";
+    }
+
     protected LlmResponse chatMessage(List<LlmMessage> messageParams) {
         // 能力钩子先对上下文做手术（如压缩），再发起请求
         List<LlmMessage> effective = dispatchBeforeLlmCall(messageParams);
+        String system = systemPrompt == null
+                ? environmentPrompt().strip()
+                : systemPrompt + environmentPrompt();
         LlmResponse response = provider.complete(LlmRequest.builder()
                 .model(model)
-                .systemPrompt(systemPrompt)
+                .systemPrompt(system)
                 .messages(effective)
                 .tools(tools)
                 .maxTokens(MAX_TOKENS)
@@ -447,15 +461,12 @@ public class ZQAgent {
     }
 
     /**
-     * 执行任务并返回包含 token 使用情况的结果
+     * 执行一次独立任务循环，并把每次 LLM 调用的 token 用量交给回调。
      *
-     * @param prompt 任务提示词
-     * @return 包含结果和 token 使用情况的 SubAgentSessionResult
+     * <p>内核不感知具体调用方（子智能体、定时任务等）：需要聚合统计的上层自行传入回调，
+     * 不需要时用 {@link #runTask(String)} 即可。返回值语义与 runTask 相同。
      */
-    public SubAgentSessionResult runTaskWithTokenUsage(String prompt) {
-        long totalInputTokens = 0;
-        long totalOutputTokens = 0;
-
+    public String runTask(String prompt, java.util.function.Consumer<com.hoppinzq.agent.session.TokenUsage> usageConsumer) {
         messageParams.add(LlmMessage.user(prompt));
 
         while (true) {
@@ -463,29 +474,26 @@ public class ZQAgent {
             try {
                 response = chatMessage(messageParams);
             } catch (Exception e) {
-                return SubAgentSessionResult.error("Error: " + e.getMessage());
+                return "Error: " + e.getMessage();
             }
             LlmMessage message = response.getMessage();
             if (message == null) {
-                return SubAgentSessionResult.error("Error: 响应中没有消息");
+                return "Error: 响应中没有消息";
             }
             messageParams.add(message);
-
-            // 累积 token 使用情况
-            if (response.getUsage() != null) {
-                totalInputTokens += response.getUsage().getInputTokens() != null ? response.getUsage().getInputTokens() : 0;
-                totalOutputTokens += response.getUsage().getOutputTokens() != null ? response.getUsage().getOutputTokens() : 0;
+            if (usageConsumer != null && response.getUsage() != null) {
+                usageConsumer.accept(response.getUsage());
             }
 
             List<LlmMessage> toolResults = new ArrayList<>();
             boolean hasToolUse = false;
 
             if (message.getText() != null && !message.getText().isBlank()) {
-                System.out.printf("\u001b[94m（子）AI\u001b[0m: %s%n", message.getText());
+                System.out.printf("[94m（子）AI[0m: %s%n", message.getText());
             }
             for (LlmMessage.ToolCall call : message.getToolCalls()) {
                 hasToolUse = true;
-                System.out.printf("\u001b[96m（子）工具\u001b[0m: %s(%s)%n", call.getName(), call.getArgumentsJson());
+                System.out.printf("[96m（子）工具[0m: %s(%s)%n", call.getName(), call.getArgumentsJson());
 
                 if ("task_completed".equals(call.getName())) {
                     try {
@@ -494,11 +502,11 @@ public class ZQAgent {
                                         ? "{}" : call.getArgumentsJson());
                         JsonNode res = input.get("result");
                         if (res != null && res.isTextual()) {
-                            return SubAgentSessionResult.success(res.asText(), totalInputTokens, totalOutputTokens);
+                            return res.asText();
                         }
-                        return SubAgentSessionResult.success("Task completed.", totalInputTokens, totalOutputTokens);
+                        return "Task completed.";
                     } catch (Exception e) {
-                        return SubAgentSessionResult.error("Error parsing task_completed: " + e.getMessage());
+                        return "Error parsing task_completed: " + e.getMessage();
                     }
                 }
 
@@ -510,10 +518,10 @@ public class ZQAgent {
                     if (tool.getName().equals(call.getName())) {
                         try {
                             toolResult = invokeTool(tool, call.getArgumentsJson());
-                            System.out.printf("\u001b[92m（子）结果\u001b[0m: %s%n", toolResult);
+                            System.out.printf("[92m（子）结果[0m: %s%n", toolResult);
                         } catch (Exception e) {
                             toolError = e;
-                            System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", e.getMessage());
+                            System.out.printf("[91m（子）错误[0m: %s%n", e.getMessage());
                             e.printStackTrace();
                         }
                         toolFound = true;
@@ -523,7 +531,7 @@ public class ZQAgent {
 
                 if (!toolFound) {
                     toolError = new Exception("工具 '" + call.getName() + "' 没有找到");
-                    System.out.printf("\u001b[91m（子）错误\u001b[0m: %s%n", toolError.getMessage());
+                    System.out.printf("[91m（子）错误[0m: %s%n", toolError.getMessage());
                 }
 
                 toolResults.add(LlmMessage.tool(call.getId(),
@@ -532,10 +540,8 @@ public class ZQAgent {
 
             if (!hasToolUse) {
                 warnIfTruncated(response);
-                return SubAgentSessionResult.success(message.getText() == null ? "" : message.getText(),
-                        totalInputTokens, totalOutputTokens);
+                return message.getText() == null ? "" : message.getText();
             }
-
             messageParams.addAll(toolResults);
         }
     }

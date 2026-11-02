@@ -7,7 +7,6 @@ import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,7 +84,7 @@ public class AgentErrorRecovery extends ZQAgent {
         System.out.println(recovery.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, new SkillLoader());
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

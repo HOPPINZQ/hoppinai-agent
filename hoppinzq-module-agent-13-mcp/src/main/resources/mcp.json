@@ -22,6 +22,13 @@
       "headers": {
         "X-Api-key": "2acac3e650574e3fa69792b8be0e27ab"
       }
+    },
+    "远程sse服务示例": {
+      "type": "sse",
+      "enabled": false,
+      "url": "http://your-host:9002/sse",
+      "headerName": "Authorization",
+      "headerValue": "Bearer xxx"
     }
   }
 }

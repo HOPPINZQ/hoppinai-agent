@@ -6,7 +6,6 @@ import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,7 +41,6 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class AgentSysPrompt extends ZQAgent {
 
     /** 命令处理器需要技能加载器（/skills），须先赋值 */
-    public static SkillLoader skillLoader;
 
     public AgentSysPrompt(LlmProvider provider, String model, List<ToolDefinition> tools) {
         super(provider, model, tools);
@@ -50,7 +48,6 @@ public class AgentSysPrompt extends ZQAgent {
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
-        skillLoader = new SkillLoader();
 
         List<ToolDefinition> baseTools = new ArrayList<>(List.of(
                 BashDefinition, ReadFileDefinition, WriteFileDefinition,
@@ -70,7 +67,7 @@ public class AgentSysPrompt extends ZQAgent {
         System.out.println();
 
         SessionManager sessionManager = SessionManager.bootstrap(args);
-        agent.setSessionManager(sessionManager, skillLoader);
+        agent.setSessionManager(sessionManager);
         agent.run();
     }
 }

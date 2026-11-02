@@ -123,31 +123,79 @@ public class McpConfigLoader {
         long timeoutSeconds = getLong(serverConfig, "timeout", 60);
         builder.timeout(Duration.ofSeconds(timeoutSeconds));
 
-        // 自动判断传输类型
-        if (serverConfig.has("command")) {
-            // STDIO类型（进程通信）
-            builder.transportType(McpSetting.TransportType.STDIO);
-            configureStdio(builder, serverConfig);
-        } else if (serverConfig.has("url")) {
-            // SSE/HTTP类型
-            String url = serverConfig.get("url").asText();
-            if (url.contains("/sse")) {
-                builder.transportType(McpSetting.TransportType.SSE);
-                // URL 已包含 /sse，从 baseUrl 中去掉，避免重复
-                String baseUrl = url.substring(0, url.lastIndexOf("/sse"));
+        // 传输类型：显式 type 字段优先；旧配置（无 type）按 command/url 推断
+        McpSetting.TransportType transportType = resolveTransportType(serverConfig);
+        builder.transportType(transportType);
+
+        switch (transportType) {
+            case STDIO:
+                // 必填 command，解析 args/env
+                configureStdio(builder, serverConfig);
+                break;
+            case SSE:
+                // SSE：客户端会自己拼 /sse，baseUrl 必须把 /sse 去掉，否则变成 /sse/sse
+                String sseUrl = requireUrl(serverConfig);
+                String baseUrl = sseUrl.substring(0, sseUrl.lastIndexOf("/sse"));
                 builder.baseUrl(baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl);
-                builder.sseUrl(url); // 保留原始 URL 用于日志
-            } else {
-                builder.transportType(McpSetting.TransportType.Streamable_HTTP);
-                builder.baseUrl(url);
+                builder.sseUrl(sseUrl);
+                configureHttp(builder, serverConfig);
+                break;
+            case Streamable_HTTP:
+            default:
+                // Streamable HTTP：完整地址原样使用
+                String url = requireUrl(serverConfig);
+                builder.baseUrl(url.endsWith("/") ? url.substring(0, url.length() - 1) : url);
                 builder.sseUrl(url);
-            }
-            configureHttp(builder, serverConfig);
-        } else {
-            throw new IllegalArgumentException("无法确定传输类型：配置中既没有 'command' 也没有 'url' 字段");
+                configureHttp(builder, serverConfig);
+                break;
         }
 
         return builder.build();
+    }
+
+    /**
+     * 解析传输类型。
+     * <p>显式 {@code type} 字段优先（stdio / sse / http / streamable-http，大小写与下划线不敏感）；
+     * 旧配置没有 type 时按 command/url 推断（url 含 /sse 视为 SSE，否则 Streamable HTTP）。
+     */
+    private McpSetting.TransportType resolveTransportType(JsonNode serverConfig) {
+        String declaredType = getText(serverConfig, "type", null);
+        if (declaredType != null && !declaredType.isBlank()) {
+            String normalized = declaredType.trim().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+            switch (normalized) {
+                case "stdio":
+                    return McpSetting.TransportType.STDIO;
+                case "sse":
+                    return McpSetting.TransportType.SSE;
+                case "http":
+                case "streamable-http":
+                case "streamablehttp":
+                    return McpSetting.TransportType.Streamable_HTTP;
+                default:
+                    throw new IllegalArgumentException("不支持的 type 配置：" + declaredType
+                            + "（可选值：stdio / sse / streamable-http）");
+            }
+        }
+        // 兼容旧配置：未写 type 时按 command/url 推断
+        if (serverConfig.has("command")) {
+            return McpSetting.TransportType.STDIO;
+        }
+        if (serverConfig.has("url")) {
+            String url = serverConfig.get("url").asText();
+            return url.contains("/sse")
+                    ? McpSetting.TransportType.SSE
+                    : McpSetting.TransportType.Streamable_HTTP;
+        }
+        throw new IllegalArgumentException("无法确定传输类型：请配置 type 字段，或提供 'command' / 'url'");
+    }
+
+    /** 取必填的 url 字段 */
+    private String requireUrl(JsonNode serverConfig) {
+        JsonNode urlNode = serverConfig.get("url");
+        if (urlNode == null || urlNode.isNull() || urlNode.asText().isBlank()) {
+            throw new IllegalArgumentException("该传输类型要求配置 url 字段");
+        }
+        return urlNode.asText();
     }
 
     /**
@@ -189,15 +237,15 @@ public class McpConfigLoader {
     }
 
     /**
-     * 配置HTTP/SSE传输方式
+     * 配置HTTP/SSE传输方式的请求头与超时。
      *
      * @param builder 构建器
-     * @param configNode 服务器配置节点（包含url、headers等）
+     * @param configNode 服务器配置节点（包含headers / headerName / headerValue / authorization / timeout）
      */
     private void configureHttp(McpSetting.McpSettingBuilder builder, JsonNode configNode) {
-        // baseUrl 和 sseUrl 已在 parseMcpSetting 中设置，这里只处理 headers 和 authorization
+        // baseUrl 和 sseUrl 已在 parseMcpSetting 中设置，这里只处理 headers / 超时
 
-        // 解析headers
+        // 解析headers（任意自定义请求头：X-Api-Key、Cookie 等）
         JsonNode headersNode = configNode.get("headers");
         if (headersNode != null && headersNode.isObject()) {
             Map<String, String> headersMap = objectMapper.convertValue(headersNode, Map.class);
@@ -208,6 +256,9 @@ public class McpConfigLoader {
                 builder.authorization(headersMap.get("Authorization"));
             }
         }
+        // 单请求头便捷写法
+        builder.headerName(getText(configNode, "headerName", null));
+        builder.headerValue(getText(configNode, "headerValue", null));
 
         // 兼容旧的authorization字段
         String authorization = getText(configNode, "authorization", null);

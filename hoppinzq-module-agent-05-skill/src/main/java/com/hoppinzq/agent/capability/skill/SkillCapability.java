@@ -2,7 +2,7 @@ package com.hoppinzq.agent.capability.skill;
 
 import com.hoppinzq.agent.capability.Capability;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
+
 
 import java.util.List;
 import java.util.Map;
@@ -24,15 +24,13 @@ import java.util.Map;
  *       工具定义改为 {@link #tools()} 返回的实例。</li>
  *   <li>原先 {@code Tools.skillLoad} 每次执行都 {@code new SkillLoader()} 重新扫描技能目录；
  *       现在复用能力持有的同一个加载器，避免重复 IO。</li>
- *   <li>{@code /skills} 命令不再由模块自有命令处理器实现：06 权威内核已把 /skills 收编为
- *       {@code AgentCommandHandler} 的内置命令（同名能力命令会被内置命令遮蔽，故此处不重复注册），
- *       能力改为通过 {@link #getLoader()} 把自持的加载器交给装配处注入内核
- *       （{@code agent.setSessionManager(sm, skill.getLoader())}）。</li>
+ *   <li>{@code /skills} 命令随技能能力一起迁移：内核 {@code AgentCommandHandler} 不再持有
+ *       {@code SkillLoader}，{@code /skills} 由本能力的 {@link #commands()} 注册，
+ *       内核命令处理器只认 {@code AgentCommand} 契约。</li>
  * </ul>
  *
- * <p>说明：{@code SkillLoader} 仍在 {@code tool/skill} 包——内核 ZQAgent / AgentCommandHandler
- * 逐字节复刻自 06 权威源，二者静态引用该类，故它必须留在原包；能力包只是引用它。
- * 拔除本目录并删除装配处注册行后，技能工具与提示片段随之消失（内核 /skills 会提示未启用加载器）。
+ * <p>{@code SkillLoader} 与能力同包（capability/skill）：本能力即技能功能的全部，
+ * 内核不再引用任何技能相关类型。拔除本目录并删除装配处注册行后，技能工具、命令与提示片段随之消失。
  *
  * @author hoppinzq
  */
@@ -44,11 +42,6 @@ public class SkillCapability implements Capability {
     @Override
     public String name() {
         return "skill";
-    }
-
-    /** 供装配处把加载器注入内核命令处理器（内置 /skills 命令的数据来源） */
-    public SkillLoader getLoader() {
-        return skillLoader;
     }
 
     // ============================== 工具 ==============================
@@ -78,6 +71,42 @@ public class SkillCapability implements Capability {
         } catch (Exception e) {
             return "加载Skills错误: " + e.getMessage();
         }
+    }
+
+    /** 技能描述清单（"名称: 描述" 每行一条），供模块基础提示沿用旧装配方式 */
+    /** 已加载技能名列表（供模块启动横幅等沿用旧装配方式） */
+    public List<String> getAvailableSkills() {
+        return skillLoader.getAvailableSkills();
+    }
+
+    public String getDescriptions() {
+        return skillLoader.getDescriptions();
+    }
+
+    // ============================== 命令 ==============================
+
+    @Override
+    public List<com.hoppinzq.agent.capability.AgentCommand> commands() {
+        return List.of(new com.hoppinzq.agent.capability.AgentCommand() {
+            @Override
+            public String name() {
+                return "/skills";
+            }
+
+            @Override
+            public String description() {
+                return "查询已加载的技能信息";
+            }
+
+            @Override
+            public void execute() {
+                List<String> available = skillLoader.getAvailableSkills();
+                System.out.println("=== 技能加载智能体 ===");
+                System.out.println("已加载技能数量: " + available.size());
+                System.out.println("可用技能: " + String.join(", ", available));
+                System.out.println();
+            }
+        });
     }
 
     // ============================== 提示词与描述 ==============================

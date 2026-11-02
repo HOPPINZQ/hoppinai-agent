@@ -1,13 +1,14 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.subagent.SubAgentCapability;
+import com.hoppinzq.agent.capability.skill.SkillCapability;
 import com.hoppinzq.agent.capability.hooks.HooksCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,10 +38,9 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class AgentHooks extends ZQAgent {
 
     /**
-     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取该实例，
      * 必须在构建工具列表之前赋值。
      */
-    public static SkillLoader skillLoader;
     public static TodoManager todoManager;
 
     public AgentHooks(LlmProvider provider, String model, List<ToolDefinition> tools) {
@@ -71,30 +71,37 @@ public class AgentHooks extends ZQAgent {
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
-        skillLoader = new SkillLoader();
         todoManager = new TodoManager();
 
         SessionManager sessionManager = SessionManager.bootstrap(args);
 
         List<ToolDefinition> baseTools = new ArrayList<>(List.of(
                 BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
-                GlobDefinition, ContentSearchDefinition, SubAgentDefinition, TodoDefinition,
-                SkillsDefinition));
+                GlobDefinition, ContentSearchDefinition, TodoDefinition));
 
         AgentHooks agent = new AgentHooks(provider, MODEL, baseTools);
+
+        // 子智能体能力：sub_agent 工具（独立上下文执行子任务并回传 token 用量）
+        SubAgentCapability subagent = new SubAgentCapability();
+        agent.capability(subagent);
+
+        // 技能能力：load_skill 工具 + /skills 命令 + 技能描述提示片段
+        SkillCapability skill = new SkillCapability();
+        agent.capability(skill);
 
         // 插拔式集成：复制 capability/hooks/ 目录 + 这一行注册
         HooksCapability hooks = new HooksCapability();
         agent.capability(hooks);
 
-        agent.setSystemPrompt(generateSystemPrompt(ROOT, skillLoader.getDescriptions()) + "\n\n\n"
-                + String.join("\n", hooks.promptFragments()));
+        agent.setSystemPrompt(generateSystemPrompt(ROOT, skill.getDescriptions()) + "\n\n\n"
+                + String.join("\n", hooks.promptFragments())
+                + "\n" + String.join("\n", subagent.promptFragments()));
 
         System.out.println("=== 钩子系统智能体 ===");
         System.out.println(hooks.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, skillLoader);
+        // 技能能力：load_skill 工具 + /skills 命令 + 技能描述提示片段\n        SkillCapability skill = new SkillCapability();\n        agent.capability(skill);\n        agent.setSystemPrompt(((agent.getSystemPrompt() == null) ? "" : agent.getSystemPrompt())\n                + "\n" + String.join("\n", skill.promptFragments()));\n\n        agent.setSessionManager(sessionManager);
         agent.run();
     }
 }

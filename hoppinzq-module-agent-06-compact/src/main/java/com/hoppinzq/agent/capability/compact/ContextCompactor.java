@@ -512,6 +512,16 @@ public class ContextCompactor {
     public List<LlmMessage> microCompact(List<LlmMessage> messages) {
         List<SessionMessage> sms = toSessionMessages(messages);
 
+        // 最近一条 assistant 之后的 tool_result 属于"本轮批次"，整批保留
+        // （上游 b5bd0dd/b6b5f33：按全局倒数计数会把本轮超出 KEEP_RECENT 的结果裁掉，模型丢上下文）
+        int lastAssistantIdx = -1;
+        for (int i = sms.size() - 1; i >= 0; i--) {
+            if ("assistant".equals(sms.get(i).getRole())) {
+                lastAssistantIdx = i;
+                break;
+            }
+        }
+
         // 【阶段1：信息收集】
         List<ToolResultInfo> toolResults = new ArrayList<>();
         // 工具ID -> 工具名称映射，用于生成占位符
@@ -547,31 +557,39 @@ public class ContextCompactor {
             }
         }
 
-        // 【阶段2：判断是否需要压缩】
-        if (toolResults.size() <= KEEP_RECENT) {
+        // 【阶段2：判断是否需要压缩】—— 只统计"本轮批次之外"的旧结果
+        List<ToolResultInfo> olderResults = new ArrayList<>();
+        for (ToolResultInfo info : toolResults) {
+            if (info.msgIdx() <= lastAssistantIdx) {
+                olderResults.add(info);
+            }
+        }
+        if (olderResults.size() <= KEEP_RECENT) {
             return messages;
         }
 
         // 【阶段3：执行压缩】
         List<SessionMessage> newMessages = new ArrayList<>();
-        int totalResults = toolResults.size();
-        // 在此索引之前的工具结果都将被替换为占位符
-        int thresholdIndex = totalResults - KEEP_RECENT;
+        // 在此索引之前的"旧"工具结果都将被替换为占位符；本轮批次整批保留
+        int thresholdIndex = olderResults.size() - KEEP_RECENT;
         int currentResultIndex = 0;
 
         // 【阶段4：重建消息列表】
-        for (SessionMessage msg : sms) {
+        for (int i = 0; i < sms.size(); i++) {
+            SessionMessage msg = sms.get(i);
             if ("user".equals(msg.getRole())) {
                 if (msg.getBlocks() == null) {
                     newMessages.add(msg);
                     continue;
                 }
+                // 本轮批次（最近一条 assistant 之后）完整保留
+                boolean protectedBatch = i > lastAssistantIdx;
                 List<SessionBlock> newBlocks = new ArrayList<>();
                 boolean changed = false;
 
                 for (SessionBlock block : msg.getBlocks()) {
                     if ("tool_result".equals(block.getType())) {
-                        if (currentResultIndex < thresholdIndex) {
+                        if (!protectedBatch && currentResultIndex < thresholdIndex) {
                             // 将旧的工具执行结果替换为简洁的占位符
                             String toolId = block.getToolUseId();
                             String toolName = toolNameMap.getOrDefault(toolId, "unknown");
@@ -583,10 +601,12 @@ public class ContextCompactor {
                                     .build());
                             changed = true;
                         } else {
-                            // 保留最近的工具结果
+                            // 本轮批次与最近 KEEP_RECENT 条旧结果：完整保留
                             newBlocks.add(block);
                         }
-                        currentResultIndex++;
+                        if (!protectedBatch) {
+                            currentResultIndex++;
+                        }
                     } else {
                         // 非工具结果内容（如文本）直接保留
                         newBlocks.add(block);
@@ -696,10 +716,16 @@ public class ContextCompactor {
                 System.err.println("[压缩记录保存失败] " + e.getMessage());
             }
 
-            // 【步骤4】构建压缩后的新消息列表
+            // 【步骤4】构建压缩后的新消息列表；携带当前用户请求（上游 7226f55），
+            // 防止摘要压缩后模型忘记正在进行的任务
             List<LlmMessage> newHistory = new ArrayList<>();
-            newHistory.add(LlmMessage.user("[对话已压缩。完整记录: " + transcriptPath + "]\n\n" + summary));
-            newHistory.add(LlmMessage.assistant("收到。我已从摘要中获取了上下文。继续工作。", null));
+            String activeRequest = latestUserRequest(messages);
+            String header = "[对话已压缩。完整记录: " + transcriptPath + "]";
+            if (activeRequest != null) {
+                header += "\n\n[当前用户请求]\n" + activeRequest;
+            }
+            newHistory.add(LlmMessage.user(header + "\n\n[对话摘要（仅供参考）]\n" + summary));
+            newHistory.add(LlmMessage.assistant("收到。我已从摘要中获取了上下文。继续当前任务。", null));
 
             return newHistory;
 
@@ -740,4 +766,18 @@ public class ContextCompactor {
      * - result: 工具执行结果块
      */
     private static record ToolResultInfo(int msgIdx, int partIdx, SessionBlock result) {}
+
+    /**
+     * 提取最近一条真实用户输入（跳过 tool 结果与 [压缩占位符]）。
+     */
+    private String latestUserRequest(List<LlmMessage> messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            LlmMessage m = messages.get(i);
+            if (m.isUser() && m.getText() != null && !m.getText().isBlank()
+                    && !m.getText().startsWith("[")) {
+                return m.getText();
+            }
+        }
+        return null;
+    }
 }

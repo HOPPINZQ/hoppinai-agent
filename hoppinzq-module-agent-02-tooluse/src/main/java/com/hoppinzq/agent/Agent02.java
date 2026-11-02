@@ -48,7 +48,7 @@ public class Agent02 {
         agent.setSystemPrompt(buildSystemPrompt());
         // 内核 setSessionManager 需要显式给出 SkillLoader（供内置 /skills 命令使用）；
         // 02 没有技能特性，传 null 即可：/skills 会提示“未启用技能加载器”
-        agent.setSessionManager(SessionManager.bootstrap(args), null);
+        agent.setSessionManager(SessionManager.bootstrap(args));
         agent.run();
     }
 

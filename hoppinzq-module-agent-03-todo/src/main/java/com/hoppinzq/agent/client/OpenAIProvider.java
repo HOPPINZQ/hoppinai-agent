@@ -84,8 +84,9 @@ public class OpenAIProvider implements LlmProvider {
         try (StreamResponse<ChatCompletionChunk> stream =
                      client.chat().completions().createStreaming(toParams(request, true))) {
             listener.onStart();
-            // 工具调用分片按 index 累积：id/name 首片到达，arguments 逐片拼接
-            Map<Long, LlmMessage.ToolCall> pendingCalls = new HashMap<>();
+            // 工具调用分片按 index 累积：id/name 首片到达，arguments 逐片拼接。
+            // TreeMap 保证多工具调用按 index 顺序稳定（部分兼容端点的分片到达顺序不保证）
+            Map<Long, LlmMessage.ToolCall> pendingCalls = new java.util.TreeMap<>();
             // 思考链增量累积：流式结束后通过 onThinkingComplete 交付完整思考链
             StringBuilder thinking = new StringBuilder();
             LlmResponse.FinishReason finishReason = LlmResponse.FinishReason.STOP;
@@ -126,9 +127,20 @@ public class OpenAIProvider implements LlmProvider {
             if (thinking.length() > 0) {
                 listener.onThinkingComplete(thinking.toString());
             }
-            pendingCalls.values().stream()
-                    .filter(c -> c.getId() != null && c.getName() != null)
-                    .forEach(c -> listener.onToolUse(c.getId(), c.getName(), c.getArgumentsJson()));
+            // 兼容端点兜底：id 缺失时生成稳定 id（直接过滤会把整次调用静默丢弃，
+            // 且后续 tool 消息必须回传同一个 id）；arguments 为空时补 "{}"
+            pendingCalls.forEach((index, call) -> {
+                if (call.getName() == null || call.getName().isBlank()) {
+                    return;
+                }
+                if (call.getId() == null || call.getId().isBlank()) {
+                    call.setId("call_" + index);
+                }
+                if (call.getArgumentsJson() == null || call.getArgumentsJson().isBlank()) {
+                    call.setArgumentsJson("{}");
+                }
+                listener.onToolUse(call.getId(), call.getName(), call.getArgumentsJson());
+            });
             listener.onComplete(finishReason, usage);
         } catch (Exception e) {
             listener.onError(e);

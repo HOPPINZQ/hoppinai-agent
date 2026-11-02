@@ -82,7 +82,7 @@ public class Agent23 extends ZQAgent {
         System.out.println();
 
         // 本模块无技能体系，SkillLoader 传 null（/skills 命令会提示未启用）
-        agent.setSessionManager(sessionManager, null);
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.subagent.SubAgentCapability;
 import com.hoppinzq.agent.capability.autonomous.AutonomousCapability;
 import com.hoppinzq.agent.capability.cron.CronCapability;
 import com.hoppinzq.agent.capability.protocol.ProtocolCapability;
@@ -12,7 +13,6 @@ import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,10 +38,9 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class AgentAutonomous extends ZQAgent {
 
     /**
-     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取该实例，
      * 必须在构建工具列表之前赋值。
      */
-    public static SkillLoader skillLoader;
     public static TodoManager todoManager;
 
     public AgentAutonomous(LlmProvider provider, String model, List<ToolDefinition> tools) {
@@ -66,7 +65,6 @@ public class AgentAutonomous extends ZQAgent {
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
-        skillLoader = new SkillLoader();
         todoManager = new TodoManager();
 
         SessionManager sessionManager = SessionManager.bootstrap(args);
@@ -76,6 +74,10 @@ public class AgentAutonomous extends ZQAgent {
                 ListFilesDefinition, ContentSearchDefinition));
 
         AgentAutonomous agent = new AgentAutonomous(provider, MODEL, baseTools);
+
+        // 子智能体能力：sub_agent 工具（独立上下文执行子任务并回传 token 用量）
+        SubAgentCapability subagent = new SubAgentCapability();
+        agent.capability(subagent);
 
         // 插拔式集成：复制 capability 目录 + 三行注册
         CronCapability cron = new CronCapability();
@@ -110,7 +112,8 @@ public class AgentAutonomous extends ZQAgent {
         prompt += "\n\n" + String.join("\n", cron.promptFragments());
         prompt += "\n" + String.join("\n", teams.promptFragments());
         prompt += "\n" + String.join("\n", protocol.promptFragments());
-        agent.setSystemPrompt(prompt);
+        agent.setSystemPrompt(prompt
+                + "\n" + String.join("\n", subagent.promptFragments()));
 
         System.out.println("=== 自主智能体 ===");
         System.out.println(cron.description());
@@ -120,7 +123,7 @@ public class AgentAutonomous extends ZQAgent {
         System.out.println(autonomous.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, skillLoader);
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

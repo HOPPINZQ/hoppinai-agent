@@ -1,13 +1,14 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.subagent.SubAgentCapability;
 import com.hoppinzq.agent.capability.compact.CompactCapability;
+import com.hoppinzq.agent.capability.skill.SkillCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,10 +32,9 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent06 extends ZQAgent {
 
     /**
-     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取该实例，
      * 必须在构建工具列表之前赋值。
      */
-    public static SkillLoader skillLoader;
     public static TodoManager todoManager;
 
     public Agent06(LlmProvider provider, String model, List<ToolDefinition> tools) {
@@ -44,7 +44,7 @@ public class Agent06 extends ZQAgent {
     /**
      * 基础系统提示词（不含能力片段；能力通过 promptFragments 贡献自己的部分）。
      */
-    public static String generateSystemPrompt(String root, String skillDescriptions) {
+    public static String generateSystemPrompt(String root) {
         return String.format(
                 "你是一个编程智能体，工作在目录: %s\n\n" +
                 "核心能力：\n" +
@@ -54,18 +54,15 @@ public class Agent06 extends ZQAgent {
                 "工作指南：\n" +
                 "1. 优先使用工具解决任务，而非仅提供建议\n" +
                 "2. 在处理复杂或不熟悉的主题时，使用 load_skill 工具获取专业知识\n" +
-                "3. 使用 todo 工具将大任务分解为小步骤，逐个完成\n\n" +
-                "可用的技能：\n%s",
-                root,
-                skillDescriptions
+                "3. 使用 todo 工具将大任务分解为小步骤，逐个完成",
+                root
         );
     }
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        // 工具定义静态初始化依赖这两个实例，须先创建
-        skillLoader = new SkillLoader();
+        // 工具定义静态初始化依赖该实例，须先创建
         todoManager = new TodoManager();
 
         // 会话启动交互已收拢到 SessionManager.bootstrap
@@ -74,24 +71,34 @@ public class Agent06 extends ZQAgent {
         // 基座工具（不含任何能力工具）
         List<ToolDefinition> baseTools = new ArrayList<>(List.of(
                 BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
-                GlobDefinition, ContentSearchDefinition, SubAgentDefinition, TodoDefinition,
-                SkillsDefinition));
+                GlobDefinition, ContentSearchDefinition, TodoDefinition));
 
         Agent06 agent = new Agent06(provider, MODEL, baseTools);
+
+        // 子智能体能力：sub_agent 工具（独立上下文执行子任务并回传 token 用量）
+        SubAgentCapability subagent = new SubAgentCapability();
+        agent.capability(subagent);
 
         // 插拔式集成：复制 capability/compact/ 目录 + 这一行注册
         CompactCapability compact = new CompactCapability(provider, MODEL, sessionManager);
         agent.capability(compact);
 
+        // 技能能力：load_skill 工具 + /skills 命令 + 技能描述提示片段
+        SkillCapability skill = new SkillCapability();
+        agent.capability(skill);
+
         // 基础提示 + 能力贡献的提示片段
-        agent.setSystemPrompt(generateSystemPrompt(ROOT, skillLoader.getDescriptions())
-                + "\n\n" + String.join("\n", compact.promptFragments()));
+        String prompt = generateSystemPrompt(ROOT);
+        prompt += "\n\n" + String.join("\n", compact.promptFragments());
+        prompt += "\n" + String.join("\n", skill.promptFragments());
+        agent.setSystemPrompt(prompt
+                + "\n" + String.join("\n", subagent.promptFragments()));
 
         System.out.println("=== 上下文压缩智能体 ===");
         System.out.println(compact.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, skillLoader);
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

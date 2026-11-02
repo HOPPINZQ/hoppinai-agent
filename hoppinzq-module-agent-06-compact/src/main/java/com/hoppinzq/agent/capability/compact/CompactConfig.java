@@ -14,6 +14,8 @@ public final class CompactConfig {
     public static final int MAX_MESSAGES = 50;
     // L1 snip_compact: 保留头部消息数
     public static final int KEEP_HEAD = 3;
+    // L1 snip_compact: 压缩目标消息数（触发 MAX_MESSAGES、裁到该值，加迟滞防抖动——上游 b057622）
+    public static final int SNIP_TARGET_MESSAGES = 30;
     // L2 micro_compact: 保留最近的工具结果数
     public static final int KEEP_RECENT = 3;
     // L3 tool_result_budget: 持久化阈值（字节）

@@ -6,7 +6,6 @@ import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -83,7 +82,7 @@ public class AgentMemory extends ZQAgent {
         System.out.println("[memory] 工作目录 " + ROOT + "，已存在 " + memory.fileCount() + " 条记忆");
         System.out.println();
 
-        agent.setSessionManager(sessionManager, new SkillLoader());
+        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

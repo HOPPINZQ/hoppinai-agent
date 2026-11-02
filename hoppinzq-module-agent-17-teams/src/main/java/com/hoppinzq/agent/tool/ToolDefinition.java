@@ -166,27 +166,7 @@ public static ToolDefinition GlobDefinition = new ToolDefinition(
             Tools::searchContent
     );
 
-    public static ToolDefinition SubAgentDefinition = new ToolDefinition(
-            "sub_agent",
-            "将子任务委托给子智能体处理。子智能体拥有读取文件、写入文件、编辑文件和搜索内容等工具能力，专门用于处理具体的文件操作任务。",
-            createInputSchema(
-                    Map.of("prompt", createProperty("string", "给子智能体的任务提示词，详细描述需要完成的任务")),
-                    List.of("prompt")
-            ),
-            SubAgentInput.class,
-            Tools::executeSubAgent
-    );
 
-    public static ToolDefinition SkillsDefinition = new ToolDefinition(
-            "load_skill",
-            "加载指定的技能（工具集合）。可用技能：" + String.join(", ", AgentTeams.skillLoader.getAvailableSkills()),
-            createInputSchema(
-                    Map.of("skill_name", createProperty("string", "要加载的技能名称")),
-                    List.of("skill_name")
-            ),
-            LoadSkillInput.class,
-            Tools::skillLoad
-    );
 
     /**
      * 待办事项工具定义

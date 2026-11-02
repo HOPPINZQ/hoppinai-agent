@@ -49,7 +49,9 @@
         <jackson.version>2.15.2</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
         <okhttp.version>4.12.0</okhttp.version>
-        <mcp.version>0.10.0</mcp.version>
+        <!-- 0.12.1 起核心包内置 JDK 版 SSE / Streamable HTTP 传输（HttpClientSseClientTransport /
+             HttpClientStreamableHttpTransport），零 Spring 依赖；不再需要 mcp-spring-webflux 与 reactor-netty -->
+        <mcp.version>0.12.1</mcp.version>
         <jtokkit.version>1.1.0</jtokkit.version>
         <junit.version>5.10.2</junit.version>
         <surefire.version>3.1.2</surefire.version>
@@ -91,12 +93,6 @@
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp</artifactId>
             <version>${mcp.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.modelcontextprotocol.sdk</groupId>
-            <artifactId>mcp-spring-webflux</artifactId>
-            <version>${mcp.version}</version>
-            <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.knuddels</groupId>

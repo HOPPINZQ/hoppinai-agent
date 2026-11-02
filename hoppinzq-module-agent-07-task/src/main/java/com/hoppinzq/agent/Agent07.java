@@ -1,13 +1,14 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.subagent.SubAgentCapability;
+import com.hoppinzq.agent.capability.skill.SkillCapability;
 import com.hoppinzq.agent.capability.task.TaskCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.manager.TodoManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,10 +32,9 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent07 extends ZQAgent {
 
     /**
-     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取这两个实例，
+     * 工具定义（{@code ToolDefinition} 静态字段）在类初始化时读取该实例，
      * 必须在构建工具列表之前赋值（基座工具能力化是后续工作，本模式暂保留）。
      */
-    public static SkillLoader skillLoader;
     public static TodoManager todoManager;
 
     public Agent07(LlmProvider provider, String model, List<ToolDefinition> tools) {
@@ -81,8 +81,7 @@ public class Agent07 extends ZQAgent {
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
 
-        // 工具定义静态初始化依赖这两个实例，须先创建
-        skillLoader = new SkillLoader();
+        // 工具定义静态初始化依赖该实例，须先创建
         todoManager = new TodoManager();
 
         // 会话启动交互已收拢到 SessionManager.bootstrap
@@ -91,24 +90,32 @@ public class Agent07 extends ZQAgent {
         // 基座工具（不含任何能力工具）
         List<ToolDefinition> baseTools = new ArrayList<>(List.of(
                 BashDefinition, ReadFileDefinition, EditFileDefinition, WriteFileDefinition,
-                GlobDefinition, ContentSearchDefinition, SubAgentDefinition, TodoDefinition,
-                SkillsDefinition));
+                GlobDefinition, ContentSearchDefinition, TodoDefinition));
 
         Agent07 agent = new Agent07(provider, MODEL, baseTools);
+
+        // 子智能体能力：sub_agent 工具（独立上下文执行子任务并回传 token 用量）
+        SubAgentCapability subagent = new SubAgentCapability();
+        agent.capability(subagent);
+
+        // 技能能力：load_skill 工具 + /skills 命令 + 技能描述提示片段
+        SkillCapability skill = new SkillCapability();
+        agent.capability(skill);
 
         // 插拔式集成：复制 capability/task/ 目录 + 这一行注册
         TaskCapability task = new TaskCapability(sessionManager);
         agent.capability(task);
 
         // 基础提示 + 能力贡献的提示片段
-        agent.setSystemPrompt(generateSystemPrompt(ROOT, skillLoader.getDescriptions())
-                + "\n\n" + String.join("\n", task.promptFragments()));
+        agent.setSystemPrompt(generateSystemPrompt(ROOT, skill.getDescriptions())
+                + "\n\n" + String.join("\n", task.promptFragments())
+                + "\n" + String.join("\n", subagent.promptFragments()));
 
         System.out.println("=== 任务系统智能体 ===");
         System.out.println(task.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, skillLoader);
+        // 技能能力：load_skill 工具 + /skills 命令 + 技能描述提示片段\n        SkillCapability skill = new SkillCapability();\n        agent.capability(skill);\n        agent.setSystemPrompt(((agent.getSystemPrompt() == null) ? "" : agent.getSystemPrompt())\n                + "\n" + String.join("\n", skill.promptFragments()));\n\n        agent.setSessionManager(sessionManager);
         try {
             agent.run();
         } catch (Exception e) {

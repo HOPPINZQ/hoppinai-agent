@@ -1,6 +1,7 @@
 package com.hoppinzq.agent;
 
 import com.hoppinzq.agent.base.ZQAgent;
+import com.hoppinzq.agent.capability.skill.SkillCapability;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.command.AgentCommandHandler;
@@ -14,7 +15,6 @@ import com.hoppinzq.agent.tool.mockmcp.MockMcpClient;
 import com.hoppinzq.agent.tool.permission.PermissionChecker;
 import com.hoppinzq.agent.tool.protocol.ProtocolRegistry;
 import com.hoppinzq.agent.tool.recovery.RetryWrapper;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.worktree.WorktreeManager;
 
@@ -73,7 +73,7 @@ public class AgentHarness {
         TaskManager taskManager = new TaskManager();
         WorktreeManager worktreeManager = new WorktreeManager(taskManager);
         MockMcpClient mcpClient = new MockMcpClient();
-        SkillLoader skillLoader = new SkillLoader();
+        SkillCapability skill = new SkillCapability();
         ContextCompactor compactor = new ContextCompactor(provider, MODEL);
         RetryWrapper retryWrapper = new RetryWrapper(provider);
         BackgroundManager backgroundManager = new BackgroundManager();
@@ -143,7 +143,8 @@ public class AgentHarness {
 
         // === 装配 ZQAgent ===
         ZQAgent agent = new ZQAgent(provider, MODEL, tools);
-        agent.setSystemPrompt(buildSystemPrompt(skillLoader));
+        agent.capability(skill);
+        agent.setSystemPrompt(buildSystemPrompt(skill));
         // 权限闸门：本入口预构造 PermissionChecker 供参考；若要启用，把它的 check 嵌入 ZQAgent
         // 的工具执行前（参考 hoppinzq-module-agent-permission 的本地 ZQAgent 副本）。
         // agent.setPermissionChecker(new PermissionChecker(agent.getScanner()));
@@ -152,16 +153,16 @@ public class AgentHarness {
         System.out.println("=== hoppinzq-module-agent-harness（s15 集成宿主）===");
         System.out.println("已装配 " + tools.size() + " 个工具"
                 + "（基础 6 + cron 3 + background 2 + teams 3 + protocol 3 + task 5 + worktree 3 + MCP 5）");
-        System.out.println("可用 skills：" + skillLoader.getAvailableSkills());
+        System.out.println("可用 skills：" + skill.getAvailableSkills());
         System.out.println("可用 mock MCP servers：" + com.hoppinzq.agent.tool.mockmcp.MockMcpServers.names());
         System.out.println("提示：bash_background 发起的命令结束后，结果会在下一轮自动注入对话。");
         agent.run();
         backgroundManager.shutdown();
     }
 
-    private static String buildSystemPrompt(SkillLoader skillLoader) {
+    private static String buildSystemPrompt(SkillCapability skill) {
         String osName = System.getProperty("os.name").toLowerCase();
-        String skills = skillLoader.getDescriptions();
+        String skills = skill.getDescriptions();
         return String.format("""
                 ## 角色
                 你是 hoppinzq-module-agent-comprehensive —— 把 Python 教程 s20 的全部机制塞进同一个 loop 的教学版 agent。

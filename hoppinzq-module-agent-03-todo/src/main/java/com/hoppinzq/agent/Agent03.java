@@ -56,7 +56,7 @@ public class Agent03 extends ZQAgent {
 
         // 内核 setSessionManager 需要显式给出 SkillLoader（供内置 /skills 命令使用）；
         // 03 没有技能特性，传 null 即可
-        agent.setSessionManager(SessionManager.bootstrap(args), null);
+        agent.setSessionManager(SessionManager.bootstrap(args));
         agent.run();
     }
 

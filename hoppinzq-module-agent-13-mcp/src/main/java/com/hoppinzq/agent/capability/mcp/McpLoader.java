@@ -10,22 +10,25 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static com.hoppinzq.agent.constant.AIConstants.OBJECT_MAPPER;
 
 /**
- * MCP工具加载器
+ * MCP工具加载器：把 MCP 服务器暴露的工具转换为协议中立的 {@link ToolDefinition}。
  *
- * 负责从MCP服务器加载工具并转换为Anthropic SDK可用的ToolDefinition格式
- * 支持同步和异步两种MCP客户端类型
- *
- * 核心功能：
- * - 从MCP设置中加载工具列表
- * - 将MCP工具Schema转换为Anthropic工具Schema
- * - 处理工具调用执行逻辑
- * - 统一异常处理和日志记录
+ * <p>协议兼容要点（对应改造指南 3.7 / 3.9）：
+ * <ul>
+ *   <li><b>schema 原样保留</b>：type/properties/required 之外，$defs、additionalProperties 等
+ *       全部保留——Anthropic 能容忍 schema 缺字段，OpenAI 系端点会校验完整 JSON Schema，
+ *       丢了 {@code $ref: "#/$defs/..."} 引用的定义直接 400；{@code "properties": null} 也会被拒</li>
+ *   <li><b>工具名清洗</b>：OpenAI 函数名要求 {@code ^[a-zA-Z0-9_-]{1,64}$}，
+ *       MCP 工具名里的 {@code . / :} 等字符映射为 {@code _}（执行时经闭包回查原名，无需反向表）</li>
+ *   <li><b>双形态入参</b>：兼容 {@code {"tool_name":..., "input":{...}}} 包装与裸参数两种形态，
+ *       否则换协议就调不动</li>
+ *   <li><b>多文本块拼接</b>：工具结果里的多个 TextContent 拼接而不是后一个覆盖前一个</li>
+ *   <li><b>初始化守卫</b>：单个服务建连失败时跳过其工具，不影响其他服务</li>
+ * </ul>
  *
  * @author hoppinzq
  */
@@ -38,18 +41,25 @@ public class McpLoader {
         this.mcpSettings = mcpSettings;
     }
 
+    /** 客户端是否已成功建连 */
+    private boolean isInitialized(McpSetting setting) {
+        return setting.isSync()
+                ? setting.getMcpSyncClient() != null
+                : setting.getMcpAsyncClient() != null;
+    }
 
     /**
      * 加载所有MCP服务器的工具并转换为ToolDefinition列表
-     *
-     * @return ToolDefinition列表
      */
     public List<ToolDefinition> loadTools() {
         List<ToolDefinition> tools = new ArrayList<>();
 
         for (McpSetting setting : mcpSettings) {
-            List<ToolDefinition> mcpTools = loadToolsFromSetting(setting);
-            tools.addAll(mcpTools);
+            if (!isInitialized(setting)) {
+                log.warn("MCP 服务器 [{}] 未初始化成功，跳过工具加载", setting.getName());
+                continue;
+            }
+            tools.addAll(loadToolsFromSetting(setting));
         }
 
         log.info("成功加载 {} 个MCP工具", tools.size());
@@ -58,23 +68,17 @@ public class McpLoader {
 
     /**
      * 从单个MCP设置中加载工具
-     *
-     * @param setting MCP设置
-     * @return ToolDefinition列表
      */
     private List<ToolDefinition> loadToolsFromSetting(McpSetting setting) {
         List<ToolDefinition> tools = new ArrayList<>();
 
         try {
-            // 获取MCP工具列表（同步或异步）
             McpSchema.ListToolsResult mcpTools = setting.isSync()
                     ? setting.getMcpSyncClient().listTools()
                     : setting.getMcpAsyncClient().listTools().block();
 
-            // 转换每个工具
             for (McpSchema.Tool mcpTool : mcpTools.tools()) {
-                ToolDefinition toolDef = convertToToolDefinition(mcpTool, setting);
-                tools.add(toolDef);
+                tools.add(convertToToolDefinition(mcpTool, setting));
             }
 
             log.debug("从MCP服务器 [{}] 加载了 {} 个工具", setting.getName(), tools.size());
@@ -87,109 +91,131 @@ public class McpLoader {
     }
 
     /**
-     * 将MCP工具转换为ToolDefinition
-     * DeepSeek兼容版本: 正确处理required字段位置
-     *
-     * @param mcpTool MCP工具定义
-     * @param setting MCP设置（用于执行时获取客户端）
-     * @return ToolDefinition
+     * 将MCP工具转换为ToolDefinition。
+     * <p>schema 原样序列化并剔除 null 字段；description 缺失时用工具名兜底
+     * （OpenAI / Anthropic 的 function description 都不接受 null）。
      */
     private ToolDefinition convertToToolDefinition(McpSchema.Tool mcpTool, McpSetting setting) {
-        // 转换输入Schema - 只包含properties
-        McpSchema.JsonSchema jsonSchema = mcpTool.inputSchema();
-        ObjectNode propertiesNode = OBJECT_MAPPER.valueToTree(jsonSchema.properties());
-
-        // 获取required列表
-        List<String> requiredList = jsonSchema.required();
-
-        // 创建工具执行函数
-        Function<String, String> executeFunction = createExecuteFunction(setting);
-
-        // 构建协议中立的 InputSchema（JSON Schema：type/properties/required）
-        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
-        schema.put("type", "object");
-        schema.set("properties", propertiesNode);
-
-        // 只有当required不为null且不为空时才添加到InputSchema层级
-        if (requiredList != null && !requiredList.isEmpty()) {
-            schema.set("required", OBJECT_MAPPER.valueToTree(requiredList));
-        }
+        ObjectNode schema = buildInputSchema(mcpTool.inputSchema());
+        // 执行闭包捕获原始工具名：清洗后的名字只用于模型侧分发
+        String realToolName = mcpTool.name();
+        Function<String, String> executeFunction = inputJson -> callTool(setting, realToolName, inputJson);
 
         return ToolDefinition.builder()
-                .name(mcpTool.name())
-                .description(mcpTool.description())
+                .name(sanitizeToolName(mcpTool.name()))
+                .description(mcpTool.description() != null ? mcpTool.description() : mcpTool.name())
                 .inputSchema(schema)
                 .function(executeFunction)
                 .build();
     }
 
     /**
-     * 创建工具执行函数
-     *
-     * @param setting MCP设置
-     * @return 执行函数
+     * OpenAI 函数名限制 {@code ^[a-zA-Z0-9_-]{1,64}$}：
+     * MCP 工具名里的非法字符统一映射为 '_'，超长截断。
+     * 执行时分发靠 ToolDefinition 的名字匹配（清洗后的），真实调用经闭包用原名，无需反向映射。
      */
-    private Function<String, String> createExecuteFunction(McpSetting setting) {
-        return new Function<String, String>() {
-            @Override
-            public String apply(String inputJson) {
-                AtomicReference<String> result = new AtomicReference<>("");
+    static String sanitizeToolName(String name) {
+        String cleaned = name == null ? "unnamed" : name.replaceAll("[^a-zA-Z0-9_-]", "_");
+        return cleaned.length() > 64 ? cleaned.substring(0, 64) : cleaned;
+    }
 
-                try {
-                    // 解析输入参数
-                    JsonNode jsonNode = OBJECT_MAPPER.readTree(inputJson);
-                    String toolName = jsonNode.get("tool_name").asText();
-                    Map<String, Object> arguments = OBJECT_MAPPER.convertValue(
-                            jsonNode.get("input"),
-                            new TypeReference<Map<String, Object>>() {}
-                    );
-
-                    // 调用MCP工具
-                    McpSchema.CallToolResult callResult = setting.isSync()
-                            ? setting.getMcpSyncClient().callTool(
-                                    new McpSchema.CallToolRequest(toolName, arguments))
-                            : setting.getMcpAsyncClient().callTool(
-                                    new McpSchema.CallToolRequest(toolName, arguments))
-                                    .block();
-
-                    // 提取文本内容
-                    if (callResult != null && callResult.content() != null) {
-                        for (McpSchema.Content content : callResult.content()) {
-                            if (content instanceof McpSchema.TextContent) {
-                                result.set(((McpSchema.TextContent) content).text());
-                            }
-                        }
-                    }
-
-                    log.debug("MCP工具 [{}] 执行成功", toolName);
-
-                } catch (Exception e) {
-                    String errorMsg = String.format("执行MCP工具时异常: %s", e.getMessage());
-                    log.error(errorMsg, e);
-                    result.set(errorMsg);
+    /**
+     * 构建协议中立的 InputSchema：完整保留 MCP 返回的 JSON Schema
+     * （type/properties/required/additionalProperties/$defs/definitions），
+     * 仅剔除 null 字段并补齐 type/properties 兜底。
+     */
+    private ObjectNode buildInputSchema(McpSchema.JsonSchema jsonSchema) {
+        ObjectNode schema = OBJECT_MAPPER.createObjectNode();
+        if (jsonSchema != null) {
+            ObjectNode raw = OBJECT_MAPPER.valueToTree(jsonSchema);
+            // 剔除 null 字段，避免 OpenAI 兼容端点对 "properties": null 报 400
+            raw.fields().forEachRemaining(entry -> {
+                if (entry.getValue() != null && !entry.getValue().isNull()) {
+                    schema.set(entry.getKey(), entry.getValue());
                 }
+            });
+        }
+        if (!schema.hasNonNull("type")) {
+            schema.put("type", "object");
+        }
+        if (!schema.has("properties") || !schema.get("properties").isObject()) {
+            schema.set("properties", OBJECT_MAPPER.createObjectNode());
+        }
+        return schema;
+    }
 
-                return result.get();
+    /**
+     * 调用 MCP 工具。兼容两种入参形态：
+     * <ul>
+     *   <li>{@code {"tool_name": "...", "input": {...}}} —— Agent 内核对无类型工具的包装</li>
+     *   <li>{@code {...}} —— 原生 function calling 直接传工具参数</li>
+     * </ul>
+     */
+    private String callTool(McpSetting setting, String realToolName, String inputJson) {
+        try {
+            JsonNode jsonNode = OBJECT_MAPPER.readTree(
+                    inputJson == null || inputJson.isBlank() ? "{}" : inputJson);
+
+            String toolName = realToolName;
+            JsonNode nameNode = jsonNode.get("tool_name");
+            if (nameNode != null && nameNode.isTextual() && !nameNode.asText().isBlank()) {
+                toolName = nameNode.asText();
             }
-        };
+
+            JsonNode inputNode = jsonNode.get("input");
+            Map<String, Object> arguments;
+            if (inputNode != null) {
+                arguments = OBJECT_MAPPER.convertValue(inputNode, new TypeReference<Map<String, Object>>() {});
+            } else {
+                arguments = OBJECT_MAPPER.convertValue(jsonNode, new TypeReference<Map<String, Object>>() {});
+                arguments.remove("tool_name");
+                arguments.remove("input");
+            }
+
+            McpSchema.CallToolResult callResult = setting.isSync()
+                    ? setting.getMcpSyncClient().callTool(new McpSchema.CallToolRequest(toolName, arguments))
+                    : setting.getMcpAsyncClient().callTool(new McpSchema.CallToolRequest(toolName, arguments)).block();
+
+            // 多个文本块拼接，而不是后一个覆盖前一个
+            StringBuilder text = new StringBuilder();
+            if (callResult != null && callResult.content() != null) {
+                for (McpSchema.Content content : callResult.content()) {
+                    if (content instanceof McpSchema.TextContent) {
+                        if (text.length() > 0) {
+                            text.append('\n');
+                        }
+                        text.append(((McpSchema.TextContent) content).text());
+                    }
+                }
+            }
+
+            log.debug("MCP工具 [{}] 执行成功", toolName);
+            return text.toString();
+
+        } catch (Exception e) {
+            String errorMsg = String.format("执行MCP工具时异常: %s", e.getMessage());
+            log.error(errorMsg, e);
+            return errorMsg;
+        }
     }
 
     /**
      * 获取MCP工具描述信息（用于系统提示）
-     *
-     * @return 工具描述字符串
      */
     public String getToolDescriptions() {
         StringBuilder sb = new StringBuilder();
-        sb.append("### 📦 可用的 MCP 工具\n\n");
+        sb.append("### 可用的 MCP 工具\n\n");
 
         for (McpSetting setting : mcpSettings) {
+            if (!isInitialized(setting)) {
+                continue;
+            }
             try {
                 McpSchema.ListToolsResult mcpTools = setting.isSync()
                         ? setting.getMcpSyncClient().listTools()
                         : setting.getMcpAsyncClient().listTools().block();
 
-                sb.append(String.format("#### 🛠️ %s\n", setting.getName()));
+                sb.append(String.format("#### %s\n", setting.getName()));
                 if (setting.getDescription() != null && !setting.getDescription().isBlank()) {
                     sb.append(String.format("*%s*\n\n", setting.getDescription()));
                 } else {
@@ -197,7 +223,7 @@ public class McpLoader {
                 }
 
                 for (McpSchema.Tool tool : mcpTools.tools()) {
-                    sb.append(String.format("**%s**", tool.name()));
+                    sb.append(String.format("**%s**", sanitizeToolName(tool.name())));
                     if (tool.description() != null && !tool.description().isBlank()) {
                         sb.append(String.format(" — %s", tool.description()));
                     }
@@ -231,18 +257,17 @@ public class McpLoader {
 
     /**
      * 获取已加载的MCP服务器信息
-     *
-     * @return 服务器信息字符串
      */
     public String getServerInfo() {
         StringBuilder sb = new StringBuilder();
         sb.append("已连接的MCP服务器:\n\n");
 
         for (McpSetting setting : mcpSettings) {
-            sb.append(String.format("- **%s** (%s)\n", setting.getName(), setting.getDescription()));
-            sb.append(String.format("  - 类型: %s\n", setting.getTransportType()));
-            sb.append(String.format("  - 客户端: %s\n", setting.getClientType()));
-            sb.append(String.format("  - MCP ID: `%s`\n\n", setting.getMcpId()));
+            sb.append(String.format("- **%s** (%s)%n", setting.getName(),
+                    isInitialized(setting) ? "已连接" : "未初始化（启动时失败，已跳过）"));
+            sb.append(String.format("  - 类型: %s%n", setting.getTransportType()));
+            sb.append(String.format("  - 客户端: %s%n", setting.getClientType()));
+            sb.append(String.format("  - MCP ID: `%s`%n%n", setting.getMcpId()));
         }
 
         return sb.toString();

@@ -2,7 +2,7 @@ package com.hoppinzq.agent.capability.subagent;
 
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.capability.Capability;
-import com.hoppinzq.agent.session.SubAgentSessionResult;
+
 import com.hoppinzq.agent.tool.ToolDefinition;
 
 import java.util.List;

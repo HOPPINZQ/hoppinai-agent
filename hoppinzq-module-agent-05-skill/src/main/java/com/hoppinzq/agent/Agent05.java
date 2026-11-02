@@ -73,7 +73,7 @@ public class Agent05 extends ZQAgent {
         System.out.println();
 
         // 能力自持的 SkillLoader 注入内核命令处理器：内置 /skills 命令的数据来源由能力供给
-        agent.setSessionManager(SessionManager.bootstrap(args), skill.getLoader());
+        agent.setSessionManager(SessionManager.bootstrap(args));
         agent.run();
     }
 

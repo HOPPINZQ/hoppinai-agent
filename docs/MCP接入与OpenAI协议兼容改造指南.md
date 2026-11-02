@@ -884,3 +884,28 @@ TOOL get_xxx | ...
 4. **超时**：`timeout` 同时作用于 MCP 请求和（自研 transport 的）HttpClient connect 超时。工具耗时较长时不要设太小。
 5. **会话**：Streamable HTTP 是会话化的，务必保存并回传 `Mcp-Session-Id`；收到 404 时按规范应重新 `initialize`（当前实现未自动重连，可按需补充）。
 6. **服务端主动消息**：自研 transport 暂不支持 GET SSE 流（服务端主动推送、`listChanged` 通知）。如果依赖这些能力，需要在 `connect()` 里补一条 GET 长连接。
+
+---
+
+## 8. 本项目（hoppinai-agent）落地记录
+
+> 2026-10-29 按本文完成 `hoppinzq-module-agent-13-mcp` 改造，与第 6 节清单的差异：
+
+| 决策点 | 本项目的选择 | 原因 |
+|--------|--------------|------|
+| SDK 版本 | 升到 **0.12.1**（仅核心 `mcp` 包） | 本工程是纯 Java 17，不是 Spring Boot——文档"Spring 5.3 不能升 0.12"的障碍只在 `mcp-spring-webflux`（WebClient 传输引用 Spring 6 类）；核心包 0.12.1 的三个传输全部是 JDK 实现，零 Spring 依赖 |
+| Streamable HTTP | 直接用内置 `HttpClientStreamableHttpTransport` | 未采用 3.5 的自研 transport（仅 SDK < 0.11 才需要），`Mcp-Session-Id` 由 SDK 内部处理 |
+| SSE | 改用核心包的 `HttpClientSseClientTransport` | 不再依赖 `mcp-spring-webflux`，从根 pom 移除该依赖与潜在的 Spring 6 / Reactor 3.7 传递依赖 |
+| reactor-netty-http | **不需要** | 同上，WebClient 不再出现在 classpath |
+| 模块结构 | MCP 全部代码在 `capability/mcp/`（McpCapability 能力包 + MCPAgent/McpConfigLoader/McpLoader/McpSetting），通过 `agent.capability(new McpCapability())` 注册 | 能力化架构（见 capability-rollout-guide），复制目录 + 一行注册即可集成到其他模块 |
+
+落地涉及的文件：
+- `pom.xml`（根）：`mcp.version` 0.10.0 → 0.12.1，删除 `mcp-spring-webflux`
+- `capability/mcp/McpSetting.java`：headers / headerName / headerValue / resolveHeaders / `@Builder.Default`
+- `capability/mcp/McpConfigLoader.java`：`type` 解析（stdio / sse / http / streamable-http + 旧配置推断）、SSE 去 `/sse`、Streamable 全地址、超时
+- `capability/mcp/MCPAgent.java`：三路传输 switch、单服务失败隔离、`resolveHeaders()` 注入、异步 `initialize().block()`、`isInitialized` 守卫
+- `capability/mcp/McpLoader.java`：schema 完整保留（含 `$defs`，剔 null）、工具名清洗（OpenAI 函数名限制）、双形态入参、多文本块拼接
+- `client/OpenAIProvider.java`（内核，全模块同步）：流式 tool_call 按 index TreeMap 排序、id 缺失生成稳定 id、arguments 空补 `{}`
+- `resources/mcp.json`：`type` / `url` / `headers` / `timeout` 配置
+
+待验证（需要真实端点）：4.3 端点探测、4.4 最小联调，以及 Streamable HTTP 下 `X-Api-Key` 生效性。

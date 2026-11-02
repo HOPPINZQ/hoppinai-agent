@@ -6,7 +6,6 @@ import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
 import com.hoppinzq.agent.session.SessionManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +27,6 @@ import static com.hoppinzq.agent.tool.ToolDefinition.*;
 public class Agent14 extends ZQAgent {
 
     /** 命令处理器需要技能加载器（/skills），工具定义静态初始化也依赖它，须先赋值 */
-    public static SkillLoader skillLoader;
 
     public Agent14(LlmProvider provider, String model, List<ToolDefinition> tools) {
         super(provider, model, tools);
@@ -36,7 +34,6 @@ public class Agent14 extends ZQAgent {
 
     public static void main(String[] args) {
         LlmProvider provider = LlmProviders.create();
-        skillLoader = new SkillLoader();
 
         SessionManager sessionManager = SessionManager.bootstrap(args);
 
@@ -58,7 +55,7 @@ public class Agent14 extends ZQAgent {
         System.out.println(react.description());
         System.out.println();
 
-        agent.setSessionManager(sessionManager, skillLoader);
+        agent.setSessionManager(sessionManager);
         agent.run();
     }
 }

@@ -3,7 +3,7 @@ package com.hoppinzq.agent.capability.subagent;
 import com.hoppinzq.agent.base.ZQAgent;
 import com.hoppinzq.agent.client.LlmProvider;
 import com.hoppinzq.agent.client.LlmProviders;
-import com.hoppinzq.agent.session.SubAgentSessionResult;
+
 import com.hoppinzq.agent.tool.ToolDefinition;
 
 import lombok.extern.slf4j.Slf4j;
@@ -52,8 +52,14 @@ public class SubAgent {
             // 设置系统提示词，定义子Agent的角色和行为
             subAgent.setSystemPrompt("你是一个子智能体。你已接收一个具体任务，请使用可用的工具（读取文件、写入文件、编辑文件、搜索内容）来完成该任务。任务完成后，请直接返回结果。");
 
-            // 执行任务并获取结果（包含 Token 统计）
-            SubAgentSessionResult result = subAgent.runTaskWithTokenUsage(input.getPrompt());
+            // 执行任务并通过回调聚合 token 用量（内核只提供通用的 runTask(prompt, consumer)，
+            // 不感知"子智能体"这一具体场景）
+            long[] tokens = new long[2];
+            String text = subAgent.runTask(input.getPrompt(), usage -> {
+                if (usage.getInputTokens() != null) tokens[0] += usage.getInputTokens();
+                if (usage.getOutputTokens() != null) tokens[1] += usage.getOutputTokens();
+            });
+            SubAgentSessionResult result = SubAgentSessionResult.success(text, tokens[0], tokens[1]);
 
             if (LOG_ENABLE) {
                 log.info("--- 子Agent结束 ---");

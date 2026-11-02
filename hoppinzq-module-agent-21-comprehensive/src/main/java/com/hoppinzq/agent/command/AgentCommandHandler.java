@@ -2,7 +2,6 @@ package com.hoppinzq.agent.command;
 
 import com.hoppinzq.agent.capability.AgentCommand;
 import com.hoppinzq.agent.session.SessionManager;
-import com.hoppinzq.agent.tool.skill.SkillLoader;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -15,24 +14,21 @@ import java.util.Map;
  * <ul>
  *   <li>{@code /stats} —— 打印当前会话的 token 统计</li>
  *   <li>{@code /usage} —— 打印每次 LLM 调用的 token 明细</li>
- *   <li>{@code /skills} —— 查询已加载的技能信息</li>
  *   <li>{@code /exit} —— 退出程序并打印统计</li>
  * </ul>
- * 其余命令（如 {@code /compact}、{@code /tokens}）由能力通过 {@link AgentCommand}
- * 注册，本类不感知任何具体能力。
+ * 其余命令（如 {@code /compact}、{@code /tokens}、{@code /skills}）由能力通过
+ * {@link AgentCommand} 注册，本类不感知任何具体能力。
  *
  * @author hoppinzq
  */
 public class AgentCommandHandler {
 
     private final SessionManager sessionManager;
-    private final SkillLoader skillLoader;
     /** 能力注册的额外命令，按 name 索引（LinkedHashMap 保持注册顺序） */
     private final Map<String, AgentCommand> extraCommands = new LinkedHashMap<>();
 
-    public AgentCommandHandler(SessionManager sessionManager, SkillLoader skillLoader, List<AgentCommand> extraCommands) {
+    public AgentCommandHandler(SessionManager sessionManager, List<AgentCommand> extraCommands) {
         this.sessionManager = sessionManager;
-        this.skillLoader = skillLoader;
         if (extraCommands != null) {
             for (AgentCommand cmd : extraCommands) {
                 this.extraCommands.put(cmd.name().toLowerCase(), cmd);
@@ -68,9 +64,6 @@ public class AgentCommandHandler {
             case "/usage":
                 handleUsage();
                 return true;
-            case "/skills":
-                handleSkills();
-                return true;
             case "/exit":
                 handleExit();
                 return true;
@@ -88,7 +81,7 @@ public class AgentCommandHandler {
 
     /** 内置命令 + 能力注册命令的清单（用于未知命令提示与启动横幅） */
     public String availableCommands() {
-        StringBuilder sb = new StringBuilder("/stats, /usage, /skills");
+        StringBuilder sb = new StringBuilder("/stats, /usage");
         for (String name : extraCommands.keySet()) {
             sb.append(", ").append(name);
         }
@@ -142,16 +135,4 @@ public class AgentCommandHandler {
         System.exit(0);
     }
 
-    private void handleSkills() {
-        if (skillLoader == null) {
-            System.out.println("\u001b[90m[提示] 本会话未启用技能加载器，无技能信息\u001b[0m");
-            return;
-        }
-
-        List<String> availableSkills = skillLoader.getAvailableSkills();
-        System.out.println("=== 技能加载智能体 ===");
-        System.out.println("已加载技能数量: " + availableSkills.size());
-        System.out.println("可用技能: " + String.join(", ", availableSkills));
-        System.out.println();
-    }
 }

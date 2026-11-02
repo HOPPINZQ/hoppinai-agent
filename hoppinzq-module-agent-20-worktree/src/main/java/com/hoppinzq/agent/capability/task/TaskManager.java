@@ -121,6 +121,12 @@ public class TaskManager {
 
         // 添加阻塞依赖
         if (addBlockedBy != null && !addBlockedBy.isEmpty()) {
+            // 环检测（上游 711249e）：被依赖的任务不能（传递地）依赖本任务，否则互相阻塞
+            for (Integer depId : addBlockedBy) {
+                if (depId != null && dependsOnTask(depId, taskId)) {
+                    return "错误: 任务 #" + depId + " 已（传递）依赖任务 #" + taskId + "，添加该依赖将形成循环";
+                }
+            }
             Set<Integer> uniqueBlockedBy = new HashSet<>(task.getBlockedBy());
             uniqueBlockedBy.addAll(addBlockedBy);
             task.setBlockedBy(new ArrayList<>(uniqueBlockedBy));
@@ -345,5 +351,30 @@ public class TaskManager {
             log.warn("扫描未认领任务失败", e);
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * 判断 fromId 是否（传递地）依赖 toId——用于 updateTask 的循环依赖检测
+     * （上游 711249e：任务 ID 由运行时生成，模型可能无意中建出 A->B->A 的环）。
+     */
+    private boolean dependsOnTask(int fromId, int toId) {
+        java.util.ArrayDeque<Integer> pending = new java.util.ArrayDeque<>();
+        java.util.HashSet<Integer> visited = new java.util.HashSet<>();
+        pending.push(fromId);
+        while (!pending.isEmpty()) {
+            int current = pending.pop();
+            if (current == toId) {
+                return true;
+            }
+            if (!visited.add(current)) {
+                continue;
+            }
+            try {
+                pending.addAll(loadTask(current).getBlockedBy());
+            } catch (Exception ignore) {
+                // 任务不存在等异常按"无依赖"处理
+            }
+        }
+        return false;
     }
 }
