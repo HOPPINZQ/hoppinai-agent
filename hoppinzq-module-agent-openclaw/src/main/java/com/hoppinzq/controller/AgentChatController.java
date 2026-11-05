@@ -16,6 +16,10 @@ import com.hoppinzq.agent.tool.skill.SkillLoader;
 import com.hoppinzq.agent.tool.task.TaskManager;
 import com.hoppinzq.agent.tool.ToolDefinition;
 import com.hoppinzq.agent.tool.Tools;
+import com.hoppinzq.wyymusic.im.WyyImProperties;
+import com.hoppinzq.wyymusic.im.service.WyyImClient;
+import com.hoppinzq.wyymusic.im.service.WyyImService;
+import com.hoppinzq.wyymusic.im.tool.WyyImTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -54,7 +58,8 @@ public class AgentChatController {
     @Autowired
     private ChatMessageService chatMessageService;
 
-    public AgentChatController() {
+    public AgentChatController(WyyImClient wyyImClient, WyyImService wyyImService,
+                               WyyImProperties wyyImProperties) {
         this.provider = LlmProviders.create();
 
         BackgroundManager backgroundManager = new BackgroundManager();
@@ -86,6 +91,9 @@ public class AgentChatController {
         addTools.add(TaskGetDefinition);
         addTools.add(BackgroundRunDefinition);
         addTools.add(CheckBackgroundDefinition);
+
+        // 网易云私信 / 点歌工具
+        addTools.addAll(WyyImTools.create(wyyImClient, wyyImService, wyyImProperties));
 
         this.tools = addTools;
         this.zqAgent.setTools(addTools);
@@ -236,19 +244,33 @@ public class AgentChatController {
                 - 对于复杂任务，使用sub_agent委托处理
                 - 遇到问题时，使用content_search查找相关代码
                 
-                # 技能系统
-                
-                ## 可用技能
-                
-                %s
-                
+                # 网易云私信
+
+%s
+
+# 技能系统
+
+## 可用技能
+
+%s
+
                 ## 技能使用策略
-                
+
                 1. **主动学习**：遇到不熟悉的领域时，主动使用 load_skill 工具获取专业知识
                 2. **何时加载技能**：遇到不熟悉的编程概念、需要遵循特定最佳实践、执行标准化工作流程时
                 3. **技能加载流程**：识别知识缺口 → 使用 load_skill 加载 → 阅读理解 → 应用知识解决问题
-                """.formatted(ROOT, System.getProperty("os.name"), skillLoader.getDescriptions());
+                """.formatted(ROOT, System.getProperty("os.name"), buildWyyToolPrompt(), skillLoader.getDescriptions());
         }
+    }
+
+    private String buildWyyToolPrompt() {
+        StringBuilder sb = new StringBuilder();
+        for (ToolDefinition tool : tools) {
+            if (tool.getName() != null && tool.getName().startsWith("wyy_")) {
+                sb.append("- ").append(tool.getName()).append(": ").append(tool.getDescription()).append("\n");
+            }
+        }
+        return sb.isEmpty() ? "（未启用网易云私信工具）" : sb.toString();
     }
 
     @PostMapping(value = "/runTask")

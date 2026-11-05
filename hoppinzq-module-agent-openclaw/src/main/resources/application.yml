@@ -69,3 +69,39 @@ mybatis-plus:
     jdbc-type-for-null: 'null'
     default-statement-timeout: 60 # 设置默认的 SQL 执行超时时间，单位为秒
 
+################ 网易云私信 AI 机器人 #######################
+wyy:
+  im:
+    # 是否开启私信自动回复
+    enabled: ${WYY_IM_ENABLED:true}
+    # NeteaseCloudMusicApi 服务地址
+    base-url: ${WYY_API_BASE_URL:https://hoppinzq.com:3003/}
+    # 网易云登录 Cookie（必填，建议用环境变量注入，不要提交到仓库）
+    cookie: ${WYY_COOKIE:}
+    # 轮询间隔 / 首次延迟（毫秒）
+    poll-interval-ms: 60000
+    initial-delay-ms: 15000
+    # 单次最多处理多少会话、每个会话最多拉取多少条历史消息
+    max-conversations: 20
+    max-history: 20
+    # 只处理最近 N 分钟内的消息，<=0 表示不限制
+    max-age-minutes: 180
+    # 演练模式：调用 AI 并打印计划，但不真正发送私信
+    dry-run: false
+    # 是否允许 AI 推荐歌曲
+    send-song: true
+    max-reply-length: 300
+    request-timeout-seconds: 20
+    # 跳过的机器人账号 / 昵称关键词
+    bot-user-ids:
+      - 9003
+    bot-nickname-keywords:
+      - 小秘书
+      - 机器人
+      - 客服
+      - 官方
+      - 助手
+      - bot
+    # 自定义 AI 人设；留空使用内置默认提示词
+    system-prompt: ""
+

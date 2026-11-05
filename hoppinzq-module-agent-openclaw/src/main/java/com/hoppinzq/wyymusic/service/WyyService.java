@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 
 public class WyyService {
 
-    public static final String BASE_URL = "http://hoppin.cn:3000/";
+    public static final String BASE_URL = "https://hoppinzq.com:3003/";
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(10);
     private static final ObjectMapper mapper = defaultObjectMapper();
 
@@ -35,13 +35,21 @@ public class WyyService {
     private final ExecutorService executorService;
 
     public WyyService(final String cookie) {
-        this(cookie, DEFAULT_TIMEOUT);
+        this(cookie, BASE_URL, DEFAULT_TIMEOUT);
+    }
+
+    public WyyService(final String cookie, final String baseUrl) {
+        this(cookie, baseUrl, DEFAULT_TIMEOUT);
     }
 
     public WyyService(final String cookie, final Duration timeout) {
+        this(cookie, BASE_URL, timeout);
+    }
+
+    public WyyService(final String cookie, final String baseUrl, final Duration timeout) {
         ObjectMapper mapper = defaultObjectMapper();
         OkHttpClient client = defaultClient(cookie, timeout);
-        Retrofit retrofit = defaultRetrofit(client, mapper);
+        Retrofit retrofit = defaultRetrofit(client, mapper, baseUrl);
 
         this.api = retrofit.create(WyyApi.class);
         this.executorService = client.dispatcher().executorService();
@@ -66,9 +74,13 @@ public class WyyService {
     }
 
     public static WyyApi buildApi(String cookie, Duration timeout) {
+        return buildApi(cookie, BASE_URL, timeout);
+    }
+
+    public static WyyApi buildApi(String cookie, String baseUrl, Duration timeout) {
         ObjectMapper mapper = defaultObjectMapper();
         OkHttpClient client = defaultClient(cookie, timeout);
-        Retrofit retrofit = defaultRetrofit(client, mapper);
+        Retrofit retrofit = defaultRetrofit(client, mapper, baseUrl);
 
         return retrofit.create(WyyApi.class);
     }
@@ -93,8 +105,12 @@ public class WyyService {
     }
 
     public static Retrofit defaultRetrofit(OkHttpClient client, ObjectMapper mapper) {
+        return defaultRetrofit(client, mapper, BASE_URL);
+    }
+
+    public static Retrofit defaultRetrofit(OkHttpClient client, ObjectMapper mapper, String baseUrl) {
         return new Retrofit.Builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(baseUrl)
                 .client(client)
                 .addConverterFactory(JacksonConverterFactory.create(mapper))
                 .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
@@ -157,6 +173,64 @@ public class WyyService {
 
     public ObjectNode dailySignIn() {
         return execute(api.dailySignIn(0));
+    }
+
+    // ============================== 私信 / 点歌（IM） ==============================
+
+    /**
+     * 获取登录账号信息（用于识别"自己"的 uid）
+     */
+    public ObjectNode getUserAccount() {
+        return execute(api.getUserAccount());
+    }
+
+    /**
+     * 获取私信会话列表
+     */
+    public ObjectNode getMsgPrivate(int limit, int offset) {
+        return execute(api.getMsgPrivate(limit, offset, System.currentTimeMillis()));
+    }
+
+    /**
+     * 获取与指定用户的私信内容
+     */
+    public ObjectNode getMsgPrivateHistory(String uid, int limit, Long before) {
+        return execute(api.getMsgPrivateHistory(uid, limit, before, System.currentTimeMillis()));
+    }
+
+    /**
+     * 获取最近联系人
+     */
+    public ObjectNode getRecentContact() {
+        return execute(api.getRecentContact(System.currentTimeMillis()));
+    }
+
+    /**
+     * 发送私信文本
+     */
+    public ObjectNode sendText(String userIds, String msg) {
+        return execute(api.sendText(userIds, msg, System.currentTimeMillis()));
+    }
+
+    /**
+     * 发送私信歌曲
+     */
+    public ObjectNode sendSong(String userIds, String songId, String msg) {
+        return execute(api.sendSong(userIds, songId, msg, System.currentTimeMillis()));
+    }
+
+    /**
+     * 云端搜索（type=1 表示单曲）
+     */
+    public ObjectNode cloudSearch(String keywords, int limit, int offset, int type) {
+        return execute(api.cloudSearch(keywords, limit, offset, type, System.currentTimeMillis()));
+    }
+
+    /**
+     * 获取歌曲播放地址（br 为空时使用服务端默认码率）
+     */
+    public ObjectNode getSongUrl(String id, Long br) {
+        return execute(api.getSongUrl(id, br, System.currentTimeMillis()));
     }
 
     public static void main(String[] args) throws InterruptedException {

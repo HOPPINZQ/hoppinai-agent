@@ -61,6 +61,22 @@ public interface WyyApi {
      */
     @GET("/search/multimatch")
     Single<ObjectNode> searchMultimatch(@Query("keywords") String keywords);
+
+    /**
+     * 云端搜索（结果比 /search 更全，用于私信机器人点歌）
+     * @param keywords 搜索关键词
+     * @param limit 返回数量
+     * @param offset 偏移数量
+     * @param type 搜索类型：1-单曲
+     * @param timestamp 时间戳，防止接口缓存
+     * @return 搜索结果
+     */
+    @GET("/cloudsearch")
+    Single<ObjectNode> cloudSearch(@Query("keywords") String keywords,
+                                   @Query("limit") Integer limit,
+                                   @Query("offset") Integer offset,
+                                   @Query("type") Integer type,
+                                   @Query("timestamp") long timestamp);
     
     /**
      * 登录相关API
@@ -274,6 +290,18 @@ public interface WyyApi {
      */
     @GET("/song/detail")
     Single<ObjectNode> getSongDetail(@Query("ids") String ids);
+
+    /**
+     * 获取音乐播放地址（可用于校验歌曲是否可用）
+     * @param id 歌曲id，多个用逗号隔开
+     * @param br 码率
+     * @param timestamp 时间戳，防止接口缓存
+     * @return 播放地址信息
+     */
+    @GET("/song/url")
+    Single<ObjectNode> getSongUrl(@Query("id") String id,
+                                  @Query("br") Long br,
+                                  @Query("timestamp") long timestamp);
     
     /**
      * 获取歌词
@@ -375,38 +403,61 @@ public interface WyyApi {
     /**
      * 私信相关API
      */
-    
+
     /**
      * 发送私信
      * @param user_ids 用户id列表，多个用逗号隔开
      * @param msg 私信内容
+     * @param timestamp 时间戳，防止接口缓存（服务端对相同 url 有 2 分钟缓存）
      * @return 发送结果
      */
     @GET("/send/text")
-    Single<ObjectNode> sendText(@Query("user_ids") String user_ids, @Query("msg") String msg);
+    Single<ObjectNode> sendText(@Query("user_ids") String user_ids,
+                                @Query("msg") String msg,
+                                @Query("timestamp") long timestamp);
 
+    /**
+     * 发送私信（带歌曲）
+     */
     @GET("/send/song")
-    Single<ObjectNode> sendSong(@Query("user_ids") String user_ids,@Query("id") String id, @Query("msg") String msg);
-
+    Single<ObjectNode> sendSong(@Query("user_ids") String user_ids,
+                                @Query("id") String id,
+                                @Query("msg") String msg,
+                                @Query("timestamp") long timestamp);
 
     /**
-     * 获取私信内容
-     * @param uid 用户id
+     * 获取私信会话列表（通知-私信）
      * @param limit 返回数量
-     * @param before 分页参数
-     * @return 私信内容列表
+     * @param offset 偏移数量，用于分页
+     * @param timestamp 时间戳，防止接口缓存
+     * @return 私信会话列表
      */
     @GET("/msg/private")
-    Single<ObjectNode> getMsgPrivate(@Query("uid") String uid, 
-                                                @Query("limit") Integer limit, 
-                                                @Query("before") Long before);
+    Single<ObjectNode> getMsgPrivate(@Query("limit") Integer limit,
+                                     @Query("offset") Integer offset,
+                                     @Query("timestamp") long timestamp);
 
     /**
-     * 获取所有私信内容
+     * 获取与指定用户的私信内容
+     * @param uid 对方用户id
+     * @param limit 返回数量
+     * @param before 分页参数，取上一页最后一项的 time
+     * @param timestamp 时间戳，防止接口缓存
      * @return 私信内容列表
      */
-    @GET("/msg/private")
-    Single<ObjectNode> getAllMsgPrivate();
+    @GET("/msg/private/history")
+    Single<ObjectNode> getMsgPrivateHistory(@Query("uid") String uid,
+                                            @Query("limit") Integer limit,
+                                            @Query("before") Long before,
+                                            @Query("timestamp") long timestamp);
+
+    /**
+     * 最近联系人
+     * @param timestamp 时间戳，防止接口缓存
+     * @return 最近联系人列表
+     */
+    @GET("/msg/recentcontact")
+    Single<ObjectNode> getRecentContact(@Query("timestamp") long timestamp);
 
     /**
      * 签到
